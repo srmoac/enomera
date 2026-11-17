@@ -16,4 +16,5 @@ body.has-petal-journey{isolation:isolate}
 .journey-petal{position:absolute;top:0;left:0;width:0;height:0;pointer-events:none;transform-origin:0 0;will-change:transform}
 .journey-petal svg{position:absolute;left:-235px;top:-335px;max-width:none;overflow:visible;pointer-events:none}
 .journey-petal g{transform-origin:235px 335px}
+@media(max-width:700px){#nav-links{position:absolute}}
 @media(prefers-reduced-motion:reduce){.journey-petal{will-change:auto}}

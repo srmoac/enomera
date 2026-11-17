@@ -16,8 +16,8 @@ export async function mountPetalJourney(){
   const anchors=new Map();
   const rect=(selector)=>{const el=document.querySelector(selector);if(!el)return null;const r=el.getBoundingClientRect();return {x:r.left,y:r.top+scrollY,w:r.width,h:r.height};};
   function flower(r,opacity=1){return petals.map(()=>({x:r.x+235*r.w/470,y:r.y+335*r.w/470,r:0,s:r.w/470,o:opacity}));}
-  function spread(r,kind){const mobile=dimensions.w<700;const scale=mobile?.34:.70;const offsets={etha:[[-.05,.15,-28],[.87,.06,28],[1.02,.35,-18],[.90,.95,48],[-.02,.87,-38]],ambo:[[.18,.15,-12],[.92,.30,24],[.82,.66,-22],[.32,.97,35],[1.02,.94,-32]],minne:[[.90,.10,8],[.16,.18,-28],[1.02,.48,26],[.22,.94,-22],[.89,.95,32]],open:[[.18,.24,-35],[.84,.13,-15],[.95,.55,32],[.22,.86,-48],[.82,.90,40]],meet:[[.70,.28,-18],[.85,.42,-10],[.76,.60,18],[.83,.78,-15],[.68,.91,25]],continuity:[[.82,.17,0],[.91,.36,12],[.85,.56,22],[.94,.76,32],[.83,.95,42]]}[kind];
-    return offsets.map(([x,y,angle],i)=>({x:r.x+r.w*x,y:r.y+r.h*y,r:angle,s:scale*(i===0?.94:1),o:mobile?.35:.56}));}
+  function spread(r,kind){const mobile=dimensions.w<700;const scale=mobile?.34:.70;const offsets={etha:[[.56,.15,-28],[.87,.06,28],[1.02,.35,-18],[.90,.95,48],[.59,.87,-38]],ambo:[[.18,.15,-12],[.92,.30,24],[.82,.66,-22],[.32,.97,35],[1.02,.94,-32]],minne:[[.90,.10,8],[.55,.18,-28],[1.02,.48,26],[.60,.94,-22],[.89,.95,32]],open:[[.58,.24,-35],[.84,.13,-15],[.95,.55,32],[.62,.86,-48],[.82,.90,40]],meet:[[.70,.28,-18],[.85,.42,-10],[.76,.60,18],[.83,.78,-15],[.68,.91,25]],continuity:[[.82,.17,0],[.91,.36,12],[.85,.56,22],[.94,.76,32],[.83,.95,42]]}[kind];
+    return offsets.map(([x,y,angle],i)=>({x:r.x+r.w*x,y:r.y+r.h*y,r:angle,s:scale*(i===0?.94:1),o:mobile?.24:.48}));}
   function measure(){dimensions={w:innerWidth,h:innerHeight};anchors.clear();for(const key of ['.hero-flower','#etha','#ambo','#minne','.connection','#combinacao','.closing-top','.pilot','.portal-main']){const r=rect(key);if(r)anchors.set(key,r);}if(portal){schedule();return;}
     const h=dimensions.h,hero=anchors.get('.hero-flower'),closing=anchors.get('.closing-top');if(!hero||!closing)return;
     const read=selector=>{const r=anchors.get(selector);return Math.max(0,r.y+Math.min(r.h*.45,h*.55)-h*.5);};
@@ -60,4 +60,5 @@ export async function mountPetalJourney(){
   measure();document.fonts.ready.then(measure);intention();
   return ()=>{cancelAnimationFrame(frame);resize.disconnect();layer.remove();};
 }
+
 
