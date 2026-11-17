@@ -4,3 +4,16 @@
 .service-option{transition:background var(--motion-surface),box-shadow var(--motion-surface),border-color var(--motion-selection),transform var(--motion-response) var(--ease)}.service-option .check{transition:transform var(--motion-selection) var(--ease),opacity var(--motion-selection)}.service-option[aria-pressed=false] .check{transform:rotate(-35deg);opacity:.65}.service-option[aria-pressed=true]{box-shadow:var(--elevation),inset 0 0 32px #ffffff40}.button,button{transition:box-shadow var(--motion-response),background var(--motion-response),transform var(--motion-response) var(--ease)}.button:active,button:active,.is-pressed{transform:translateY(1px)!important;box-shadow:inset 0 2px 8px #202d5020}input,select,textarea{transition:border-color var(--motion-selection),box-shadow var(--motion-selection),background var(--motion-selection)}input:focus,select:focus,textarea:focus{border-color:#5b70b2;box-shadow:0 0 0 5px #aebff03d,inset 0 1px 3px white;background:#fff}*:focus-visible{outline:3px solid #415fa8;outline-offset:5px}dialog[open]{animation:dialog-enter 240ms var(--ease)}@keyframes dialog-enter{from{opacity:.4;transform:scale(.97)}to{opacity:1;transform:scale(1)}}
 @media(max-width:700px){.closing-flower{display:none}.nav nav{display:flex;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(-8px) scale(.97);transform-origin:calc(100% - 32px) 0;transition:opacity 200ms var(--ease),transform 240ms var(--ease-drawer),visibility 240ms}.nav.menu-open nav{opacity:1;visibility:visible;pointer-events:auto;transform:translateY(0) scale(1)}.nav nav>.motion-lens{display:none}.menu-toggle{transition:background 180ms,box-shadow 180ms}.menu-toggle[aria-expanded=true]{background:#aebff060}}
 @media(prefers-reduced-motion:reduce){.petal{transform:none!important}.motion-lens{transition-duration:60ms}.nav nav{transform:none!important}dialog[open]{animation:none}}
+/* One floral cast across the document. Wrappers stay above it; glass samples it. */
+body.has-petal-journey{isolation:isolate}
+.has-petal-journey section{isolation:auto}
+.has-petal-journey .substrate{z-index:0}
+.has-petal-journey .wrap,.has-petal-journey .connection-sticky{z-index:2}
+.has-petal-journey .hero-flower,.has-petal-journey .closing-top>img,.has-petal-journey .portal-flower{visibility:hidden}
+.has-petal-journey .portal-main{z-index:2}
+.has-petal-journey .portal-side{z-index:3}
+.petal-journey{position:fixed;inset:0;overflow:hidden;overflow:clip;pointer-events:none;z-index:1;contain:strict}
+.journey-petal{position:absolute;top:0;left:0;width:0;height:0;pointer-events:none;transform-origin:0 0;will-change:transform}
+.journey-petal svg{position:absolute;left:-235px;top:-335px;max-width:none;overflow:visible;pointer-events:none}
+.journey-petal g{transform-origin:235px 335px}
+@media(prefers-reduced-motion:reduce){.journey-petal{will-change:auto}}
