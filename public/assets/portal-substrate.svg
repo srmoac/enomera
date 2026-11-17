@@ -1,0 +1,27 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="1440" height="1000" viewBox="0 0 1440 1000" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Enomera / substrato azul cont&#195;&#173;nuo" opacity="0.9" clip-path="url(#clip0_0_12)">
+<path id="Vector" d="M0 0H1440V1000H0V0Z" fill="url(#paint0_linear_0_12)"/>
+<path id="Vector_2" d="M1050 960C1480.78 960 1830 677.939 1830 330C1830 -17.9394 1480.78 -300 1050 -300C619.218 -300 270 -17.9394 270 330C270 677.939 619.218 960 1050 960Z" fill="url(#paint1_radial_0_12)"/>
+<path id="Vector_3" d="M280 1550C743.919 1550 1120 1258.99 1120 900C1120 541.015 743.919 250 280 250C-183.919 250 -560 541.015 -560 900C-560 1258.99 -183.919 1550 280 1550Z" fill="url(#paint2_radial_0_12)"/>
+<path id="Vector_4" d="M-200 830C350 950 320 250 910 380C1500 510 1370 1040 1620 680" stroke-width="230" stroke="#B9D2F3" stroke-opacity="0.25"/>
+<path id="Vector_5" d="M-100 990C460 770 780 970 1120 590C1460 210 1490 440 1600 110" stroke-width="2" stroke="white" stroke-opacity="0.65"/>
+</g>
+<defs>
+<linearGradient id="paint0_linear_0_12" x1="0" y1="0" x2="937.012" y2="1349.3" gradientUnits="userSpaceOnUse">
+<stop stop-color="white"/>
+<stop offset="0.42" stop-color="#F0F5FF"/>
+<stop offset="1" stop-color="#E4EDFF"/>
+</linearGradient>
+<radialGradient id="paint1_radial_0_12" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(1050 330) scale(780 630)">
+<stop stop-color="#A9C9F2" stop-opacity="0.8"/>
+<stop offset="1" stop-color="#C7DBF8" stop-opacity="0"/>
+</radialGradient>
+<radialGradient id="paint2_radial_0_12" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(280 900) scale(840 650)">
+<stop stop-color="#C4D0F8" stop-opacity="0.65"/>
+<stop offset="1" stop-color="#E4EBFF" stop-opacity="0"/>
+</radialGradient>
+<clipPath id="clip0_0_12">
+<rect width="1440" height="1000" fill="white"/>
+</clipPath>
+</defs>
+</svg>
