@@ -41,6 +41,7 @@ export async function mountPetalJourney(){
     const idle=!reduced.matches&&!reading&&now<settleUntil&&now-lastIntent>160;
     const remaining=clamp((settleUntil-now)/1800);if(idle){p={...p,r:p.r+Math.sin((now-started)/1400+i*1.8)*.9*remaining,y:p.y+Math.sin((now-started)/1700+i*1.3)*1.5*remaining};}
     if(!portal&&!reduced.matches){const entrance=clamp((now-started-i*45)/1100);const energy=(1-entrance)**3;p={...p,x:p.x+[-3,-20,22,-25,26][i]*energy,y:p.y+[-12,8,5,15,14][i]*energy,r:p.r+[-4,-9,9,-12,12][i]*energy};}
+    if(reduced.matches)p={...p,x:dimensions.w-62,y:scrollY+dimensions.h-38,r:0,s:.19*(p.s<.6?.85:1),o:.30};
     p={...p,y:p.y-scrollY};return p;}
   function tick(now){frame=0;if(hidden||!stops.length&&!portal)return;const dt=Math.min(now-last||16,32);last=now;let moving=false;
     petals.forEach((petal,i)=>{const goal=target(i,now);if(!goal)return;if(!petal.pose)petal.pose={...goal};const p=petal.pose;const rate=reduced.matches?1:1-Math.exp(-dt/(portal?115:85+i*9));for(const key of ['x','y','r','s','o']){const delta=goal[key]-p[key];if(Math.abs(delta)>.015)moving=true;p[key]+=delta*rate;}

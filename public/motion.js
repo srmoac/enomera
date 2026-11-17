@@ -19,8 +19,11 @@ document.addEventListener('click',e=>{const trigger=e.target.closest('[data-serv
 document.addEventListener('pointerdown',e=>{const b=e.target.closest('button,.button');if(b)b.classList.add('is-pressed');}, {passive:true});function release(){document.querySelectorAll('.is-pressed').forEach(b=>b.classList.remove('is-pressed'));}addEventListener('pointerup',release,{passive:true});addEventListener('pointercancel',release,{passive:true});
 // Existing menu owns visibility; this layer adds focus management and reversible motion.
 const toggle=document.querySelector('.menu-toggle'),nav=document.querySelector('#nav-links');let opener=null;
-function menuState(){const open=toggle.getAttribute('aria-expanded')==='true';nav.inert=innerWidth<701&&!open;if(open){opener=document.activeElement;requestAnimationFrame(()=>{if(toggle.getAttribute('aria-expanded')==='true')nav.querySelector('a')?.focus({preventScroll:true});});}else if(opener&&nav.contains(document.activeElement)){toggle.focus({preventScroll:true});opener=null;}}
+function menuState(){const open=toggle.getAttribute('aria-expanded')==='true';toggle.setAttribute('aria-label',open?'Fechar menu':'Abrir menu');nav.inert=innerWidth<701&&!open;if(open){opener=document.activeElement;requestAnimationFrame(()=>{if(toggle.getAttribute('aria-expanded')==='true')nav.querySelector('a')?.focus({preventScroll:true});});}else if(opener&&nav.contains(document.activeElement)){toggle.focus({preventScroll:true});opener=null;}}
 new MutationObserver(menuState).observe(toggle,{attributes:true,attributeFilter:['aria-expanded']});menuState();addEventListener('resize',menuState);
-nav.addEventListener('keydown',e=>{if(innerWidth>700||toggle.getAttribute('aria-expanded')!=='true'||e.key!=='Tab')return;const links=[toggle,...nav.querySelectorAll('a')];const index=links.indexOf(document.activeElement);if(e.shiftKey&&index===0){e.preventDefault();links.at(-1).focus();}else if(!e.shiftKey&&index===links.length-1){e.preventDefault();toggle.focus();}});
+document.addEventListener('keydown',e=>{if(innerWidth>700||toggle.getAttribute('aria-expanded')!=='true'||e.key!=='Tab')return;const links=[toggle,...nav.querySelectorAll('a')];const index=links.indexOf(document.activeElement);if(e.shiftKey&&index===0){e.preventDefault();links.at(-1).focus();}else if(!e.shiftKey&&index===links.length-1){e.preventDefault();toggle.focus();}});
 
+
+
+nav.addEventListener('transitionend',e=>{if(e.propertyName==='transform'&&toggle.getAttribute('aria-expanded')==='true'&&document.activeElement===toggle)nav.querySelector('a')?.focus({preventScroll:true});});
 
