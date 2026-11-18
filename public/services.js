@@ -3,8 +3,8 @@ export const ecosystem = {
   portal: 'https://enomera.vercel.app/portal',
   etha: 'https://etha-enomera.vercel.app/',
   helena: 'https://helenaduartepsi.vercel.app/',
-  minne: 'https://compasso-app-seven.vercel.app/',
-  ambo: null
+  minne: 'https://minne-enomera.vercel.app/',
+  ambo: 'https://ambo-enomera.vercel.app/'
 };
 
 export const services = [

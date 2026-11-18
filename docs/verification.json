@@ -1,0 +1,302 @@
+[
+  {
+    "browser": "chromium",
+    "width": 1440,
+    "label": "no horizontal document overflow",
+    "passed": true
+  },
+  {
+    "browser": "chromium",
+    "width": 1440,
+    "label": "Ambo request can be completed and reversed",
+    "passed": true
+  },
+  {
+    "browser": "chromium",
+    "width": 1440,
+    "label": "all seven commercial combinations",
+    "passed": true
+  },
+  {
+    "browser": "chromium",
+    "width": 1440,
+    "label": "portal navigation, request response, draft persistence and product availability",
+    "passed": true
+  },
+  {
+    "browser": "chromium",
+    "width": 1440,
+    "label": "no runtime errors",
+    "passed": true
+  },
+  {
+    "browser": "chromium",
+    "width": 1440,
+    "label": "reduced motion keeps horizontal narrative readable",
+    "passed": true
+  },
+  {
+    "browser": "chromium",
+    "width": 1024,
+    "label": "no horizontal document overflow",
+    "passed": true
+  },
+  {
+    "browser": "chromium",
+    "width": 1024,
+    "label": "Ambo request can be completed and reversed",
+    "passed": true
+  },
+  {
+    "browser": "chromium",
+    "width": 1024,
+    "label": "all seven commercial combinations",
+    "passed": true
+  },
+  {
+    "browser": "chromium",
+    "width": 1024,
+    "label": "portal navigation, request response, draft persistence and product availability",
+    "passed": true
+  },
+  {
+    "browser": "chromium",
+    "width": 1024,
+    "label": "no runtime errors",
+    "passed": true
+  },
+  {
+    "browser": "chromium",
+    "width": 1024,
+    "label": "reduced motion keeps horizontal narrative readable",
+    "passed": true
+  },
+  {
+    "browser": "chromium",
+    "width": 768,
+    "label": "no horizontal document overflow",
+    "passed": true
+  },
+  {
+    "browser": "chromium",
+    "width": 768,
+    "label": "Ambo request can be completed and reversed",
+    "passed": true
+  },
+  {
+    "browser": "chromium",
+    "width": 768,
+    "label": "all seven commercial combinations",
+    "passed": true
+  },
+  {
+    "browser": "chromium",
+    "width": 768,
+    "label": "portal navigation, request response, draft persistence and product availability",
+    "passed": true
+  },
+  {
+    "browser": "chromium",
+    "width": 768,
+    "label": "no runtime errors",
+    "passed": true
+  },
+  {
+    "browser": "chromium",
+    "width": 768,
+    "label": "reduced motion keeps horizontal narrative readable",
+    "passed": true
+  },
+  {
+    "browser": "chromium",
+    "width": 390,
+    "label": "no horizontal document overflow",
+    "passed": true
+  },
+  {
+    "browser": "chromium",
+    "width": 390,
+    "label": "Ambo request can be completed and reversed",
+    "passed": true
+  },
+  {
+    "browser": "chromium",
+    "width": 390,
+    "label": "all seven commercial combinations",
+    "passed": true
+  },
+  {
+    "browser": "chromium",
+    "width": 390,
+    "label": "mobile menu",
+    "passed": true
+  },
+  {
+    "browser": "chromium",
+    "width": 390,
+    "label": "portal navigation, request response, draft persistence and product availability",
+    "passed": true
+  },
+  {
+    "browser": "chromium",
+    "width": 390,
+    "label": "no runtime errors",
+    "passed": true
+  },
+  {
+    "browser": "chromium",
+    "width": 390,
+    "label": "reduced motion keeps horizontal narrative readable",
+    "passed": true
+  },
+  {
+    "browser": "webkit",
+    "width": 1440,
+    "label": "no horizontal document overflow",
+    "passed": true
+  },
+  {
+    "browser": "webkit",
+    "width": 1440,
+    "label": "Ambo request can be completed and reversed",
+    "passed": true
+  },
+  {
+    "browser": "webkit",
+    "width": 1440,
+    "label": "all seven commercial combinations",
+    "passed": true
+  },
+  {
+    "browser": "webkit",
+    "width": 1440,
+    "label": "portal navigation, request response, draft persistence and product availability",
+    "passed": true
+  },
+  {
+    "browser": "webkit",
+    "width": 1440,
+    "label": "no runtime errors",
+    "passed": true
+  },
+  {
+    "browser": "webkit",
+    "width": 1440,
+    "label": "reduced motion keeps horizontal narrative readable",
+    "passed": true
+  },
+  {
+    "browser": "webkit",
+    "width": 1024,
+    "label": "no horizontal document overflow",
+    "passed": true
+  },
+  {
+    "browser": "webkit",
+    "width": 1024,
+    "label": "Ambo request can be completed and reversed",
+    "passed": true
+  },
+  {
+    "browser": "webkit",
+    "width": 1024,
+    "label": "all seven commercial combinations",
+    "passed": true
+  },
+  {
+    "browser": "webkit",
+    "width": 1024,
+    "label": "portal navigation, request response, draft persistence and product availability",
+    "passed": true
+  },
+  {
+    "browser": "webkit",
+    "width": 1024,
+    "label": "no runtime errors",
+    "passed": true
+  },
+  {
+    "browser": "webkit",
+    "width": 1024,
+    "label": "reduced motion keeps horizontal narrative readable",
+    "passed": true
+  },
+  {
+    "browser": "webkit",
+    "width": 768,
+    "label": "no horizontal document overflow",
+    "passed": true
+  },
+  {
+    "browser": "webkit",
+    "width": 768,
+    "label": "Ambo request can be completed and reversed",
+    "passed": true
+  },
+  {
+    "browser": "webkit",
+    "width": 768,
+    "label": "all seven commercial combinations",
+    "passed": true
+  },
+  {
+    "browser": "webkit",
+    "width": 768,
+    "label": "portal navigation, request response, draft persistence and product availability",
+    "passed": true
+  },
+  {
+    "browser": "webkit",
+    "width": 768,
+    "label": "no runtime errors",
+    "passed": true
+  },
+  {
+    "browser": "webkit",
+    "width": 768,
+    "label": "reduced motion keeps horizontal narrative readable",
+    "passed": true
+  },
+  {
+    "browser": "webkit",
+    "width": 390,
+    "label": "no horizontal document overflow",
+    "passed": true
+  },
+  {
+    "browser": "webkit",
+    "width": 390,
+    "label": "Ambo request can be completed and reversed",
+    "passed": true
+  },
+  {
+    "browser": "webkit",
+    "width": 390,
+    "label": "all seven commercial combinations",
+    "passed": true
+  },
+  {
+    "browser": "webkit",
+    "width": 390,
+    "label": "mobile menu",
+    "passed": true
+  },
+  {
+    "browser": "webkit",
+    "width": 390,
+    "label": "portal navigation, request response, draft persistence and product availability",
+    "passed": true
+  },
+  {
+    "browser": "webkit",
+    "width": 390,
+    "label": "no runtime errors",
+    "passed": true
+  },
+  {
+    "browser": "webkit",
+    "width": 390,
+    "label": "reduced motion keeps horizontal narrative readable",
+    "passed": true
+  }
+]
