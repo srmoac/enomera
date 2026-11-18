@@ -10,8 +10,9 @@
 | Ambo | 445c819 | https://lotus-app-git-codex-ambo-direction-a-marcosvmgs-projects.vercel.app/solicitar/modalidade | Trocar Online/Presencial, interromper, avançar e voltar |
 | Minne | ab7ccb2 | https://compasso-app-git-feat-minne-direction-a-marcosvmgs-projects.vercel.app/agenda/ | Trocar datas, selecionar atendimento, abrir ficha e retornar |
 | Etha | 9f7712c | https://etha-enomera-5675ee3ph-marcosvmgs-projects.vercel.app/#formatos | Formato→briefing→aplicar no painel→prévia→desfazer |
+| Portfólio | 1718bd1 | https://mrsaoc-portfolio-4y2imbicl-marcosvmgs-projects.vercel.app/ | Cases aplicativo, sistema-de-gestao e website; montagem→uso real→retorno |
 
-A revisão do portfólio é acrescentada após sua validação final. Os previews podem exigir a sessão Vercel do proprietário. A proteção não foi desabilitada.
+O preview do portfólio está READY. A matriz de 30 combinações passou; os fluxos Minne/retorno e Etha/aplicar/desfazer passaram em Chromium e WebKit, 390 e1440px. Os seis vídeos foram reproduzidos integralmente a1× pelo chat responsável;85 testes e build passaram. Os previews podem exigir a sessão Vercel do proprietário. A proteção não foi desabilitada.
 
 ## Figma sincronizado
 
@@ -28,6 +29,9 @@ A revisão do portfólio é acrescentada após sua validação final. Os preview
 | Ambo modalidade→revisão | [Vídeo](C:/Users/mrsao/Documents/Codex/ambo-direction-a-evidence/ambo-direcao-a-1280.webm) | [Vídeo](C:/Users/mrsao/Documents/Codex/ambo-direction-a-evidence/ambo-direcao-a-390.webm) |
 | Minne datas→contexto | [Vídeo](C:/Users/mrsao/Documents/Codex/2026-11-14/o-usu-rio-pediu-um-chat/outputs/minne-direction-a/minne-direction-a-desktop.webm) | [Vídeo](C:/Users/mrsao/Documents/Codex/2026-11-14/o-usu-rio-pediu-um-chat/outputs/minne-direction-a/minne-direction-a-mobile.webm) |
 | Etha briefing→prévia | [Vídeo](C:/Users/mrsao/Documents/Codex/etha-direction-a-2026-11-18/qa/direction-a/journey-desktop.webm) | [Vídeo](C:/Users/mrsao/Documents/Codex/etha-direction-a-2026-11-18/qa/direction-a/journey-mobile.webm) |
+| Portfólio montagem Ambo | [Vídeo](C:/Users/mrsao/.codex/visualizations/2026/11/13/01a1d39f-17de-7d01-8d46-95fb1eccf523/direction-a-portfolio/review/direction-a/montage-aplicativo-1440.webm) | [Vídeo](C:/Users/mrsao/.codex/visualizations/2026/11/13/01a1d39f-17de-7d01-8d46-95fb1eccf523/direction-a-portfolio/review/direction-a/montage-aplicativo-390.webm) |
+| Portfólio montagem Minne | [Vídeo](C:/Users/mrsao/.codex/visualizations/2026/11/13/01a1d39f-17de-7d01-8d46-95fb1eccf523/direction-a-portfolio/review/direction-a/montage-sistema-de-gestao-1440.webm) | [Vídeo](C:/Users/mrsao/.codex/visualizations/2026/11/13/01a1d39f-17de-7d01-8d46-95fb1eccf523/direction-a-portfolio/review/direction-a/montage-sistema-de-gestao-390.webm) |
+| Portfólio montagem Etha | [Vídeo](C:/Users/mrsao/.codex/visualizations/2026/11/13/01a1d39f-17de-7d01-8d46-95fb1eccf523/direction-a-portfolio/review/direction-a/montage-website-1440.webm) | [Vídeo](C:/Users/mrsao/.codex/visualizations/2026/11/13/01a1d39f-17de-7d01-8d46-95fb1eccf523/direction-a-portfolio/review/direction-a/montage-website-390.webm) |
 
 Os vídeos desses quatro produtos foram reproduzidos integralmente a1× pelos chats responsáveis, além da inspeção de quadros. Capturam interfaces operadas, sem montagem de capturas estáticas para simular interação. A captura mobile da Enomera usa wheel nativo em viewport emulada; Ambo, Minne e Etha incluem toque emulado. Nenhum teste foi feito em iPhone físico.
 
@@ -43,8 +47,13 @@ Etha: formato várias páginas chegou ao briefing; título editado foi preservad
 
 ## Comparação e limites
 
+Portfólio: na versão publicada, Minne Meu dia→consulta→ficha→retorno restaurou o foco em Abrir ficha do paciente, preservando o capítulo04. Etha painel→editar título→Ver prévia mostrou o texto atualizado dentro do capítulo04. Ambo foi operado no preview publicado: rolagem interna, modalidade e avanço/retorno. Fluxos desktop e mobile passaram em Chromium e WebKit. O enquadramento automático de um teste foi corrigido para operar a rolagem interna durante a transição, sem alterar o núcleo do portfólio.
+
 - [Antes / Direção A dos produtos reais](COMPARISON.md), incluindo as superfícies sob Liquid Glass.
 - [Prancha interativa das amostras Enomera](https://enomera-6mwhh8rpu-marcosvmgs-projects.vercel.app/avaliacao.html), com opção390px e ocultação de assinaturas somente na avaliação.
 - Chromium, WebKit e movimento reduzido foram exercitados; WebKitWindows e toque emulado não equivalem a Safari/iPhone real.
 - Hardware físico, teclado virtual e desempenho de GPU de aparelho modesto permanecem sem validação. Não foi prometido um FPS de telefone com base na máquina de desenvolvimento.
 - Links navegam entre aplicações independentes. Não há sincronização real de pacientes, consultas, autenticação, briefing ou publicação entre produtos. Salvar localmente continua diferente de publicar.
+
+
+

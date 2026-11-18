@@ -34,5 +34,6 @@ Figma Ambo: tokens e51pinturas nos6frames sincronizados pelo orquestrador após 
 
 - iPhone físico, teclado virtual, Safari real e aparelhos de menor desempenho não estão disponíveis. Emulação não substitui hardware; nenhum FPS de telefone foi alegado.
 - Etha9f7712c: revisão cruzada da correção aprovada no preview; aplicação explícita preserva rascunho anterior, prévia e desfazer funcionam em390px.
-- Portfólio: integração e preview em conclusão; revisão cruzada ainda não encerrada.
+- Portfólio1718bd1: preview READY, revisão cruzada dos três casos publicada;85 testes, build,30 verificações Chromium/WebKit e fluxos aplicar/desfazer/retorno passaram. Seis vídeos reproduzidos integralmente a1×.
 - Figma Minne: painel sincronizado pelo orquestrador em13:155, coluna30:54; screenshot visual conferido.
+
