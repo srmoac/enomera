@@ -12,6 +12,7 @@ export function sampleJourney(stops,y,i){
   return stops.at(-1).poses[i];
 }
 export function selectionPose(p,i,selected){
-  const service=['etha','etha','ambo','minne','minne'][i];
+  const service=['minne','etha','ambo',null,null][i];
+  if(!service)return p;
   return selected.includes(service)?p:{...p,x:p.x+(i%2?26:-26),y:p.y+22,r:p.r+(i%2?22:-22),s:p.s*.78,o:p.o*.62};
 }

@@ -34,11 +34,18 @@ export async function mountPetalJourney(){
       continuity:[[.86,.32,0],[.94,.44,10],[.98,.58,16],[.90,.74,22],[.96,.88,26]]
     };
     const offsets=(mobile?mobileOffsets:desktopOffsets)[kind];
-    return offsets.map(([x,y,angle],i)=>({x:r.x+r.w*x,y:r.y+r.h*y,r:angle,s:scale*(i===0?.94:1),o:mobile?.36:.48}));}
+    const poses=offsets.map(([x,y,angle],i)=>({x:r.x+r.w*x,y:r.y+r.h*y,r:angle,s:scale*(i===0?.94:1),o:mobile?.36:.48}));
+    const lead={etha:1,ambo:2,minne:0}[kind];
+    if(lead!==undefined){
+      const destination=rect({etha:'#etha .helena',ambo:'#ambo-demo',minne:'#mini-content'}[kind])||r;
+      poses[lead]={x:destination.x+destination.w*(mobile?.86:.80),y:destination.y+Math.min(destination.h*.42,150),r:{etha:-24,ambo:22,minne:8}[kind],s:mobile?.31:.48,o:.82};
+      for(let i=0;i<5;i++)if(i!==lead)poses[i].o=mobile?.23:.34;
+    }
+    return poses;}
   function measure(){dimensions={w:innerWidth,h:innerHeight};anchors.clear();for(const key of ['.hero-flower','#etha','#etha .demo-wrap','#ambo','#ambo .demo-wrap','#minne','#minne .demo-wrap','.connection','#combinacao','#service-options','.closing-top','.pilot','.portal-main']){const r=rect(key);if(r)anchors.set(key,r);}if(portal){schedule();return;}
     const h=dimensions.h,mobile=dimensions.w<700,hero=anchors.get('.hero-flower'),closing=anchors.get('.closing-top');if(!hero||!closing)return;
     const read=selector=>{const r=anchors.get(selector);return Math.max(0,r.y+Math.min(r.h*.45,h*.55)-h*.5);};
-    stops=[{at:0,poses:flower(hero)}];
+    stops=[{at:0,poses:flower(hero)},{at:180,poses:flower(hero).map((p,i)=>({...p,x:p.x+[-8,-36,38,-12,18][i],y:p.y+[-26,8,14,12,20][i],r:[-3,-10,12,-4,5][i]}))}];
     for(const [sel,kind] of [['#etha','etha'],['#ambo','ambo'],['#minne','minne']]){const demo=anchors.get(sel+' .demo-wrap')||anchors.get(sel),at=read(demo?sel+' .demo-wrap':sel);stops.push({at:Math.max(stops.at(-1).at+1,at-90),poses:spread(demo,kind)},{at:Math.max(stops.at(-1).at+2,at+90),poses:spread(demo,kind)});}
     const connection=anchors.get('.connection'),travel=Math.max(1,connection.h-h);
     for(const [t,kind] of [[0,'open'],[.5,'meet'],[1,'continuity']]){const at=connection.y+travel*t;const zone=mobile?{x:36,y:at+h*.88,w:dimensions.w-64,h:h*.10}:{x:dimensions.w*.54,y:at+h*.84,w:dimensions.w*.42,h:h*.13};stops.push({at,poses:spread(zone,kind)});}

@@ -17,8 +17,8 @@ test('all seven combinations and empty choice have finite independent petal stat
  const selected=['etha','ambo','minne'].filter((_,i)=>mask&(1<<i));
  for(let i=0;i<5;i++){
   const p=selectionPose(a,i,selected);assert.ok(Object.values(p).every(Number.isFinite));
-  const associated=['etha','etha','ambo','minne','minne'][i];
-  if(selected.includes(associated))assert.deepEqual(p,a);else assert.ok(p.s<a.s);
+  const associated=['minne','etha','ambo',null,null][i];
+  if(!associated||selected.includes(associated))assert.deepEqual(p,a);else assert.ok(p.s<a.s);
  }
  }
 });
