@@ -19,9 +19,8 @@
 .connection-track>div:nth-child(3)>span{color:#1E625E}
 .choice-group[aria-label=Modalidade]{position:relative;isolation:isolate;gap:0;flex-wrap:nowrap;padding:4px;border-radius:25px;background:#ECF6FE}
 .choice-group[aria-label=Modalidade] button{position:relative;z-index:1;background:transparent!important;border-color:transparent!important;color:#235D94}
-.choice-highlight{position:absolute;left:0;top:4px;height:44px;width:100px;border-radius:22px;background:#A4CFF6;transform-origin:left center;pointer-events:none;transition:transform var(--normal) var(--ease)}
 .state-confirmed{color:var(--success);background:var(--success-surface);padding:4px 8px;border-radius:9px}
 @media(hover:hover){.product .button:hover{background:var(--focus)}}
-@media(prefers-reduced-motion:reduce){.choice-highlight{transition:none}}
 
 .billing-row{border-left:3px solid var(--petal);padding-left:14px}.billing-row b{color:var(--action)}
+.choice-group[aria-label=Modalidade]>.motion-lens{background:#A4CFF6}.mini-sidebar>.motion-lens{background:#A6DDD8}.minne .mini-sidebar button[aria-pressed=true]{background:transparent!important}

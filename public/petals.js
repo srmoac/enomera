@@ -54,13 +54,13 @@ export async function mountPetalJourney(){
     const endAt=Math.max(stops.at(-1).at+1,closing.y-h*.25);stops.push({at:endAt,poses:flower(end)},{at:Math.max(endAt+1,document.documentElement.scrollHeight-h),poses:flower(end)});
     stops.sort((a,b)=>a.at-b.at);schedule();}
   function selection(){return [...document.querySelectorAll('[data-service][aria-pressed=true]')].map(b=>b.dataset.service);}
-  function target(i,now){let p;
-    if(portal){const mobile=dimensions.w<700;const main=document.querySelector('.portal-main');if(!main)return petals[i].pose;const r=main.getBoundingClientRect(),width=mobile?160:Math.min(400,r.width*.42);const base={x:dimensions.w-width-20,y:Math.max(300,dimensions.h-width*.825-24)+scrollY,w:width,h:width*.825};p=flower(base,.45)[i];const amount=portalRevision%5;p={...p,x:p.x+Math.sin(i*1.7+amount)*8,y:p.y+Math.cos(i+amount)*6,r:Math.sin(i*1.3+amount)*5};
-    }else{p=sampleJourney(stops,scrollY,i);const c=anchors.get('#combinacao'),end=anchors.get('.closing-top');if(c&&end){const weight=clamp((scrollY-(c.y-dimensions.h*.6))/180)*clamp((end.y-dimensions.h*.3-scrollY)/220);const changed=selectionPose(p,i,selection());p=blendPose(p,changed,weight,i);}
-      const pilot=document.querySelector('.pilot');if(pilot?.open&&scrollY>(end?.y||Infinity)-dimensions.h*.6)p={...p,x:p.x+(i%2?6:-6),r:p.r+(i-2)*2};
+  function target(i,now,context){let p;
+    if(portal){const mobile=dimensions.w<700;const main=document.querySelector('.portal-main');if(!main)return petals[i].pose;const r=context.portalRect,width=mobile?160:Math.min(400,r.width*.42);const base={x:dimensions.w-width-20,y:Math.max(300,dimensions.h-width*.825-24)+scrollY,w:width,h:width*.825};p=flower(base,.45)[i];const amount=portalRevision%5;p={...p,x:p.x+Math.sin(i*1.7+amount)*8,y:p.y+Math.cos(i+amount)*6,r:Math.sin(i*1.3+amount)*5};
+    }else{p=sampleJourney(stops,scrollY,i);const c=anchors.get('#combinacao'),end=anchors.get('.closing-top');if(c&&end){const weight=clamp((scrollY-(c.y-dimensions.h*.6))/180)*clamp((end.y-dimensions.h*.3-scrollY)/220);const changed=selectionPose(p,i,context.selected);p=blendPose(p,changed,weight,i);}
+      if(context.pilotOpen&&scrollY>(end?.y||Infinity)-dimensions.h*.6)p={...p,x:p.x+(i%2?6:-6),r:p.r+(i-2)*2};
     }
     if(!p)return null;
-    const reading=document.activeElement?.matches('input,textarea,select')||document.querySelector('dialog[open]');
+    const reading=context.reading;
     // Finite settling gesture: no perpetual animation while reading or offscreen.
     const idle=!reduced.matches&&!reading&&now<settleUntil&&now-lastIntent>160;
     const remaining=clamp((settleUntil-now)/1800);if(idle){p={...p,r:p.r+Math.sin((now-started)/1400+i*1.8)*.9*remaining,y:p.y+Math.sin((now-started)/1700+i*1.3)*1.5*remaining};}
@@ -69,7 +69,8 @@ export async function mountPetalJourney(){
     p={...p,y:p.y-scrollY};return p;}
   const eps={x:.2,y:.2,r:.08,s:.002,o:.003};
   function tick(now){frame=0;if(hidden||!stops.length&&!portal)return;const snap=snapNext||reduced.matches;snapNext=false;if(!snap&&document.activeElement?.matches('input,textarea,select')&&now-lastScroll>48){last=0;return;}const dt=Math.min(now-last||16,32);last=now;let moving=false;
-    petals.forEach((petal,i)=>{const goal=target(i,now);if(!goal)return;if(!petal.pose||snap)petal.pose={...goal};const p=petal.pose;const rate=snap?1:1-Math.exp(-dt/(portal?115:85+i*9));for(const key of ['x','y','r','s','o']){const delta=goal[key]-p[key];if(Math.abs(delta)>eps[key]){moving=true;p[key]+=delta*rate;}else p[key]=goal[key];}
+    const context={selected:selection(),reading:document.activeElement?.matches('input,textarea,select')||document.querySelector('dialog[open]'),pilotOpen:document.querySelector('.pilot')?.open,portalRect:portal?document.querySelector('.portal-main')?.getBoundingClientRect():null};
+    petals.forEach((petal,i)=>{const goal=target(i,now,context);if(!goal)return;if(!petal.pose||snap)petal.pose={...goal};const p=petal.pose;const rate=snap?1:1-Math.exp(-dt/(portal?115:85+i*9));for(const key of ['x','y','r','s','o']){const delta=goal[key]-p[key];if(Math.abs(delta)>eps[key]){moving=true;p[key]+=delta*rate;}else p[key]=goal[key];}
       // Clamp the rendering layer, not the document: decorative overflow never scrolls.
       const visible=p.y>-400&&p.y<dimensions.h+400;petal.outer.style.visibility=visible?'visible':'hidden';petal.outer.style.transform=`translate3d(${p.x}px,${p.y}px,0) scale(${p.s})`;petal.outer.style.opacity=p.o;petal.pivot.style.transform=`rotate(${p.r}deg)`;
     });
