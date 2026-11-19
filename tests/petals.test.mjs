@@ -4,8 +4,10 @@ import {
   blendPose,
   sampleJourney,
   selectionPose,
+  contemplativeWarp,
   sampleOpeningPose,
   sampleFullJourney,
+  sceneProfileAt,
   computeCombinationPose,
   createOwnerState,
   transitionOwner,
@@ -103,28 +105,37 @@ test('full 6-scene choreography crosses full width on mobile & desktop, gives ea
     assert.ok(Math.hypot(openEarly[1].x - open0[1].x, openEarly[1].y - open0[1].y) > 4, 'Lavanda must lead on first gesture');
     assert.equal(openEarly[3].x, open0[3].x, 'Lower petals start later than Lavanda');
 
-    // Scene 2 (Etha): Lavanda (1) sweeps into foreground across the left/center width, then docks behind glass
-    const ethaMidY = (m.openEnd + m.ethaArrive) * .48;
+    // Scene 2 (Etha): Lavanda (1) sweeps deeply in the LEFT THIRD on desktop & across width on mobile!
+    const ethaMidY = (m.openEnd + m.ethaArrive) * .54;
     const ethaMid = sampleFullJourney(ethaMidY, 1, plan);
     const ethaDock = sampleFullJourney(m.ethaArrive, 1, plan);
-    assert.equal(ethaMid.front, true);
+    assert.equal(ethaMid.front, !mobile, 'desktop passes foreground; mobile stays behind headings for full legibility');
     assert.ok(ethaMid.s > plan.poses.hero[1].s, 'Lavanda grows in perspective');
-    assert.ok(ethaMid.x < plan.w * .55, 'Lavanda crosses into left/center of viewport on both desktop & mobile');
+    assert.ok(ethaMid.x < plan.w * .42, `Lavanda must linger in the left region (got x=${Math.round(ethaMid.x)} of ${plan.w})`);
     assert.equal(ethaDock.front, false);
 
-    // Scene 3 (Ambo): Celeste (2) takes foreground in a broad arc and docks behind Ambo glass
+    // Contemplative warp slows visual velocity ~20%+ in the middle while responding briskly at start
+    const startDelta = contemplativeWarp(.10, .26) - contemplativeWarp(0, .26);
+    const midDelta = contemplativeWarp(.55, .26) - contemplativeWarp(.45, .26);
+    assert.ok(midDelta < startDelta * .82, 'mid-traversal must be >=18% slower than initial gesture');
+
+    // Scene profiles distinguish Etha (most contemplative) vs Minne (steadier clinical rest)
+    assert.ok(sceneProfileAt(ethaMidY, m).posTau > sceneProfileAt(m.minneArrive, m).posTau);
+    assert.ok(sceneProfileAt(ethaMidY, m).rotTau > sceneProfileAt(ethaMidY, m).posTau, 'rotation trails center');
+
+    // Scene 3 (Ambo): Celeste (2) takes broad horizontal arc and docks behind Ambo glass
     const amboMidY = (m.ethaLeave + m.amboArrive) * .48;
     const amboMid = sampleFullJourney(amboMidY, 2, plan);
     const amboDock = sampleFullJourney(m.amboArrive, 2, plan);
-    assert.equal(amboMid.front, true);
+    assert.equal(amboMid.front, !mobile);
     assert.ok(amboMid.x < plan.w * .62, 'Celeste sweeps across center/left before docking');
     assert.equal(amboDock.front, false);
 
-    // Scene 4 (Minne): Mineral (0) takes foreground descending vertically and docks atop Minne glass
+    // Scene 4 (Minne): Mineral (0) descends in open S-curve and docks atop Minne glass
     const minneMidY = (m.amboLeave + m.minneArrive) * .46;
     const minneMid = sampleFullJourney(minneMidY, 0, plan);
     const minneDock = sampleFullJourney(m.minneArrive, 0, plan);
-    assert.equal(minneMid.front, true);
+    assert.equal(minneMid.front, !mobile);
     assert.equal(minneDock.front, false);
 
     // Scene 5 (Combinação): active services redistribute dynamically along .summary

@@ -1,6 +1,7 @@
 import {
   clamp,
   sampleFullJourney,
+  sceneProfileAt,
   createOwnerState,
   transitionOwner,
   applyIntentPose,
@@ -16,6 +17,10 @@ export async function mountPetalJourney() {
 
   const ns = 'http://www.w3.org/2000/svg';
   const slots = [];
+  // Per-petal subtle buoyancy personality (distinct phase & drag so they share one water surface without looping in unison)
+  const petalPhase = [0.0, 1.35, 2.7, 4.1, 5.25];
+  const petalDrag = [0.94, 1.06, 1.0, 1.12, 1.08];
+
   const petals = paths.map((path, i) => {
     const slot = document.createElement('div');
     slot.className = 'petal-slot';
@@ -45,7 +50,12 @@ export async function mountPetalJourney() {
     slot.append(outer);
     document.body.append(slot);
     slots.push(slot);
-    return { slot, outer, plane, svg, pose: null, z: 1 };
+    return {
+      slot, outer, plane, svg,
+      pose: null,
+      vel: { x: 0, y: 0, r: 0 },
+      z: 1
+    };
   });
 
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
@@ -54,10 +64,13 @@ export async function mountPetalJourney() {
   document.body.classList.add('has-petal-journey');
 
   let plan = null;
-  let frame = 0, last = 0, started = performance.now(), settleUntil = 0;
+  let frame = 0, last = 0, started = performance.now();
   let portalRevision = 0, hidden = false, snapNext = false;
   let dimensions = { w: innerWidth, h: innerHeight };
-  let lastIntent = performance.now(), lastScroll = 0;
+  let lastIntent = performance.now(), lastScrollTime = 0, prevScrollY = scrollY;
+  // Shared gentle lake-current energy excited by scroll gestures and decaying cleanly over ~1s at rest
+  let currentEnergy = 0; // signed: + scrolling down, - scrolling up
+  let settleEnergy = 0;  // unsigned 0..1 buoyant settling residual after gesture stops
   let owner = createOwnerState(scrollY);
   let lastInputModality = 'pointer';
   let lastGlows = { etha: -1, ambo: -1, minne: -1 };
@@ -104,8 +117,8 @@ export async function mountPetalJourney() {
 
     const heroPoses = flower(hero, 1);
 
-    // --- Scroll marks calibrated to real section geometry & generous reading pauses ---
-    const openEnd = mobile ? 170 : 190;
+    // Keep exact usable scroll distances intact while giving generous contemplative pacing
+    const openEnd = mobile ? 165 : 185;
 
     const ethaArrive = mobile
       ? Math.round(clamp(ethaFrame.y - h * .34, openEnd + 540, Math.max(openEnd + 560, ethaFrame.y - 120)))
@@ -130,19 +143,14 @@ export async function mountPetalJourney() {
     const docMax = Math.max(comboLeave + 260, document.documentElement.scrollHeight - h);
     const closingArrive = Math.round(Math.min(docMax - 40, Math.max(comboLeave + 240, closingTop.y - h * .30)));
 
-    // --- Exact geometric rest poses for each scene ---
     const ethaDock = mobile
       ? { x: ethaFrame.x + 42, y: ethaFrame.y + 82, r: 28, rx: 0, ry: 0, s: .36, o: .93, front: false }
       : { x: ethaFrame.x + 42, y: ethaFrame.y + 92, r: 34, rx: 0, ry: 0, s: .64, o: .93, front: false };
 
     const ethaRest = [
-      // 0: Minne waits calmly upper-right
       { x: mobile ? w * .92 : ethaFrame.x + ethaFrame.w * .88, y: ethaFrame.y + (mobile ? 24 : 36), r: -14, rx: 0, ry: 0, s: mobile ? .28 : .44, o: .26, front: false },
-      // 1: Etha docked precisely behind top-left Liquid Glass corner
       ethaDock,
-      // 2: Ambo poised gently on right flank ready to launch next!
       { x: mobile ? w * .96 : Math.min(w - 40, ethaFrame.x + ethaFrame.w + 26), y: ethaFrame.y + ethaFrame.h * .52, r: 22, rx: 0, ry: 0, s: mobile ? .32 : .50, o: .34, front: false },
-      // 3 & 4: Institutional petals quiet in lower periphery
       { x: mobile ? w * .12 : ethaFrame.x - 40, y: ethaFrame.y + ethaFrame.h * .92, r: -28, rx: 0, ry: 0, s: mobile ? .24 : .40, o: .20, front: false },
       { x: mobile ? w * .92 : ethaFrame.x + ethaFrame.w * .94, y: ethaFrame.y + ethaFrame.h * .94, r: 28, rx: 0, ry: 0, s: mobile ? .24 : .40, o: .20, front: false }
     ];
@@ -152,13 +160,9 @@ export async function mountPetalJourney() {
       : { x: amboDemo.x + 22, y: amboDemo.y + 215, r: -68, rx: 0, ry: 0, s: .58, o: .92, front: false };
 
     const amboRest = [
-      // 0: Minne poised high center-top inside visible horizon ready for vertical descent!
       { x: mobile ? w * .52 : w * .52, y: amboDemo.y + (mobile ? 80 : 185), r: 6, rx: 0, ry: 0, s: mobile ? .32 : .50, o: .36, front: false },
-      // 1: Etha softly recedes above/right
       { x: mobile ? w * .92 : amboDemo.x + amboDemo.w + 48, y: amboDemo.y + 72, r: 24, rx: 0, ry: 0, s: mobile ? .26 : .42, o: .24, front: false },
-      // 2: Ambo docked aligned with Modalidade / CTA glass edge
       amboDock,
-      // 3 & 4: Institutional balance
       { x: mobile ? w * .10 : amboDemo.x - 70, y: amboDemo.y + amboDemo.h * .90, r: -24, rx: 0, ry: 0, s: mobile ? .24 : .38, o: .20, front: false },
       { x: mobile ? w * .92 : amboDemo.x + amboDemo.w + 44, y: amboDemo.y + amboDemo.h * .90, r: 26, rx: 0, ry: 0, s: mobile ? .24 : .38, o: .20, front: false }
     ];
@@ -168,18 +172,13 @@ export async function mountPetalJourney() {
       : { x: minneDemo.x + minneDemo.w * .45, y: minneDemo.y + 54, r: 4, rx: 0, ry: 0, s: .56, o: .92, front: false };
 
     const minneRest = [
-      // 0: Minne docked atop agenda -> detail panel seam
       minneDock,
-      // 1: Etha quiet left-lower periphery
       { x: mobile ? w * .08 : minneDemo.x - 42, y: minneDemo.y + minneDemo.h * .76, r: -22, rx: 0, ry: 0, s: mobile ? .26 : .40, o: .24, front: false },
-      // 2: Ambo quiet right periphery
       { x: mobile ? w * .94 : minneDemo.x + minneDemo.w + 26, y: minneDemo.y + minneDemo.h * .52, r: 22, rx: 0, ry: 0, s: mobile ? .26 : .42, o: .26, front: false },
-      // 3 & 4: Institutional
       { x: mobile ? w * .12 : minneDemo.x + 40, y: minneDemo.y + minneDemo.h * .96, r: -20, rx: 0, ry: 0, s: mobile ? .22 : .36, o: .20, front: false },
       { x: mobile ? w * .90 : minneDemo.x + minneDemo.w * .90, y: minneDemo.y + minneDemo.h * .96, r: 24, rx: 0, ry: 0, s: mobile ? .22 : .36, o: .20, front: false }
     ];
 
-    // Connection horizontal relay poses (Etha -> Ambo -> Minne)
     const connY1 = connection.y + h * .46;
     const connY2 = connection.y + (connection.h - h) * .5 + h * .46;
     const connY3 = connection.y + Math.max(1, connection.h - h) + h * .46;
@@ -207,7 +206,6 @@ export async function mountPetalJourney() {
       { x: summaryRect.x + summaryRect.w * .86, y: summaryRect.y + summaryRect.h - 24, r: 18, rx: 0, ry: 0, s: mobile ? .28 : .46, o: .36, front: false }
     ];
 
-    // Closing flower: full recognizable 5-petal Enomera symbol on BOTH desktop AND mobile!
     const closeW = mobile ? 148 : Math.min(400, closingTop.w * .30);
     const closeH = closeW * (388 / 470);
     const closeBox = mobile
@@ -271,7 +269,7 @@ export async function mountPetalJourney() {
     return [...document.querySelectorAll('button[data-service][aria-pressed=true]')].map(b => b.dataset.service);
   }
 
-  function target(i, now, context) {
+  function target(i, now, context, profile) {
     const y = context.scrollY;
 
     if (portal) {
@@ -290,7 +288,7 @@ export async function mountPetalJourney() {
 
     if (!plan) return null;
 
-    // Reduced motion: static whole flower at hero & closing, static docked service petals at each product.
+    // Reduced motion: stable service positions, zero sweeping/3D, brief calm placement.
     if (reduced.matches) {
       const m = plan.marks;
       let p;
@@ -309,7 +307,6 @@ export async function mountPetalJourney() {
       p = { ...p, x: p.x + (i % 2 ? 7 : -7), r: p.r + (i - 2) * 2.2 };
     }
 
-    // Expire transient service pulse smoothly after its short local nod.
     if (owner.mode === 'intent' && owner.expiresAt && now >= owner.expiresAt) {
       owner = createOwnerState(y);
     }
@@ -318,20 +315,27 @@ export async function mountPetalJourney() {
       p = applyIntentPose(p, i, owner, plan, y);
     }
 
-    // Gentle finite settling breath that stops completely during reading/typing.
-    const idle = !context.reading && now < settleUntil && now - lastIntent > 180;
-    const remaining = clamp((settleUntil - now) / 1600);
-    if (idle) {
+    // Scale 2 & 3: Buoyant residual lake-surface drift (~1s settling after stopping, dissipating cleanly to zero).
+    // Each petal inhabits the same gentle surface with distinct phase/amplitude — never a synchronized loop.
+    if (!context.reading && settleEnergy > .004 && y > 10) {
+      const elapsed = (now - lastScrollTime) / 1000;
+      const phase = petalPhase[i];
+      const amp = settleEnergy * profile.driftScale * (plan.mobile ? .55 : 1);
+      // Residual gentle arc: small lateral glide + soft rotational settle that dissipates smoothly
+      const driftX = (Math.sin(elapsed * 2.1 + phase) * 7.5 + profile.currentDir * currentEnergy * 11) * amp;
+      const driftY = (Math.cos(elapsed * 1.65 + phase * 1.2) * 4.2 + currentEnergy * 5.5) * amp;
+      const driftR = (Math.sin(elapsed * 1.85 + phase - .55) * 3.8 + currentEnergy * 4.2) * amp;
       p = {
         ...p,
-        r: p.r + Math.sin((now - started) / 1400 + i * 1.8) * .7 * remaining,
-        y: p.y + Math.sin((now - started) / 1700 + i * 1.3) * 1.1 * remaining
+        x: p.x + driftX,
+        y: p.y + driftY,
+        r: p.r + driftR
       };
     }
 
-    // Initial load blossom settle at y = 0.
-    if (y < 16 && now - started < 1150) {
-      const entrance = clamp((now - started - i * 45) / 980);
+    // Initial load serene blossom settle at y = 0.
+    if (y < 16 && now - started < 1200) {
+      const entrance = clamp((now - started - i * 48) / 1020);
       const energy = (1 - entrance) ** 3;
       p = {
         ...p,
@@ -381,14 +385,14 @@ export async function mountPetalJourney() {
     }
   }
 
-  const eps = { x: .18, y: .18, r: .06, rx: .08, ry: .08, s: .0018, o: .003 };
+  const eps = { x: .14, y: .14, r: .05, rx: .06, ry: .06, s: .0014, o: .003 };
 
   function tick(now) {
     frame = 0;
     if (hidden || (!plan && !portal)) return;
     const snap = snapNext || reduced.matches;
     snapNext = false;
-    if (!snap && document.activeElement?.matches('input,textarea,select') && now - lastScroll > 48) {
+    if (!snap && document.activeElement?.matches('input,textarea,select') && now - lastScrollTime > 48) {
       last = 0;
       return;
     }
@@ -411,26 +415,68 @@ export async function mountPetalJourney() {
     const amboGlow = document.querySelector('#ambo-demo .ambo-dock-glow');
     const minneGlow = document.querySelector('#minne-demo .minne-dock-glow');
 
-    const goals = petals.map((_, i) => target(i, now, context));
+    const profile = plan ? sceneProfileAt(y, plan.marks) : { name: 'portal', driftScale: .4, posTau: 120, rotTau: 170, currentDir: 1 };
+
+    // Exponential decay of lake-current energy (~1.0s smooth buoyant settling when user stops)
+    if (snap || context.reading) {
+      currentEnergy = 0;
+      settleEnergy = 0;
+    } else {
+      currentEnergy *= Math.exp(-dt / 320);
+      if (Math.abs(currentEnergy) < .002) currentEnergy = 0;
+      // Settle energy decays over ~1.0-1.15s (tau ~ 420ms -> <8% at 1.05s)
+      const settleTau = profile.name === 'minne' ? 300 : profile.name === 'etha' ? 460 : 390;
+      settleEnergy *= Math.exp(-dt / settleTau);
+      if (settleEnergy < .004) settleEnergy = 0;
+    }
+
+    const goals = petals.map((_, i) => target(i, now, context, profile));
 
     petals.forEach((petal, i) => {
       const goal = goals[i];
       if (!goal) return;
       if (!petal.pose || snap) {
         petal.pose = { x: goal.x, y: goal.y, r: goal.r, rx: goal.rx, ry: goal.ry, s: goal.s, o: goal.o };
+        petal.vel = { x: 0, y: 0, r: 0 };
       }
       const p = petal.pose;
-      // Active foreground protagonist responds crisply; companion & resting petals settle smoothly.
-      const tau = portal ? 110 : (goal.front ? 66 : 86 + i * 6);
-      const rate = snap ? 1 : 1 - Math.exp(-dt / tau);
+      const v = petal.vel;
 
-      for (const key of ['x', 'y', 'r', 'rx', 'ry', 's', 'o']) {
+      // Buoyant two-tier damping:
+      // - Center (x, y) follows the water current smoothly (posTau)
+      // - Orientation (r, rx, ry) trails slightly behind (rotTau ~ 1.45x posTau) + gentle velocity-coupled yaw torque!
+      //   so when changing direction, the center enters the new curve first and the tip finishes turning right after.
+      const basePosTau = portal ? 115 : profile.posTau * petalDrag[i];
+      const baseRotTau = portal ? 160 : profile.rotTau * petalDrag[i];
+      const posRate = snap ? 1 : 1 - Math.exp(-dt / basePosTau);
+      const rotRate = snap ? 1 : 1 - Math.exp(-dt / baseRotTau);
+
+      const prevX = p.x, prevY = p.y;
+      for (const key of ['x', 'y', 's', 'o']) {
         const delta = goal[key] - p[key];
         if (Math.abs(delta) > eps[key]) {
           moving = true;
-          p[key] += delta * rate;
+          p[key] += delta * posRate;
         } else {
           p[key] = goal[key];
+        }
+      }
+
+      // Compute instantaneous visual velocity for secondary rotational weight
+      const vx = (p.x - prevX) / Math.max(dt, 8);
+      const vy = (p.y - prevY) / Math.max(dt, 8);
+      v.x = v.x * .72 + vx * .28;
+      v.y = v.y * .72 + vy * .28;
+      const yawTorque = snap ? 0 : clamp(v.x * 11 - v.y * 5, -13, 13) * profile.driftScale;
+
+      const rotGoals = { r: goal.r + yawTorque, rx: goal.rx, ry: goal.ry };
+      for (const key of ['r', 'rx', 'ry']) {
+        const delta = rotGoals[key] - p[key];
+        if (Math.abs(delta) > eps[key]) {
+          moving = true;
+          p[key] += delta * rotRate;
+        } else {
+          p[key] = rotGoals[key];
         }
       }
 
@@ -455,7 +501,7 @@ export async function mountPetalJourney() {
       syncDockGlow('minne', 0, y, minneGlow, null);
     }
 
-    if (moving || (!reduced.matches && (now - started < 1200 || now < settleUntil || (owner.expiresAt && now < owner.expiresAt)))) {
+    if (moving || (!reduced.matches && (now - started < 1250 || settleEnergy > .004 || (owner.expiresAt && now < owner.expiresAt)))) {
       frame = requestAnimationFrame(tick);
     } else {
       last = 0;
@@ -466,13 +512,8 @@ export async function mountPetalJourney() {
     if (!frame && !hidden) frame = requestAnimationFrame(tick);
   }
 
-  function intention(keepSettle = true) {
+  function intention() {
     lastIntent = performance.now();
-    if (keepSettle) {
-      settleUntil = document.activeElement?.matches('input,textarea,select')
-        ? 0
-        : lastIntent + (portal ? 650 : 1600);
-    }
     schedule();
   }
 
@@ -500,7 +541,7 @@ export async function mountPetalJourney() {
     const next = transitionOwner(owner, event);
     if (next !== owner) {
       owner = next;
-      intention(false);
+      intention();
     }
   }
 
@@ -512,9 +553,27 @@ export async function mountPetalJourney() {
   document.addEventListener('pointerdown', () => { lastInputModality = 'pointer'; }, { passive: true, capture: true });
 
   addEventListener('scroll', () => {
-    lastScroll = performance.now();
-    owner = transitionOwner(owner, { type: 'scroll', scrollY });
-    intention(true);
+    const now = performance.now();
+    const y = scrollY;
+    const dy = y - prevScrollY;
+    prevScrollY = y;
+    lastScrollTime = now;
+
+    if (!reduced.matches && Math.abs(dy) > 0) {
+      const dir = Math.sign(dy);
+      // Immediate reversal: if user reverses scroll direction, damp opposing inertia instantly
+      // so the petal pivots cleanly from its exact visible position & angle!
+      if (currentEnergy !== 0 && Math.sign(currentEnergy) !== dir) {
+        currentEnergy = dir * clamp(Math.abs(dy) / 70, .18, .9);
+        for (const p of petals) { p.vel.x *= .25; p.vel.y *= .25; }
+      } else {
+        currentEnergy = clamp(currentEnergy * .65 + (dy / 65), -1.35, 1.35);
+      }
+      settleEnergy = clamp(Math.max(settleEnergy, Math.min(1, Math.abs(dy) / 28 + .42)), 0, 1);
+    }
+
+    owner = transitionOwner(owner, { type: 'scroll', scrollY: y });
+    intention();
   }, { passive: true });
 
   addEventListener('resize', () => {
@@ -522,7 +581,6 @@ export async function mountPetalJourney() {
     measure();
   }, { passive: true });
 
-  // Desktop hover: localized attentive orientation without restarting the scene.
   if (!portal) {
     document.addEventListener('pointerover', e => {
       if (!fineHover.matches) return;
@@ -548,11 +606,11 @@ export async function mountPetalJourney() {
       dispatchOwner({ type: 'release', source: 'hover', scrollY });
     }, { passive: true });
 
-    // Subtle localized pulse when interacting with Ambo/Minne controls (then returns calmly to rest).
     window.addEventListener('enomera:service-pulse', e => {
       if (reduced.matches) return;
       const service = e.detail?.service;
       if (!service || !(service in SERVICE_PETAL)) return;
+      settleEnergy = Math.max(settleEnergy, .45);
       dispatchOwner({
         type: 'intent',
         service,
@@ -564,11 +622,11 @@ export async function mountPetalJourney() {
     });
   }
 
-  // Keyboard focus: immediate native :focus-visible + localized petal orientation.
   document.addEventListener('focusin', e => {
-    settleUntil = 0;
     const targetEl = e.target instanceof Element ? e.target : null;
     if (targetEl?.matches('input,textarea,select')) {
+      settleEnergy = 0;
+      currentEnergy = 0;
       cancelAnimationFrame(frame);
       frame = 0;
       last = 0;
@@ -599,21 +657,21 @@ export async function mountPetalJourney() {
     }
   });
 
-  // In-page service clicks trigger redistribution; external links are NEVER intercepted.
   document.addEventListener('click', e => {
     if (e.target.closest?.('a[target="_blank"]')) return;
     const control = e.target.closest?.('button[data-service],[data-billing],[data-portal],[data-goto],[data-active]');
     if (!control) return;
     portalRevision++;
+    settleEnergy = Math.max(settleEnergy, .55);
     requestAnimationFrame(() => {
       if (portal) measure();
-      intention(true);
+      intention();
     });
   }, true);
 
   document.querySelector('.pilot')?.addEventListener('toggle', () => {
     measure();
-    intention(true);
+    intention();
   });
 
   document.addEventListener('visibilitychange', () => {
@@ -628,7 +686,8 @@ export async function mountPetalJourney() {
   });
 
   reduced.addEventListener('change', () => {
-    settleUntil = 0;
+    settleEnergy = 0;
+    currentEnergy = 0;
     snapNext = true;
     schedule();
   });
@@ -644,6 +703,8 @@ export async function mountPetalJourney() {
       return {
         owner: { mode: owner.mode, service: owner.service, source: owner.source, sinceScrollY: owner.sinceScrollY },
         scrollY: y,
+        settleEnergy: Number(settleEnergy.toFixed(3)),
+        currentEnergy: Number(currentEnergy.toFixed(3)),
         marks: plan?.marks ? { ...plan.marks } : null,
         glows: { ...lastGlows },
         petals: petals.map((p, i) => ({
@@ -657,7 +718,7 @@ export async function mountPetalJourney() {
 
   measure();
   document.fonts.ready.then(measure);
-  intention(true);
+  intention();
 
   return () => {
     cancelAnimationFrame(frame);

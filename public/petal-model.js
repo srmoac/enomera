@@ -1,4 +1,4 @@
-// Full-page 6-scene choreography for Enomera's 5 petals + single-owner interactivity arbitration.
+// Full-page 6-scene lake-current choreography for Enomera's 5 petals + single-owner arbitration.
 export const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
 export const smooth = t => { t = clamp(t); return t * t * (3 - 2 * t); };
 export const easeOutCubic = t => { t = clamp(t); return 1 - (1 - t) ** 3; };
@@ -8,9 +8,24 @@ export const easeInOutCubic = t => { t = clamp(t); return t < .5 ? 4 * t * t * t
 export const PETAL_SERVICE = ['minne', 'etha', 'ambo', null, null];
 export const SERVICE_PETAL = { minne: 0, etha: 1, ambo: 2 };
 
+/**
+ * Contemplative progress warp: brisk response on initial gesture (slope 1 + k),
+ * ~22-26% slower visual speed right through the mid-traversal curve (slope 1 - k),
+ * strictly monotonic & reversible without adding document height.
+ */
+export function contemplativeWarp(t, slowMid = .24) {
+  const u = clamp(t, 0, 1);
+  return clamp(u + slowMid * Math.sin(2 * Math.PI * u) / (2 * Math.PI), 0, 1);
+}
+
 export function cubicBezier(p0, p1, p2, p3, t) {
   const u = 1 - t;
   return u * u * u * p0 + 3 * u * u * t * p1 + 3 * u * t * t * p2 + t * t * t * p3;
+}
+
+export function cubicBezierTangent(p0, p1, p2, p3, t) {
+  const u = 1 - t;
+  return 3 * u * u * (p1 - p0) + 6 * u * t * (p2 - p1) + 3 * t * t * (p3 - p2);
 }
 
 export function lerp(a, b, t) {
@@ -18,7 +33,6 @@ export function lerp(a, b, t) {
 }
 
 export function blendPose(a, b, t, i = 0) {
-  // A quadratic arc vanishes at both ends; every petal has its own bend.
   const u = smooth(t), arc = 4 * u * (1 - u), bend = [-28, 40, -35, 52, -46][i];
   const out = {
     x: a.x + (b.x - a.x) * u + arc * bend,
@@ -54,8 +68,11 @@ export function selectionPose(p, i, selected) {
 }
 
 /**
- * Helper: smooth sweeping arc between two document-space poses using viewport-anchored
- * control points so the foreground trajectory uses left, center, right, top & bottom predictably.
+ * Lake-current sweep arc:
+ * - Uses contemplativeWarp so the mid-curve (left third!) lingers ~22-26% slower while keeping
+ *   an immediate response on the first scroll gesture.
+ * - Exposes curve-tangent lateral drift vector (nx, ny) so the buoyant physics layer can
+ *   apply organic lateral current slip and trailing secondary rotation without oscillation.
  */
 function sweepArc(from, to, rawU, cfg) {
   const u = clamp(rawU, 0, 1);
@@ -66,24 +83,36 @@ function sweepArc(from, to, rawU, cfg) {
     frontEnd = .76,
     peakScale = .46,
     peakRot = 18,
-    peakRx = 12,
-    peakRy = -18,
+    peakRx = 10,
+    peakRy = -16,
+    slowMid = .24,
+    driftAmp = 18,
     dockEase = easeOutCubic
   } = cfg;
 
   if (u <= frontEnd) {
     const raw = u / Math.max(.001, frontEnd);
-    const t = easeInOutCubic(raw);
+    const t = contemplativeWarp(raw, slowMid);
     const swell = Math.sin(raw * Math.PI);
+    const tx = cubicBezierTangent(from.x, c1.x, c2.x, approach.x, t);
+    const ty = cubicBezierTangent(from.y, c1.y, c2.y, approach.y, t);
+    const tLen = Math.hypot(tx, ty) || 1;
+    // Unit normal perpendicular to curve for subtle lateral lake drift
+    const nx = -ty / tLen;
+    const ny = tx / tLen;
+    const lateral = Math.sin(raw * Math.PI * 1.15) * driftAmp * swell;
+
     return {
-      x: cubicBezier(from.x, c1.x, c2.x, approach.x, t),
-      y: cubicBezier(from.y, c1.y, c2.y, approach.y, t),
+      x: cubicBezier(from.x, c1.x, c2.x, approach.x, t) + nx * lateral,
+      y: cubicBezier(from.y, c1.y, c2.y, approach.y, t) + ny * lateral * .45,
       r: lerp(from.r, approach.r, t) + peakRot * swell,
       rx: (lerp(from.rx || 0, approach.rx || 0, t) + peakRx * swell) || 0,
       ry: (lerp(from.ry || 0, approach.ry || 0, t) + peakRy * swell) || 0,
       s: lerp(from.s, approach.s, t) + peakScale * swell,
       o: Math.min(1, lerp(from.o, approach.o, t) + .08 * swell),
-      front: u >= frontStart
+      front: u >= frontStart,
+      nx,
+      ny
     };
   }
 
@@ -96,13 +125,14 @@ function sweepArc(from, to, rawU, cfg) {
     ry: ((approach.ry || 0) * (1 - t)) || 0,
     s: lerp(approach.s, to.s, t),
     o: lerp(approach.o, to.o, t),
-    front: false
+    front: false,
+    nx: 0,
+    ny: 0
   };
 }
 
 /**
  * Scene 1 (Abertura): staggered tension across all 5 petals on the very first short scroll.
- * Lavanda (1) leads first, Celeste (2) opens angle, Mineral (0) lifts away from lower petals (3, 4).
  */
 export function sampleOpeningPose(u, i, heroPose, mobile) {
   const k = mobile ? .36 : 1;
@@ -110,11 +140,11 @@ export function sampleOpeningPose(u, i, heroPose, mobile) {
   const t = easeOutCubic(clamp((u - delays[i]) / Math.max(.1, 1 - delays[i])));
 
   const deltas = [
-    { dx: 6 * k, dy: -54 * k, dr: 4, rx: 4, ry: 4, ds: mobile ? .09 : .06, o: .92 },    // 0: Minne lifts vertically
-    { dx: -86 * k, dy: -62 * k, dr: -18, rx: 8, ry: -12, ds: mobile ? .18 : .18, o: 1 }, // 1: Etha leads first
-    { dx: 42 * k, dy: 14 * k, dr: 15, rx: 4, ry: 8, ds: mobile ? .07 : .04, o: .92 },    // 2: Ambo opens outward
-    { dx: -30 * k, dy: 24 * k, dr: -9, rx: 0, ry: 0, ds: mobile ? -.01 : -.05, o: .82 }, // 3: Lower-left
-    { dx: 30 * k, dy: 24 * k, dr: 9, rx: 0, ry: 0, ds: mobile ? -.01 : -.05, o: .82 }    // 4: Lower-right
+    { dx: 6 * k, dy: -52 * k, dr: 4, rx: 4, ry: 4, ds: mobile ? .09 : .06, o: .92 },
+    { dx: -92 * k, dy: -58 * k, dr: -19, rx: 7, ry: -11, ds: mobile ? .18 : .18, o: 1 },
+    { dx: 42 * k, dy: 14 * k, dr: 15, rx: 4, ry: 8, ds: mobile ? .07 : .04, o: .92 },
+    { dx: -30 * k, dy: 24 * k, dr: -9, rx: 0, ry: 0, ds: mobile ? -.01 : -.05, o: .82 },
+    { dx: 30 * k, dy: 24 * k, dr: 9, rx: 0, ry: 0, ds: mobile ? -.01 : -.05, o: .82 }
   ][i];
 
   return {
@@ -130,6 +160,23 @@ export function sampleOpeningPose(u, i, heroPose, mobile) {
 }
 
 /**
+ * Identify predominant scene and floating personality at a given scrollY:
+ * - Etha: most contemplative, deepest buoyant drift & trailing turn
+ * - Ambo: long shallow horizontal current, balanced settle
+ * - Minne: calmer, steadier settle so the eye moves cleanly to clinical details
+ * - Closing: staggered serene arrival
+ */
+export function sceneProfileAt(scrollY, marks) {
+  const y = Math.max(0, scrollY);
+  if (y <= marks.openEnd) return { name: 'abertura', driftScale: .75, posTau: 115, rotTau: 165, currentDir: -1 };
+  if (y <= marks.ethaLeave) return { name: 'etha', driftScale: 1.15, posTau: 162, rotTau: 238, currentDir: -1 };
+  if (y <= marks.amboLeave) return { name: 'ambo', driftScale: .92, posTau: 142, rotTau: 205, currentDir: 1 };
+  if (y <= marks.minneLeave) return { name: 'minne', driftScale: .62, posTau: 118, rotTau: 168, currentDir: -.6 };
+  if (y <= marks.comboLeave) return { name: 'combinacao', driftScale: .70, posTau: 128, rotTau: 185, currentDir: .4 };
+  return { name: 'fechamento', driftScale: .85, posTau: 152, rotTau: 225, currentDir: .3 };
+}
+
+/**
  * Full-page continuous choreography across all 6 scenes:
  *   1. Abertura       [0 .. openEnd]
  *   2. Etha           [openEnd .. ethaArrive .. ethaLeave]
@@ -137,20 +184,18 @@ export function sampleOpeningPose(u, i, heroPose, mobile) {
  *   4. Minne          [amboLeave .. minneArrive .. minneLeave]
  *   5. Conexão/Comb.  [minneLeave .. connEnd .. comboArrive .. comboLeave]
  *   6. Fechamento     [comboLeave .. closingArrive .. docEnd]
- *
- * Strictly continuous and reversible at every scrollY in [0, docEnd].
  */
 export function sampleFullJourney(scrollY, i, plan, selected = ['ambo', 'minne', 'etha']) {
   const y = Math.max(0, scrollY);
   const { mobile, w, h, marks, poses } = plan;
 
-  // --- SCENE 1: ABERTURA (0 -> openEnd) ---
+  // --- SCENE 1: ABERTURA ---
   if (y <= marks.openEnd) {
     const u = clamp(y / Math.max(1, marks.openEnd));
     return sampleOpeningPose(u, i, poses.hero[i], mobile);
   }
 
-  // --- SCENE 2: ETHA (openEnd -> ethaArrive -> ethaLeave) ---
+  // --- SCENE 2: ETHA (Lavanda — most contemplative, lingering arc in the LEFT THIRD!) ---
   if (y <= marks.ethaLeave) {
     if (y >= marks.ethaArrive) return poses.ethaRest[i];
     const u = clamp((y - marks.openEnd) / Math.max(1, marks.ethaArrive - marks.openEnd));
@@ -158,37 +203,39 @@ export function sampleFullJourney(scrollY, i, plan, selected = ['ambo', 'minne',
     const end = poses.ethaRest[i];
 
     if (i === 1) {
-      // Lavanda: wide center-crossing foreground sweep!
-      // Desktop: Hero left -> sweeps across CENTER-LEFT -> curves into Etha top-left glass bezel.
-      // Mobile: Hero bottom-right -> crosses FULL 390px WIDTH to LEFT edge -> docks top-left of Etha glass bezel.
-      const sMid1 = lerp(marks.openEnd, marks.ethaArrive, .38);
-      const sMid2 = lerp(marks.openEnd, marks.ethaArrive, .68);
+      const sMid1 = lerp(marks.openEnd, marks.ethaArrive, .36);
+      const sMid2 = lerp(marks.openEnd, marks.ethaArrive, .66);
+      // Desktop: opens wide into the LEFT THIRD (x ~ 18-24% = 260-345px), slows & turns visibly there,
+      // then crosses center, recedes in depth, and glides smoothly behind Etha's Liquid Glass bezel.
+      // Mobile: sweeps cleanly from right across the breathing band to left (keeping full directional silhouette),
+      // turns in view, and docks beneath the top-left Etha glass bezel.
       const approach = mobile
-        ? { x: end.x + 12, y: end.y - 122, r: 22, rx: 5, ry: -6, s: end.s * 1.28, o: .98 }
-        : { x: end.x - 42, y: end.y - 148, r: 20, rx: 6, ry: -8, s: end.s * 1.32, o: .98 };
+        ? { x: end.x + 18, y: end.y - 118, r: 18, rx: 4, ry: -6, s: end.s * 1.24, o: .98 }
+        : { x: end.x - 110, y: end.y - 138, r: 16, rx: 5, ry: -7, s: end.s * 1.28, o: .98 };
       return sweepArc(start, end, u, {
         c1: mobile
-          ? { x: w * .26, y: sMid1 + h * .28 }
-          : { x: w * .34, y: sMid1 + h * .66 },
+          ? { x: w * .34, y: sMid1 + h * .20 }
+          : { x: w * .24, y: sMid1 + h * .40 },
         c2: mobile
-          ? { x: 24, y: sMid2 + h * .24 }
-          : { x: w * .48, y: sMid2 + h * .24 },
+          ? { x: w * .20, y: sMid2 + h * .22 }
+          : { x: w * .18, y: sMid2 + h * .42 },
         approach,
-        frontStart: 0,
-        frontEnd: .76,
-        peakScale: mobile ? .34 : .64,
-        peakRot: mobile ? -20 : -26,
-        peakRx: mobile ? 10 : 14,
-        peakRy: mobile ? -18 : -22,
+        frontStart: mobile ? 1.1 : 0,
+        frontEnd: .78,
+        peakScale: mobile ? .34 : .58,
+        peakRot: mobile ? -22 : -30,
+        peakRx: mobile ? 9 : 13,
+        peakRy: mobile ? -16 : -21,
+        slowMid: .28, // slowest contemplative linger right in the left third!
+        driftAmp: mobile ? 14 : 28,
         dockEase: easeOutCubic
       });
     }
 
-    // Companion petals softly clear the center stage so Lavanda commands the sweep.
     return blendPose(start, end, u, i);
   }
 
-  // --- SCENE 3: AMBO (ethaLeave -> amboArrive -> amboLeave) ---
+  // --- SCENE 3: AMBO (Celeste — long shallow horizontal current into left half & back to Modalidade) ---
   if (y <= marks.amboLeave) {
     if (y >= marks.amboArrive) return poses.amboRest[i];
     const u = clamp((y - marks.ethaLeave) / Math.max(1, marks.amboArrive - marks.ethaLeave));
@@ -196,26 +243,27 @@ export function sampleFullJourney(scrollY, i, plan, selected = ['ambo', 'minne',
     const end = poses.amboRest[i];
 
     if (i === 2) {
-      // Celeste: long horizontal-bias arc across the page into Ambo's Modalidade selector!
       const sMid1 = lerp(marks.ethaLeave, marks.amboArrive, .36);
       const sMid2 = lerp(marks.ethaLeave, marks.amboArrive, .68);
       const approach = mobile
-        ? { x: end.x + 12, y: end.y - 115, r: -44, rx: 5, ry: 8, s: end.s * 1.28, o: .98 }
-        : { x: end.x - 165, y: end.y - 18, r: -46, rx: 6, ry: 10, s: end.s * 1.28, o: .98 };
+        ? { x: end.x + 16, y: end.y - 110, r: -44, rx: 4, ry: 7, s: end.s * 1.24, o: .98 }
+        : { x: end.x - 190, y: end.y - 14, r: -46, rx: 5, ry: 9, s: end.s * 1.24, o: .98 };
       return sweepArc(start, end, u, {
         c1: mobile
           ? { x: w * .18, y: sMid1 + h * .28 }
-          : { x: w * .26, y: sMid1 + h * .56 },
+          : { x: w * .19, y: sMid1 + h * .52 },
         c2: mobile
-          ? { x: w * .84, y: sMid2 + h * .26 }
-          : { x: w * .44, y: sMid2 + h * .52 },
+          ? { x: w * .80, y: sMid2 + h * .27 }
+          : { x: w * .38, y: sMid2 + h * .50 },
         approach,
-        frontStart: .08,
+        frontStart: mobile ? 1.1 : .08,
         frontEnd: .76,
-        peakScale: mobile ? .32 : .62,
-        peakRot: mobile ? 22 : 32,
-        peakRx: mobile ? 10 : 12,
-        peakRy: mobile ? 18 : 22,
+        peakScale: mobile ? .30 : .56,
+        peakRot: mobile ? 20 : 28,
+        peakRx: mobile ? 9 : 11,
+        peakRy: mobile ? 16 : 20,
+        slowMid: .22,
+        driftAmp: mobile ? 12 : 22,
         dockEase: easeOutCubic
       });
     }
@@ -223,7 +271,7 @@ export function sampleFullJourney(scrollY, i, plan, selected = ['ambo', 'minne',
     return blendPose(start, end, u, i);
   }
 
-  // --- SCENE 4: MINNE (amboLeave -> minneArrive -> minneLeave) ---
+  // --- SCENE 4: MINNE (Mineral — open S-curve from above: left curve first, then right into agenda) ---
   if (y <= marks.minneLeave) {
     if (y >= marks.minneArrive) return poses.minneRest[i];
     const u = clamp((y - marks.amboLeave) / Math.max(1, marks.minneArrive - marks.amboLeave));
@@ -231,43 +279,44 @@ export function sampleFullJourney(scrollY, i, plan, selected = ['ambo', 'minne',
     const end = poses.minneRest[i];
 
     if (i === 0) {
-      // Mineral: strong vertical descent from above with lateral S-shift & crisp easeOutQuart arrival!
       const sMid1 = lerp(marks.amboLeave, marks.minneArrive, .34);
       const sMid2 = lerp(marks.amboLeave, marks.minneArrive, .68);
       const approach = mobile
-        ? { x: end.x + 10, y: end.y - 126, r: 10, rx: 4, ry: -5, s: end.s * 1.24, o: .98 }
-        : { x: end.x - 20, y: end.y - 156, r: 12, rx: 6, ry: -6, s: end.s * 1.26, o: .98 };
+        ? { x: end.x + 10, y: end.y - 122, r: 8, rx: 3, ry: -4, s: end.s * 1.20, o: .98 }
+        : { x: end.x - 16, y: end.y - 148, r: 9, rx: 4, ry: -5, s: end.s * 1.22, o: .98 };
       return sweepArc(start, end, u, {
+        // First curve swings clearly into the LEFT region; second curve orients toward the agenda!
         c1: mobile
-          ? { x: w * .20, y: sMid1 + h * .52 }
-          : { x: w * .38, y: sMid1 + h * .60 },
+          ? { x: w * .18, y: sMid1 + h * .46 }
+          : { x: w * .22, y: sMid1 + h * .54 },
         c2: mobile
-          ? { x: w * .82, y: sMid2 + h * .66 }
-          : { x: w * .68, y: sMid2 + h * .74 },
+          ? { x: w * .82, y: sMid2 + h * .60 }
+          : { x: w * .68, y: sMid2 + h * .70 },
         approach,
-        frontStart: .08,
-        frontEnd: .74,
-        peakScale: mobile ? .36 : .60,
-        peakRot: mobile ? -16 : -20,
-        peakRx: mobile ? 12 : 16,
-        peakRy: mobile ? -14 : -16,
-        dockEase: easeOutQuart
+        frontStart: mobile ? 1.1 : .08,
+        frontEnd: .72,
+        peakScale: mobile ? .32 : .54,
+        peakRot: mobile ? -16 : -22,
+        peakRx: mobile ? 10 : 14,
+        peakRy: mobile ? -12 : -15,
+        slowMid: .20,
+        driftAmp: mobile ? 10 : 18,
+        dockEase: easeOutQuart // steadier, more settled arrival for clinical clarity
       });
     }
 
     return blendPose(start, end, u, i);
   }
 
-  // --- SCENE 5A: CONEXÃO HORIZONTAL (minneLeave -> connEnd) ---
+  // --- SCENE 5A: CONEXÃO HORIZONTAL ---
   if (y <= marks.connEnd) {
     const u = clamp((y - marks.minneLeave) / Math.max(1, marks.connEnd - marks.minneLeave));
-    // Smooth relay across the 3 horizontal steps: Etha -> Ambo -> Minne
     if (u <= .33) return blendPose(poses.minneRest[i], poses.conn1[i], u / .33, i);
     if (u <= .67) return blendPose(poses.conn1[i], poses.conn2[i], (u - .33) / .34, i);
     return blendPose(poses.conn2[i], poses.conn3[i], (u - .67) / .33, i);
   }
 
-  // --- SCENE 5B: COMBINAÇÃO (connEnd -> comboArrive -> comboLeave) ---
+  // --- SCENE 5B: COMBINAÇÃO ---
   const comboPose = computeCombinationPose(i, plan, selected);
   if (y <= marks.comboLeave) {
     if (y >= marks.comboArrive) return comboPose;
@@ -275,30 +324,36 @@ export function sampleFullJourney(scrollY, i, plan, selected = ['ambo', 'minne',
     return blendPose(poses.conn3[i], comboPose, u, i);
   }
 
-  // --- SCENE 6: FECHAMENTO (comboLeave -> closingArrive -> docEnd) ---
+  // --- SCENE 6: FECHAMENTO (Staggered serene reunion into the full 5-petal flower) ---
   if (y >= marks.closingArrive) return poses.closing[i];
-  const u = clamp((y - marks.comboLeave) / Math.max(1, marks.closingArrive - marks.comboLeave));
+  const rawU = clamp((y - marks.comboLeave) / Math.max(1, marks.closingArrive - marks.comboLeave));
+  // Lower institutional petals (3, 4) anchor the base first; Ambo (2) and Minne (0) arrive next;
+  // Etha (1, Lavanda) finishes the final gentle turn into complete flower formation!
+  const arriveStarts = [.10, .16, .06, 0, 0][i];
+  const arriveEnds = [.92, 1.0, .86, .78, .80][i];
+  const localU = clamp((rawU - arriveStarts) / Math.max(.1, arriveEnds - arriveStarts), 0, 1);
+
   const end = poses.closing[i];
-  // Converging arcs reunite the 3 product petals with the 2 institutional petals into the recognizable flower.
-  const t = easeInOutCubic(u);
-  const swell = Math.sin(u * Math.PI);
+  const t = easeOutCubic(localU);
+  const swell = Math.sin(localU * Math.PI);
   const spreadDir = [0, -1, 1, -.7, .7][i];
-  const liftY = [-110, -45, -45, 55, 55][i] * (mobile ? .42 : 1);
+  const liftY = [-105, -52, -48, 52, 52][i] * (mobile ? .42 : 1);
+  // Subtle final orientation turn as the last petal settles into place
+  const finalTurn = (1 - easeOutQuart(localU)) * [10, -18, 16, -8, 8][i] * Math.min(1, localU * 4);
   return {
-    x: lerp(comboPose.x, end.x, t) + spreadDir * (mobile ? 56 : 135) * swell,
+    x: lerp(comboPose.x, end.x, t) + spreadDir * (mobile ? 52 : 128) * swell,
     y: lerp(comboPose.y, end.y, t) + liftY * swell,
-    r: lerp(comboPose.r, end.r, t) + spreadDir * 16 * swell,
-    rx: (6 * swell) || 0,
-    ry: (spreadDir * -10 * swell) || 0,
-    s: lerp(comboPose.s, end.s, t) + (mobile ? .08 : .14) * swell,
+    r: lerp(comboPose.r, end.r, t) + finalTurn,
+    rx: (5 * swell) || 0,
+    ry: (spreadDir * -9 * swell) || 0,
+    s: lerp(comboPose.s, end.s, t) + (mobile ? .07 : .12) * swell,
     o: lerp(comboPose.o, end.o, t),
     front: false
   };
 }
 
 /**
- * Dynamic redistribution in #combinacao: selected services gather evenly along .summary.glass;
- * deselected services drift softly outward from their current pose without snapping.
+ * Dynamic redistribution in #combinacao aligned to card order: Ambo (left), Minne (center), Etha (right).
  */
 export function computeCombinationPose(i, plan, selected) {
   const base = plan.poses.comboBase[i];
@@ -310,7 +365,6 @@ export function computeCombinationPose(i, plan, selected) {
   const activeIdx = activeServices.indexOf(service);
 
   if (activeIdx >= 0 && summaryRect) {
-    // Match the exact card column order above .summary: Ambo (left), Minne (center), Etha (right).
     const count = activeServices.length;
     const frac = count === 1 ? .50 : count === 2 ? (activeIdx === 0 ? .28 : .72) : [.17, .50, .83][activeIdx];
     const angle = service === 'ambo' ? -24 : service === 'etha' ? 24 : 0;
@@ -326,12 +380,11 @@ export function computeCombinationPose(i, plan, selected) {
     };
   }
 
-  // Deselected service recedes calmly to the periphery.
-  const outX = service === 'etha' ? (mobile ? -24 : -76) : service === 'ambo' ? (mobile ? 24 : 76) : 0;
+  const outX = service === 'etha' ? (mobile ? 24 : 76) : service === 'ambo' ? (mobile ? -24 : -76) : 0;
   return {
     x: base.x + outX,
     y: base.y - (mobile ? 26 : 56),
-    r: base.r + (service === 'etha' ? -22 : service === 'ambo' ? 22 : 12),
+    r: base.r + (service === 'etha' ? 22 : service === 'ambo' ? -22 : 12),
     rx: 0,
     ry: 0,
     s: base.s * .72,
@@ -383,10 +436,6 @@ export function transitionOwner(owner, event) {
   return owner;
 }
 
-/**
- * Localized, grounded orientation when hovering, focusing, or interacting with a product control.
- * Never restarts the scene or teleports across the screen.
- */
 export function applyIntentPose(basePose, i, owner, plan, scrollY) {
   if (!owner || owner.mode !== 'intent' || !owner.service) return basePose;
   const targetIdx = SERVICE_PETAL[owner.service];
@@ -405,7 +454,6 @@ export function applyIntentPose(basePose, i, owner, plan, scrollY) {
   if (tRect) {
     const anchorX = tRect.x + tRect.w * (owner.service === 'ambo' ? .24 : owner.service === 'minne' ? .46 : .18);
     const anchorY = tRect.y + Math.min(tRect.h * .35, 110);
-    // Keep pull localized so moving the mouse across distant regions never drags a petal across the page.
     const distVp = Math.hypot(anchorX - basePose.x, (anchorY - scrollY) - (basePose.y - scrollY));
     if (distVp < (plan?.h || 900) * 1.15) {
       const strength = owner.source === 'pulse' ? .34 : owner.source === 'focus' ? .42 : .28;
