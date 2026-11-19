@@ -7,15 +7,51 @@ await mountPetalJourney();
 function updateScroll(){updateSiteIndicator();}
 addEventListener('scroll',updateScroll,{passive:true});
 // A persistent lens moves between single-selection controls. Labels never move.
-function lens(group,selector){if(!group)return;const active=group.querySelector(selector);if(!active)return;let marker=group.querySelector(':scope > .motion-lens');const entering=!marker;if(!marker){marker=document.createElement('span');marker.className='motion-lens';marker.setAttribute('aria-hidden','true');marker.style.transition='none';group.prepend(marker);}const g=group.getBoundingClientRect(),r=active.getBoundingClientRect();marker.style.width='100px';marker.style.height='44px';marker.style.transformOrigin='0 0';marker.style.transform=`translate(${r.left-g.left+group.scrollLeft}px,${r.top-g.top+group.scrollTop}px) scale(${r.width/100},${r.height/44})`;if(entering)requestAnimationFrame(()=>requestAnimationFrame(()=>{if(marker.isConnected)marker.style.transition='';}));}
+function lens(group,selector){
+  if(!group)return;const active=group.querySelector(selector);if(!active)return;
+  let marker=group.querySelector(':scope > .motion-lens');const entering=!marker;
+  if(!marker){marker=document.createElement('span');marker.className='motion-lens';marker.setAttribute('aria-hidden','true');marker.style.transition='none';group.prepend(marker);}
+  const g=group.getBoundingClientRect(),r=active.getBoundingClientRect();
+  const x=r.left-g.left+group.scrollLeft,y=r.top-g.top+group.scrollTop;
+  marker.style.clipPath=`inset(${y}px ${Math.max(0,group.scrollWidth-x-r.width)}px ${Math.max(0,group.scrollHeight-y-r.height)}px ${x}px round ${(group.id==='nav-links'?'20px':getComputedStyle(active).borderRadius)})`;
+  if(entering)requestAnimationFrame(()=>requestAnimationFrame(()=>{if(marker.isConnected)marker.style.transition='';}));
+}
 function updateSiteIndicator(){const nav=document.querySelector('#nav-links');if(!nav||innerWidth<701)return;let id='produtos';for(const [sel,key] of [['#como-funciona','como-funciona'],['#combinacao','combinacao']])if(document.querySelector(sel)?.getBoundingClientRect().top<innerHeight*.45)id=key;const target=nav.querySelector(`a[href="/#${id}"]`);if(target){nav.querySelectorAll('a').forEach(a=>a.toggleAttribute('data-current',a===target));lens(nav,'[data-current]');}}
 function refresh(){lens(document.querySelector('.billing-toggle'),'[aria-pressed="true"]');lens(document.querySelector('.mini-sidebar'),'[aria-pressed="true"]');lens(document.querySelector('.portal-side nav'),'[aria-current="page"]:not([hidden])');lens(document.querySelector('[aria-label="Modalidade"]'),'[aria-pressed="true"]');}
 const observer=new MutationObserver(records=>{if(records.every(r=>r.target.closest?.('.motion-lens')))return;refresh();});observer.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['aria-pressed','aria-current']});refresh();updateScroll();addEventListener('resize',()=>{refresh();updateScroll();});
-// Record presentation geometry before a synchronous view mutation, then bridge it.
-let snapshot=null;
-document.addEventListener('click',e=>{const trigger=e.target.closest('[data-service],[data-billing],[data-mode],[data-day],[data-ambo],[data-mini],[data-portal],[data-goto]');if(!trigger)return;const region=trigger.matches('[data-service],[data-billing]')?document.querySelector('.summary'):trigger.closest('.ambo')||document.querySelector('#portal-content')||document.querySelector('#mini-content');snapshot=region?{region,rect:region.getBoundingClientRect(),rows:new Map([...region.children].map(n=>[n.textContent,n.getBoundingClientRect()]))}:null;requestAnimationFrame(()=>{if(!snapshot)return;const {region,rect,rows}=snapshot;snapshot=null;const current=region.isConnected?region:document.querySelector('#portal-content');if(!current)return;const newRect=current.getBoundingClientRect();if(Math.abs(rect.height-newRect.height)>3){const summary=current.closest('.summary');if(summary){const h=summary.getBoundingClientRect().height;const delta=rect.height-newRect.height;tween(summary,[{clipPath:`inset(0 0 ${Math.max(0,-delta)}px 0)`},{clipPath:'inset(0 0 0 0)'}],280);summary.style.minHeight='';}}for(const child of current.children){const old=rows.get(child.textContent);const now=child.getBoundingClientRect();if(old&&Math.abs(old.top-now.top)>1)tween(child,[{transform:`translateY(${old.top-now.top}px)`},{transform:'none'}],260);else if(!old)tween(child,[{opacity:.5,transform:'translateX(8px)'},{opacity:1,transform:'none'}],220);}refresh();});},true);
-// Preserve service buttons across updates, so focus and active material persist.
-document.addEventListener('pointerdown',e=>{const b=e.target.closest('button,.button');if(b)b.classList.add('is-pressed');}, {passive:true});function release(){document.querySelectorAll('.is-pressed').forEach(b=>b.classList.remove('is-pressed'));}addEventListener('pointerup',release,{passive:true});addEventListener('pointercancel',release,{passive:true});
+// Only new content enters. Controls and persistent rows stay still.
+let pointerAction=false;
+document.addEventListener('pointerdown',()=>{pointerAction=true;},{passive:true});
+document.addEventListener('keydown',()=>{pointerAction=false;},true);
+document.addEventListener('click',e=>{
+  const trigger=e.target.closest('[data-ambo],[data-mini],[data-portal],[data-goto]');
+  if(!trigger||!pointerAction)return;
+  const region=trigger.closest('.ambo')||document.querySelector('#portal-content')||document.querySelector('#mini-content');
+  const children=new Set(region?.children);
+  requestAnimationFrame(()=>{
+    const current=region?.isConnected?region:document.querySelector('#portal-content');
+    if(!current)return;
+    for(const child of current.children)if(!children.has(child)&&!child.matches('button,a,input,select,textarea,.motion-lens'))tween(child,[{opacity:.65,transform:'translateY(4px)'},{opacity:1,transform:'none'}],180);
+    refresh();
+  });
+},true);
+// Native details semantics, with reversible measured disclosure motion.
+for(const details of document.querySelectorAll('details.pilot')){
+  const summary=details.querySelector('summary');
+  const content=document.createElement('div');content.className='disclosure-content';
+  while(summary.nextSibling)content.append(summary.nextSibling);
+  details.append(content);let running=null,wanted=details.open;
+  summary.addEventListener('click',e=>{
+    e.preventDefault();wanted=!wanted;
+    const from=details.getBoundingClientRect().height;
+    running?.cancel();details.open=true;
+    const to=wanted?details.scrollHeight:summary.getBoundingClientRect().height+parseFloat(getComputedStyle(details).paddingTop)+parseFloat(getComputedStyle(details).paddingBottom)+2;
+    if(reduce.matches||e.detail===0){details.open=wanted;details.style.height='';return;}
+    details.style.overflow='hidden';
+    running=details.animate([{height:`${from}px`},{height:`${to}px`}],{duration:wanted?220:160,easing:'cubic-bezier(.23,1,.32,1)'});
+    running.onfinish=()=>{details.open=wanted;details.style.overflow='';running=null;};
+  });
+}
 // Existing menu owns visibility; this layer adds focus management and reversible motion.
 const toggle=document.querySelector('.menu-toggle'),nav=document.querySelector('#nav-links');let opener=null;
 function menuState(){const open=toggle.getAttribute('aria-expanded')==='true';toggle.setAttribute('aria-label',open?'Fechar menu':'Abrir menu');nav.inert=innerWidth<701&&!open;if(open){opener=document.activeElement;requestAnimationFrame(()=>{if(toggle.getAttribute('aria-expanded')==='true')nav.querySelector('a')?.focus({preventScroll:true});});}else{const byLink=toggle.dataset.closeReason==='link';delete toggle.dataset.closeReason;if(!byLink&&opener&&nav.contains(document.activeElement))toggle.focus({preventScroll:true});opener=null;}}

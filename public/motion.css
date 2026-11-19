@@ -18,3 +18,46 @@ body.has-petal-journey{isolation:isolate}
 .journey-petal g{transform-box:view-box;transform-origin:235px 335px}
 @media(max-width:700px){#nav-links{position:absolute}}
 @media(prefers-reduced-motion:reduce){.journey-petal{will-change:auto}}
+
+/* Interaction refinement: fixed geometry, restrained feedback. */
+.motion-lens{inset:0;width:auto;height:auto;border:0;border-radius:0;box-shadow:none;transition:clip-path 200ms var(--ease)}
+.button,button{transition:background-color 140ms var(--ease),color 140ms var(--ease),border-color 140ms var(--ease),opacity 100ms var(--ease)}
+.button:active,button:active,.is-pressed{transform:none!important;box-shadow:none;opacity:.85}
+.service-option .check,.service-option[aria-pressed=false] .check{transform:none;transition:opacity 120ms var(--ease)}
+.service-option{transition:background-color 180ms var(--ease),border-color 180ms var(--ease)}
+.mini-sidebar button,.minne .mini-sidebar button[aria-pressed=true]{padding-inline:6px;border-radius:10px}
+.portal-side button{border:1px solid transparent}
+.pilot summary{margin-bottom:0!important}
+.disclosure-content{padding-top:24px}
+.disclosure-content>:last-child{margin-bottom:0}
+.pilot summary span{transition:transform 180ms var(--ease);transform:rotate(0)}
+.pilot[open] summary span{transform:rotate(45deg)}
+@media(hover:hover) and (pointer:fine){
+ .button:hover,.service-option:hover{transform:none}
+ .service-option:hover{border-color:var(--action,var(--blue))}
+ .back:hover,.mini-sidebar button:hover,.portal-side button:hover{background-color:#ffffff50}
+}
+@media(prefers-reduced-motion:reduce){.motion-lens{transition:none}.pilot summary span{transition:none}.button:active,button:active{transform:none!important}}
+
+/* Dialog uses the top layer for both phases, including Escape/backdrop close. */
+@supports (transition-behavior:allow-discrete){
+ dialog{opacity:0;transform:translateY(6px) scale(.98);transition:opacity 160ms var(--ease),transform 200ms var(--ease),display 200ms allow-discrete,overlay 200ms allow-discrete}
+ dialog[open]{opacity:1;transform:none;animation:none}
+ dialog::backdrop{background:#202d5000;backdrop-filter:none;transition:background-color 160ms var(--ease),display 200ms allow-discrete,overlay 200ms allow-discrete}
+ dialog[open]::backdrop{background:#202d5045}
+ @starting-style{dialog[open]{opacity:0;transform:translateY(6px) scale(.98)}dialog[open]::backdrop{background:#202d5000}}
+}
+@media(prefers-reduced-motion:reduce){dialog,dialog[open]{transform:none}}
+
+/* Progressive select: browser keeps selection, keyboard and focus ownership. */
+@supports (appearance:base-select){
+ .ambo select,.ambo select::picker(select){appearance:base-select}
+ .ambo select::picker(select){background:#ECF6FE;border:1px solid #235D9433;border-radius:16px;padding:6px;box-shadow:0 8px 24px #202d5018;opacity:0;transform:translateY(-4px);transform-origin:top;transition:opacity 160ms var(--ease),transform 180ms var(--ease),display 180ms allow-discrete,overlay 180ms allow-discrete}
+ .ambo select::picker(select):popover-open{opacity:1;transform:none}
+ @starting-style{.ambo select::picker(select):popover-open{opacity:0;transform:translateY(-4px)}}
+ .ambo select option{padding:10px 12px;border-radius:10px;color:#235D94}
+ .ambo select option:checked{background:#A4CFF680}
+ .ambo select::picker-icon{transition:transform 160ms var(--ease)}
+ .ambo select:open::picker-icon{transform:rotate(180deg)}
+}
+@media(prefers-reduced-motion:reduce){.ambo select::picker(select){transform:none!important;transition:none}.ambo select::picker-icon{transition:none}}
