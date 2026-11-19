@@ -1,88 +1,320 @@
-:root{--motion-response:120ms;--motion-selection:240ms;--motion-surface:280ms;--motion-narrative:1100ms;--motion-rest:420ms;--ease-drawer:cubic-bezier(.32,.72,0,1)}
-.hero-flower,.closing-flower,.portal-flower{overflow:visible;pointer-events:none}.closing-flower{max-width:30%;height:auto}.petal{transform-box:view-box}.motion-lens{position:absolute;left:0;top:0;pointer-events:none;border:1px solid #ffffffcc;background:linear-gradient(130deg,#ffffff80,#b8cbed50);border-radius:24px;box-shadow:inset 0 1px 2px white,0 5px 16px #4061a614;z-index:-1;transition:transform var(--motion-selection) var(--ease)}
-#nav-links,.billing-toggle,.mini-sidebar,.portal-side nav,.choice-group{position:relative;isolation:isolate}#nav-links>a:not(.button){padding:10px 8px;margin-inline:-8px}.billing-toggle [aria-pressed=true],.choice-group:has([data-mode]) [aria-pressed=true],.mini-sidebar [aria-pressed=true],.portal-side button[aria-current=page]{background:transparent!important;box-shadow:none;border-color:transparent!important}.billing-toggle button,.choice-group button{transition:background var(--motion-selection),border-color var(--motion-selection),box-shadow var(--motion-selection)}
-.service-option{transition:background var(--motion-surface),box-shadow var(--motion-surface),border-color var(--motion-selection),transform var(--motion-response) var(--ease)}.service-option .check{transition:transform var(--motion-selection) var(--ease),opacity var(--motion-selection)}.service-option[aria-pressed=false] .check{transform:rotate(-35deg);opacity:.65}.service-option[aria-pressed=true]{box-shadow:var(--elevation),inset 0 0 32px #ffffff40}.button,button{transition:box-shadow var(--motion-response),background var(--motion-response),transform var(--motion-response) var(--ease)}.button:active,button:active,.is-pressed{transform:translateY(1px)!important;box-shadow:inset 0 2px 8px #202d5020}input,select,textarea{transition:border-color var(--motion-selection),box-shadow var(--motion-selection),background var(--motion-selection)}input:focus,select:focus,textarea:focus{border-color:#5b70b2;box-shadow:inset 0 1px 3px white;background:#fff}dialog[open]{animation:dialog-enter 240ms var(--ease)}@keyframes dialog-enter{from{opacity:.4;transform:scale(.97)}to{opacity:1;transform:scale(1)}}
-@media(max-width:700px){.closing-flower{display:none}.nav nav{display:flex;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(-8px) scale(.97);transform-origin:calc(100% - 32px) 0;transition:opacity 200ms var(--ease),transform 240ms var(--ease-drawer),visibility 0s linear 240ms}.nav.menu-open nav{opacity:1;visibility:visible;pointer-events:auto;transform:translateY(0) scale(1);transition:opacity 200ms var(--ease),transform 240ms var(--ease-drawer),visibility 0s}.nav nav>.motion-lens{display:none}.menu-toggle{transition:background 180ms,box-shadow 180ms}.menu-toggle[aria-expanded=true]{background:#aebff060}}
-@media(prefers-reduced-motion:reduce){.petal{transform:none!important}.motion-lens{transition-duration:60ms}.nav nav{transform:none!important}dialog[open]{animation:none}}
-/* One floral cast across the document. Wrappers stay above it; glass samples it. */
-body.has-petal-journey{isolation:isolate}
-.has-petal-journey section{isolation:auto}
-.has-petal-journey .substrate{z-index:0}
-.has-petal-journey .wrap,.has-petal-journey .connection-sticky{z-index:2}
-.has-petal-journey .hero-flower,.has-petal-journey .closing-top>img,.has-petal-journey .portal-flower{visibility:hidden}
-.has-petal-journey .portal-main{z-index:2}
-.has-petal-journey .portal-side{z-index:3}
-.petal-journey{position:fixed;inset:0;overflow:hidden;overflow:clip;pointer-events:none;z-index:1;contain:strict}
-.journey-petal{position:absolute;top:0;left:0;width:0;height:0;pointer-events:none;transform-origin:0 0;will-change:transform}
-.journey-petal svg{position:absolute;left:-235px;top:-335px;max-width:none;overflow:visible;pointer-events:none}
-.journey-petal g{transform-box:view-box;transform-origin:235px 335px}
-@media(max-width:700px){#nav-links{position:absolute}}
-@media(prefers-reduced-motion:reduce){.journey-petal{will-change:auto}}
-
-/* Interaction refinement: fixed geometry, restrained feedback. */
-.motion-lens{inset:0;width:auto;height:auto;border:0;border-radius:0;box-shadow:none;transition:clip-path 200ms var(--ease)}
-.button,button{transition:background-color 140ms var(--ease),color 140ms var(--ease),border-color 140ms var(--ease),opacity 100ms var(--ease)}
-.button:active,button:active,.is-pressed{transform:none!important;box-shadow:none;opacity:.85}
-.service-option .check,.service-option[aria-pressed=false] .check{transform:none;transition:opacity 120ms var(--ease)}
-.service-option{transition:background-color 180ms var(--ease),border-color 180ms var(--ease)}
-.mini-sidebar button,.minne .mini-sidebar button[aria-pressed=true]{padding-inline:6px;border-radius:10px}
-.portal-side button{border:1px solid transparent}
-.pilot summary{margin-bottom:0!important}
-.disclosure-content{padding-top:24px}
-.disclosure-content>:last-child{margin-bottom:0}
-.pilot summary span{transition:transform 180ms var(--ease);transform:rotate(0)}
-.pilot[open] summary span{transform:rotate(45deg)}
-@media(hover:hover) and (pointer:fine){
- .button:hover,.service-option:hover{transform:none}
- .service-option:hover{border-color:var(--action,var(--blue))}
- .back:hover,.mini-sidebar button:hover,.portal-side button:hover{background-color:#ffffff50}
+:root {
+  --motion-response: 120ms;
+  --motion-selection: 240ms;
+  --motion-surface: 280ms;
+  --motion-narrative: 1100ms;
+  --motion-rest: 420ms;
+  --ease-drawer: cubic-bezier(.32, .72, 0, 1);
 }
-@media(prefers-reduced-motion:reduce){.motion-lens{transition:none}.pilot summary span{transition:none}.button:active,button:active{transform:none!important}}
 
-/* Dialog uses the top layer for both phases, including Escape/backdrop close. */
-@supports (transition-behavior:allow-discrete){
- dialog{opacity:0;transform:translateY(6px) scale(.98);transition:opacity 160ms var(--ease),transform 200ms var(--ease),display 200ms allow-discrete,overlay 200ms allow-discrete}
- dialog[open]{opacity:1;transform:none;animation:none}
- dialog::backdrop{background:#202d5000;backdrop-filter:none;transition:background-color 160ms var(--ease),display 200ms allow-discrete,overlay 200ms allow-discrete}
- dialog[open]::backdrop{background:#202d5045}
- @starting-style{dialog[open]{opacity:0;transform:translateY(6px) scale(.98)}dialog[open]::backdrop{background:#202d5000}}
+.hero-flower, .closing-flower, .portal-flower {
+  overflow: visible;
+  pointer-events: none;
 }
-@media(prefers-reduced-motion:reduce){dialog,dialog[open]{transform:none}}
+.closing-flower { max-width: 30%; height: auto; }
+.petal { transform-box: view-box; }
+
+/* Single consolidated Liquid Glass lens: static geometry, transform-only slide. */
+.motion-lens {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  z-index: -1;
+  border: 1px solid #ffffffdc;
+  border-radius: 24px;
+  background: linear-gradient(135deg, #ffffff85, #ffffff32 55%, #c3d6ee5c);
+  box-shadow: inset 0 1px 2px #fff, 0 5px 16px #4061a61f;
+  backdrop-filter: blur(14px) saturate(130%);
+  -webkit-backdrop-filter: blur(14px) saturate(130%);
+  transition: transform 220ms var(--ease);
+}
+
+#nav-links, .billing-toggle, .mini-sidebar, .portal-side nav, .choice-group {
+  position: relative;
+  isolation: isolate;
+}
+#nav-links > a:not(.button) {
+  padding: 10px 8px;
+  margin-inline: -8px;
+}
+
+.billing-toggle [aria-pressed=true],
+.choice-group:has([data-mode]) [aria-pressed=true],
+.mini-sidebar [aria-pressed=true],
+.portal-side button[aria-current=page] {
+  background: transparent !important;
+  box-shadow: none;
+  border-color: transparent !important;
+}
+
+.billing-toggle button,
+.choice-group button {
+  transition: background-color var(--motion-selection) var(--ease),
+    border-color var(--motion-selection) var(--ease),
+    box-shadow var(--motion-selection) var(--ease),
+    color var(--motion-selection) var(--ease);
+}
+
+.mini-sidebar button,
+.minne .mini-sidebar button[aria-pressed=true] {
+  padding-inline: 8px;
+  border-radius: 10px;
+}
+.portal-side button { border: 1px solid transparent; }
+.back { border-radius: 18px; }
+
+/* Restrained tactile controls preserving Liquid Glass (faf057a). */
+.button {
+  transition: transform 160ms var(--ease),
+    box-shadow 160ms var(--ease),
+    background-color 160ms var(--ease),
+    color 160ms var(--ease);
+}
+button {
+  transition: background-color 140ms var(--ease),
+    color 140ms var(--ease),
+    border-color 140ms var(--ease),
+    box-shadow 160ms var(--ease),
+    transform 140ms var(--ease);
+}
+.button:active {
+  transform: scale(.985) !important;
+  opacity: 1;
+  box-shadow: inset 0 1px 4px #202d5018;
+}
+button:active, .is-pressed {
+  transform: scale(.985);
+}
+
+.service-option {
+  transition: background-color 180ms var(--ease),
+    border-color 180ms var(--ease),
+    box-shadow var(--motion-surface) var(--ease);
+}
+.service-option .check,
+.service-option[aria-pressed=false] .check {
+  transform: none;
+  transition: opacity 120ms var(--ease);
+}
+.service-option[aria-pressed=false] .check { opacity: .65; }
+.service-option[aria-pressed=true] {
+  box-shadow: var(--elevation), inset 0 0 32px #ffffff40;
+}
+
+/* Custom Liquid Glass checkbox in Portal active products. */
+.active-products input {
+  appearance: none;
+  -webkit-appearance: none;
+  display: grid;
+  place-content: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  border: 1px solid #ffffffed;
+  border-radius: 7px;
+  background: #ffffff50;
+  box-shadow: inset 0 1px 2px #fff, 0 3px 8px #4061a61a;
+  transition: background-color 140ms var(--ease), border-color 140ms var(--ease);
+}
+.active-products input:checked {
+  background: #5b70b280;
+  border-color: #5b70b2;
+}
+.active-products input:after {
+  content: '';
+  width: 9px;
+  height: 5px;
+  border-left: 2px solid white;
+  border-bottom: 2px solid white;
+  transform: translateY(-1px) rotate(-45deg);
+  opacity: 0;
+}
+.active-products input:checked:after { opacity: 1; }
+.active-products input:focus-visible { outline: 2px solid #415fa8; outline-offset: 3px; }
+
+input, select, textarea {
+  transition: border-color var(--motion-selection),
+    box-shadow var(--motion-selection),
+    background-color var(--motion-selection);
+}
+input:focus, select:focus, textarea:focus {
+  border-color: #5b70b2;
+  box-shadow: inset 0 1px 3px white;
+  background: #fff;
+}
+
+/* Pilot disclosure accordion. */
+.pilot summary { margin-bottom: 0 !important; }
+.disclosure-content { padding-top: 24px; }
+.disclosure-content > :last-child { margin-bottom: 0; }
+.pilot summary span { transition: transform 180ms var(--ease); transform: rotate(0); }
+.pilot[open] summary span { transform: rotate(45deg); }
+
+/* Dialog top-layer transitions. */
+dialog[open] { animation: dialog-enter 240ms var(--ease); }
+@keyframes dialog-enter {
+  from { opacity: .4; transform: scale(.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+@supports (transition-behavior: allow-discrete) {
+  dialog {
+    opacity: 0;
+    transform: translateY(6px) scale(.98);
+    transition: opacity 160ms var(--ease),
+      transform 200ms var(--ease),
+      display 200ms allow-discrete,
+      overlay 200ms allow-discrete;
+  }
+  dialog[open] { opacity: 1; transform: none; animation: none; }
+  dialog::backdrop {
+    background: #202d5000;
+    backdrop-filter: none;
+    transition: background-color 160ms var(--ease),
+      display 200ms allow-discrete,
+      overlay 200ms allow-discrete;
+  }
+  dialog[open]::backdrop { background: #202d5045; }
+  @starting-style {
+    dialog[open] { opacity: 0; transform: translateY(6px) scale(.98); }
+    dialog[open]::backdrop { background: #202d5000; }
+  }
+}
 
 /* Progressive select: browser keeps selection, keyboard and focus ownership. */
-@supports (appearance:base-select){
- .ambo select,.ambo select::picker(select){appearance:base-select}
- .ambo select::picker(select){background:#ECF6FE;border:1px solid #235D9433;border-radius:16px;padding:6px;box-shadow:0 8px 24px #202d5018;opacity:0;transform:translateY(-4px);transform-origin:top;transition:opacity 160ms var(--ease),transform 180ms var(--ease),display 180ms allow-discrete,overlay 180ms allow-discrete}
- .ambo select::picker(select):popover-open{opacity:1;transform:none}
- @starting-style{.ambo select::picker(select):popover-open{opacity:0;transform:translateY(-4px)}}
- .ambo select option{padding:10px 12px;border-radius:10px;color:#235D94}
- .ambo select option:checked{background:#A4CFF680}
- .ambo select::picker-icon{transition:transform 160ms var(--ease)}
- .ambo select:open::picker-icon{transform:rotate(180deg)}
+@supports (appearance: base-select) {
+  .ambo select, .ambo select::picker(select) { appearance: base-select; }
+  .ambo select::picker(select) {
+    background: #ECF6FE;
+    border: 1px solid #235D9433;
+    border-radius: 16px;
+    padding: 6px;
+    box-shadow: 0 8px 24px #202d5018;
+    opacity: 0;
+    transform: translateY(-4px);
+    transform-origin: top;
+    transition: opacity 160ms var(--ease),
+      transform 180ms var(--ease),
+      display 180ms allow-discrete,
+      overlay 180ms allow-discrete;
+  }
+  .ambo select::picker(select):popover-open { opacity: 1; transform: none; }
+  @starting-style {
+    .ambo select::picker(select):popover-open { opacity: 0; transform: translateY(-4px); }
+  }
+  .ambo select option { padding: 10px 12px; border-radius: 10px; color: #235D94; }
+  .ambo select option:checked { background: #A4CFF680; }
+  .ambo select::picker-icon { transition: transform 160ms var(--ease); }
+  .ambo select:open::picker-icon { transform: rotate(180deg); }
 }
-@media(prefers-reduced-motion:reduce){.ambo select::picker(select){transform:none!important;transition:none}.ambo select::picker-icon{transition:none}}
 
-/* Restore the approved glass material without stretching its corners. */
-.motion-lens{inset:auto;left:0;top:0;clip-path:none;border:1px solid #ffffffdc;background:linear-gradient(135deg,#ffffff80,#ffffff2e 55%,#c3d6ee55);box-shadow:inset 0 1px 2px #fff,0 5px 16px #4061a61f;backdrop-filter:blur(14px) saturate(130%);transition:transform 220ms var(--ease)}
-.choice-group[aria-label=Modalidade]{background:#ffffff35;border:1px solid #ffffffb8;box-shadow:inset 0 1px 2px #fff8}
-.choice-group[aria-label=Modalidade]>.motion-lens{background:linear-gradient(135deg,#ffffff85,#A4CFF680);border-color:#ffffffdf}
-.mini-sidebar>.motion-lens{background:linear-gradient(135deg,#ffffff85,#A6DDD880)}
-#ambo .choice-group[aria-label=Modalidade] [aria-pressed=true]{background:transparent!important}
-.choice-group[aria-label=Dias] button{background:#ffffff4a;border:1px solid #ffffffda;box-shadow:inset 0 1px 1px #fff9,0 3px 10px #4061a60d}
-#ambo .choice-group[aria-label=Dias] [aria-pressed=true]{background:linear-gradient(135deg,#ffffff75,#A4CFF680)!important;border-color:#235D9470!important;box-shadow:inset 0 1px 2px #fff,0 4px 12px #235D9414}
-.back{border-radius:18px}
-.product .button{background:linear-gradient(135deg,#ffffff70,#A4CFF699);color:var(--action);border:1px solid #ffffffeb;box-shadow:inset 0 1px 2px #fff,0 7px 18px #235D941c;backdrop-filter:blur(14px)}
-.button{transition:transform 160ms var(--ease),box-shadow 160ms var(--ease),background-color 160ms var(--ease),color 160ms var(--ease)}
-.button:active{transform:scale(.985)!important;opacity:1;box-shadow:inset 0 1px 4px #202d5018}
-.active-products input{appearance:none;-webkit-appearance:none;display:grid;place-content:center;flex:none;width:22px;height:22px;margin:0;border:1px solid #ffffffed;border-radius:7px;background:#ffffff50;box-shadow:inset 0 1px 2px #fff,0 3px 8px #4061a61a;transition:background-color 140ms var(--ease),border-color 140ms var(--ease)}
-.active-products input:checked{background:#5b70b280;border-color:#5b70b2}
-.active-products input:after{content:'';width:9px;height:5px;border-left:2px solid white;border-bottom:2px solid white;transform:translateY(-1px) rotate(-45deg);opacity:0}
-.active-products input:checked:after{opacity:1}
-.active-products input:focus-visible{outline:2px solid #415fa8;outline-offset:3px}
-@media(hover:hover) and (pointer:fine){
- .button:hover{transform:translateY(-1px);box-shadow:inset 0 1px 2px #fff9,0 10px 22px #4061a62b}
- .product .button:hover{background:linear-gradient(135deg,#ffffffa6,#A4CFF6b3);color:var(--focus)}
- .back:hover{background:#ffffff45;box-shadow:inset 0 1px 1px #ffffffa0}
+/* Pointer hover feedback: subtle 1px lift on buttons, no jitter on cards. */
+@media (hover: hover) and (pointer: fine) {
+  .button:hover {
+    transform: translateY(-1px);
+    box-shadow: inset 0 1px 2px #fff9, 0 10px 22px #4061a62b;
+  }
+  .service-option:hover {
+    transform: none;
+    border-color: var(--action, var(--blue));
+  }
+  .back:hover {
+    background: #ffffff45;
+    box-shadow: inset 0 1px 1px #ffffffa0;
+  }
+  .mini-sidebar button:hover,
+  .portal-side button:hover {
+    background-color: #ffffff50;
+  }
 }
-@media(prefers-reduced-motion:reduce){.motion-lens{transition:none}.button:hover,.button:active{transform:none!important}}
-@media(forced-colors:active){.active-products input{appearance:auto}.active-products input:after{display:none}}
+
+/* Mobile menu drawer. */
+@media (max-width: 700px) {
+  .closing-flower { display: none; }
+  #nav-links { position: absolute; }
+  .nav nav {
+    display: flex;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(-8px) scale(.97);
+    transform-origin: calc(100% - 32px) 0;
+    transition: opacity 200ms var(--ease),
+      transform 240ms var(--ease-drawer),
+      visibility 0s linear 240ms;
+  }
+  .nav.menu-open nav {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0) scale(1);
+    transition: opacity 200ms var(--ease),
+      transform 240ms var(--ease-drawer),
+      visibility 0s;
+  }
+  .nav nav > .motion-lens { display: none; }
+  .menu-toggle { transition: background-color 180ms, box-shadow 180ms; }
+  .menu-toggle[aria-expanded=true] { background: #aebff060; }
+}
+
+/* Petal journey layers. */
+body.has-petal-journey { isolation: isolate; }
+.has-petal-journey section { isolation: auto; }
+.has-petal-journey .substrate { z-index: 0; }
+.has-petal-journey .wrap,
+.has-petal-journey .connection-sticky { z-index: 2; }
+.has-petal-journey .hero-flower,
+.has-petal-journey .closing-top > img,
+.has-petal-journey .portal-flower { visibility: hidden; }
+.has-petal-journey .portal-main { z-index: 2; }
+.has-petal-journey .portal-side { z-index: 3; }
+
+.petal-journey {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  overflow: clip;
+  pointer-events: none;
+  z-index: 1;
+  contain: strict;
+}
+.journey-petal {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+.journey-petal svg {
+  position: absolute;
+  left: -235px;
+  top: -335px;
+  max-width: none;
+  overflow: visible;
+  pointer-events: none;
+}
+.journey-petal g {
+  transform-box: view-box;
+  transform-origin: 235px 335px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .petal { transform: none !important; }
+  .motion-lens { transition: none; }
+  .pilot summary span { transition: none; }
+  .button:hover, .button:active, button:active { transform: none !important; }
+  .nav nav { transform: none !important; }
+  dialog, dialog[open] { animation: none; transform: none; }
+  .ambo select::picker(select) { transform: none !important; transition: none; }
+  .ambo select::picker-icon { transition: none; }
+  .journey-petal { will-change: auto; }
+}
+
+@media (forced-colors: active) {
+  .active-products input { appearance: auto; }
+  .active-products input:after { display: none; }
+}
