@@ -2,11 +2,21 @@ const TOKEN_KEY = 'enomera_session_token_v1';
 const DRAFT_COMBO_KEY = 'enomera_pending_combo_v1';
 const LAST_ORDER_KEY = 'enomera_last_order_v1';
 
+function resolveSiblingOrigin(override, localPort, prodPrefix) {
+  if (override) return override;
+  if (location.hostname === '127.0.0.1' || location.hostname === 'localhost') {
+    return `http://127.0.0.1:${localPort}`;
+  }
+  const m = location.hostname.match(/^enomera(-git-.+\.vercel\.app)$/);
+  if (m) return `https://${prodPrefix}${m[1]}`;
+  return `https://${prodPrefix}.vercel.app`;
+}
+
 const APP_ORIGINS = {
-  ambo: window.__ENOMERA_AMBO_URL || (location.hostname === '127.0.0.1' || location.hostname === 'localhost' ? 'http://127.0.0.1:3001' : 'https://ambo-enomera.vercel.app'),
-  minne: window.__ENOMERA_MINNE_URL || (location.hostname === '127.0.0.1' || location.hostname === 'localhost' ? 'http://127.0.0.1:3002' : 'https://minne-enomera.vercel.app'),
-  etha: window.__ENOMERA_ETHA_URL || (location.hostname === '127.0.0.1' || location.hostname === 'localhost' ? 'http://127.0.0.1:3003' : 'https://etha-enomera.vercel.app'),
-  helena: window.__ENOMERA_HELENA_URL || (location.hostname === '127.0.0.1' || location.hostname === 'localhost' ? 'http://127.0.0.1:3004' : 'https://helenaduartepsi.vercel.app'),
+  ambo: resolveSiblingOrigin(window.__ENOMERA_AMBO_URL, 3001, 'ambo-enomera'),
+  minne: resolveSiblingOrigin(window.__ENOMERA_MINNE_URL, 3002, 'minne-enomera'),
+  etha: resolveSiblingOrigin(window.__ENOMERA_ETHA_URL, 3003, 'etha-enomera'),
+  helena: resolveSiblingOrigin(window.__ENOMERA_HELENA_URL, 3004, 'helenaduartepsi'),
 };
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -22,6 +32,21 @@ function saveCombo(combo) { try { sessionStorage.setItem(DRAFT_COMBO_KEY, JSON.s
 function loadSavedOrder() { try { const r = sessionStorage.getItem(LAST_ORDER_KEY); return r ? JSON.parse(r) : null; } catch { return null; } }
 function saveLastOrder(o) { try { if (o) sessionStorage.setItem(LAST_ORDER_KEY, JSON.stringify(o)); else sessionStorage.removeItem(LAST_ORDER_KEY); } catch {} }
 
+function prefersReducedMotion() {
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function isRemoteInfraError(status, data) {
+  const code = String(data?.code || '');
+  return (
+    status === 503 ||
+    code === 'REMOTE_INFRA_NOT_CONFIGURED' ||
+    code === 'REMOTE_DB_NOT_CONFIGURED' ||
+    code === 'REMOTE_BLOB_NOT_CONFIGURED' ||
+    code === 'REMOTE_MAILER_NOT_CONFIGURED'
+  );
+}
+
 async function apiFetch(path, { method = 'GET', body = null, headers = {} } = {}) {
   const h = { ...headers };
   if (body !== null) h['Content-Type'] = 'application/json';
@@ -35,7 +60,14 @@ async function apiFetch(path, { method = 'GET', body = null, headers = {} } = {}
   });
   const data = await res.json().catch(() => ({}));
   if (res.status === 401 && tok) setToken('');
-  return { ok: res.ok, status: res.status, data };
+  const infraError = isRemoteInfraError(res.status, data)
+    ? {
+        code: data.code || 'REMOTE_INFRA_NOT_CONFIGURED',
+        error: data.error || 'Infraestrutura remota de Preview aguarda configuração das variáveis de ambiente.',
+        missingEnvVars: Array.isArray(data.missingEnvVars) ? data.missingEnvVars : [],
+      }
+    : null;
+  return { ok: res.ok, status: res.status, data, infraError };
 }
 
 export async function mountEnomeraPlatform(rootEl) {
@@ -49,8 +81,10 @@ export async function mountEnomeraPlatform(rootEl) {
     orders: [],
     profileData: null,
     combo: loadCombo(),
-    formCache: { fullName: '', email: '', crpOrCrm: '', specialty: 'Psicologia' },
+    formCache: { fullName: '', email: '', crpOrCrm: '', specialty: 'Psicologia', loginPwd: '', signupPwd: '', recoveryCode: '', recoveryPwd: '' },
+    pwdVisible: { 'l-pwd': false, 's-pwd': false, 'rc-pwd': false },
     fieldError: null,
+    infraError: null,
     pendingEmail: '',
     lastSentEmail: '',
     otpDigits: ['', '', '', '', '', ''],
@@ -65,6 +99,39 @@ export async function mountEnomeraPlatform(rootEl) {
     lastOrder: loadSavedOrder(),
     returnAfterAuth: 'portal',
   };
+
+  const motionTracker = {
+    prevTab: null,
+    prevAuthMode: null,
+    prevViewMode: null,
+    segIndices: {},
+  };
+
+  function syncHistory(tab, authMode) {
+    if (!window.history?.pushState) return;
+    const nextPath = tab === 'plans' ? '/checkout' : tab === 'auth' ? '/conta' : '/portal';
+    const st = window.history.state || {};
+    if (st.enoTab === tab && st.enoAuthMode === authMode && location.pathname === nextPath) return;
+    try {
+      window.history.pushState({ enoTab: tab, enoAuthMode: authMode }, '', nextPath + location.search);
+    } catch {}
+  }
+
+  window.addEventListener('popstate', (ev) => {
+    const st = ev.state;
+    if (st?.enoTab) {
+      state.tab = st.enoTab;
+      if (st.enoAuthMode) state.authMode = st.enoAuthMode;
+    } else if (location.pathname.startsWith('/checkout')) {
+      state.tab = 'plans';
+    } else if (location.pathname.startsWith('/conta')) {
+      state.tab = 'auth';
+    } else {
+      state.tab = state.me ? 'portal' : 'auth';
+    }
+    state.fieldError = null;
+    render();
+  });
 
   let quoteSeq = 0;
 
@@ -99,7 +166,14 @@ export async function mountEnomeraPlatform(rootEl) {
 
   async function refreshSessionAndData() {
     const hadToken = Boolean(getToken());
-    const [catRes, meRes] = await Promise.all([apiFetch('/api/v1/catalog'), apiFetch('/api/v1/auth/me')]);
+    const [healthRes, catRes, meRes] = await Promise.all([
+      apiFetch('/api/v1/health'),
+      apiFetch('/api/v1/catalog'),
+      apiFetch('/api/v1/auth/me'),
+    ]);
+    if (healthRes.infraError) state.infraError = healthRes.infraError;
+    else if (meRes.infraError) state.infraError = meRes.infraError;
+    else if (healthRes.ok && healthRes.data?.ok) state.infraError = null;
     if (catRes.ok) state.catalog = catRes.data;
     if (meRes.ok) {
       state.me = meRes.data;
@@ -179,9 +253,85 @@ export async function mountEnomeraPlatform(rootEl) {
     const idx = Math.max(0, options.findIndex(([k]) => k === activeKey));
     const pct = 100 / options.length;
     return `
-      <div class="eno-seg" id="${id}" role="tablist">
+      <div class="eno-seg" id="${id}" data-seg-idx="${idx}" role="tablist">
         <span class="eno-seg-indicator" style="width:calc(${pct}% - 4px);transform:translateX(calc(${idx * 100}%))"></span>
         ${options.map(([k, lbl]) => `<button type="button" role="tab" aria-selected="${activeKey === k}" ${attrName}="${k}">${lbl}</button>`).join('')}
+      </div>
+    `;
+  }
+
+  function renderInfraAlert() {
+    if (!state.infraError) return '';
+    const missing = state.infraError.missingEnvVars || [];
+    return `
+      <section class="eno-infra-alert" role="alert" aria-live="polite">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <div style="max-width:740px">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+              <span class="eno-pill eno-pill-warn">503 · Infraestrutura Remota Pendente</span>
+              <strong style="font-size:0.92rem">Ambiente Preview aguardando configuração (${esc(state.infraError.code)})</strong>
+            </div>
+            <p style="margin:4px 0 6px;font-size:0.84rem;line-height:1.45">
+              ${esc(state.infraError.error)} Sua seleção de serviços e os dados preenchidos continuam salvos nesta aba.
+            </p>
+            ${missing.length ? `
+              <div style="font-size:0.77rem;font-weight:650;margin-top:6px">Variáveis ausentes no ambiente Preview:</div>
+              <div class="eno-infra-env-list">
+                ${missing.map((envName) => `<span class="eno-infra-env-pill">${esc(envName)}</span>`).join('')}
+              </div>
+            ` : ''}
+          </div>
+          <button type="button" class="eno-btn eno-btn-sec eno-btn-sm" id="eno-retry-health">Verificar novamente</button>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderStepper() {
+    if (!['plans', 'auth', 'portal'].includes(state.tab)) return '';
+    const step1Done = state.tab === 'auth' || state.tab === 'portal';
+    const step2Active = state.tab === 'auth';
+    const step2Done = Boolean(state.me);
+    const step3Active = state.tab === 'portal' && Boolean(state.me);
+    const step2Label = state.authMode === 'verify'
+      ? '2. Código de 6 dígitos'
+      : state.authMode === 'recovery'
+        ? '2. Recuperar acesso'
+        : '2. Conta e verificação';
+    return `
+      <div class="eno-stepper" aria-label="Etapas da contratação e acesso">
+        <div class="eno-stepper-steps">
+          <span class="eno-step-pill ${state.tab === 'plans' ? 'is-active' : step1Done ? 'is-done' : ''}">
+            <span class="eno-step-num">${step1Done && state.tab !== 'plans' ? '✓' : '1'}</span>
+            1. Planos e simulação
+          </span>
+          <span class="eno-step-pill ${step2Active ? 'is-active' : step2Done ? 'is-done' : ''}">
+            <span class="eno-step-num">${step2Done && !step2Active ? '✓' : '2'}</span>
+            ${esc(step2Label)}
+          </span>
+          <span class="eno-step-pill ${step3Active ? 'is-active' : ''}">
+            <span class="eno-step-num">3</span>
+            3. Portal e produtos ativos
+          </span>
+        </div>
+        ${state.tab !== 'plans'
+          ? `<button type="button" class="eno-btn eno-btn-sec eno-btn-sm" id="eno-step-back">← Voltar</button>`
+          : `<span style="font-size:0.78rem;color:#4E6083;font-weight:600">Simulação transparente · sem cobrança real</span>`}
+      </div>
+    `;
+  }
+
+  function renderPasswordField({ id, name, label, hint, value, autocomplete, invalid, errorText }) {
+    const isVisible = Boolean(state.pwdVisible[id]);
+    return `
+      <div class="eno-field">
+        <label for="${id}">${esc(label)}</label>
+        ${hint ? `<span class="eno-field-hint">${esc(hint)}</span>` : ''}
+        <div class="eno-input-wrap">
+          <input id="${id}" name="${name}" type="${isVisible ? 'text' : 'password'}" class="eno-input eno-input-with-toggle" required minlength="8" autocomplete="${autocomplete}" value="${esc(value || '')}" aria-invalid="${invalid ? 'true' : 'false'}">
+          <button type="button" class="eno-pwd-toggle" data-toggle-pwd="${id}" aria-label="${isVisible ? 'Ocultar senha' : 'Mostrar senha'}">${isVisible ? 'Ocultar' : 'Mostrar'}</button>
+        </div>
+        ${errorText ? `<span class="eno-field-err">${esc(errorText)}</span>` : ''}
       </div>
     `;
   }
@@ -212,16 +362,22 @@ export async function mountEnomeraPlatform(rootEl) {
 
   function renderOutboxBox() {
     if (!state.outboxMessages.length) return '';
+    const latest = state.outboxMessages[0];
+    const codeMatch = String(latest?.body_preview || '').match(/\b(\d{6})\b/);
+    const latestCode = codeMatch ? codeMatch[1] : '';
     return `
       <div class="eno-outbox">
-        <strong>Caixa local de homologação (alternativa sem Resend/SMTP configurado):</strong>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+          <strong>Caixa local de homologação (alternativa sem Resend/SMTP configurado):</strong>
+          ${latestCode ? `<button type="button" class="eno-btn eno-btn-sec eno-btn-sm" id="eno-fill-dev-code" data-dev-code="${esc(latestCode)}">Preencher código agora (${esc(latestCode)})</button>` : ''}
+        </div>
         <span>Nenhuma mensagem externa foi disparada. Copie ou cole o código de 6 dígitos abaixo:</span>
         ${state.outboxMessages.slice(0, 2).map((m) => `<div>• <b>${esc(m.subject)}</b> — ${esc(m.body_preview)}</div>`).join('')}
       </div>
     `;
   }
 
-  function renderAuthView() {
+  function renderAuthView(animateAuthBody) {
     const comboNames = state.combo.products.map((p) => p.toUpperCase()).join(' + ') || 'Nenhum';
     const modeTitles = {
       login: 'Entrar na sua conta Enomera',
@@ -234,14 +390,19 @@ export async function mountEnomeraPlatform(rootEl) {
     return `
       <section class="eno-grid-2">
         <div class="eno-card">
-          ${renderSegmented('eno-auth-seg', [
-            ['login', 'Entrar'],
-            ['signup', 'Criar conta'],
-            ['verify', 'Código'],
-            ['recovery', 'Recuperar'],
-          ], state.authMode, 'data-authmode')}
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+            <div style="flex:1;min-width:240px">
+              ${renderSegmented('eno-auth-seg', [
+                ['login', 'Entrar'],
+                ['signup', 'Criar conta'],
+                ['verify', 'Código'],
+                ['recovery', 'Recuperar'],
+              ], state.authMode, 'data-authmode')}
+            </div>
+            ${(state.authMode === 'verify' || state.authMode === 'recovery') ? `<button type="button" class="eno-btn eno-btn-sec eno-btn-sm" id="eno-auth-back">← Voltar</button>` : ''}
+          </div>
 
-          <div class="eno-panel-enter" key="${state.authMode}">
+          <div class="${animateAuthBody ? 'eno-panel-enter' : ''}" data-auth-panel="${state.authMode}">
             <h1 class="eno-h1" style="margin-bottom:8px">${modeTitles[state.authMode]}</h1>
 
             ${state.authMode === 'login' ? `
@@ -249,13 +410,18 @@ export async function mountEnomeraPlatform(rootEl) {
               <form id="eno-login-form" class="eno-list">
                 <div class="eno-field">
                   <label for="l-email">E-mail profissional</label>
-                  <input id="l-email" name="email" type="email" class="eno-input" required value="${esc(state.formCache.email)}" placeholder="voce@consultorio.com.br" aria-invalid="${state.fieldError?.field === 'login' ? 'true' : 'false'}">
+                  <input id="l-email" name="email" type="email" autocomplete="email" class="eno-input" required value="${esc(state.formCache.email)}" placeholder="voce@consultorio.com.br" aria-invalid="${state.fieldError?.field === 'login' ? 'true' : 'false'}">
                 </div>
-                <div class="eno-field">
-                  <label for="l-pwd">Senha</label>
-                  <input id="l-pwd" name="password" type="password" class="eno-input" required minlength="8" aria-invalid="${state.fieldError?.field === 'login' ? 'true' : 'false'}">
-                  ${state.fieldError?.field === 'login' ? `<span class="eno-field-err">${esc(state.fieldError.text)}</span>` : ''}
-                </div>
+                ${renderPasswordField({
+                  id: 'l-pwd',
+                  name: 'password',
+                  label: 'Senha',
+                  hint: '',
+                  value: state.formCache.loginPwd,
+                  autocomplete: 'current-password',
+                  invalid: state.fieldError?.field === 'login',
+                  errorText: state.fieldError?.field === 'login' ? state.fieldError.text : '',
+                })}
                 <div class="eno-btn-row">
                   <button type="submit" class="eno-btn">Entrar e continuar</button>
                   <button type="button" class="eno-btn eno-btn-sec" id="eno-fill-helena">Usar Helena (fictícia)</button>
@@ -264,17 +430,30 @@ export async function mountEnomeraPlatform(rootEl) {
             ` : state.authMode === 'signup' ? `
               <p class="eno-muted" style="margin-bottom:14px">Ao criar a conta, sua combinação <b>${esc(comboNames)}</b> segue salva até o checkout.</p>
               <form id="eno-signup-form" class="eno-list">
-                <div class="eno-field"><label for="s-name">Nome completo</label><input id="s-name" name="fullName" class="eno-input" required value="${esc(state.formCache.fullName)}" placeholder="Ex.: Helena Duarte"></div>
+                <div class="eno-field"><label for="s-name">Nome completo</label><input id="s-name" name="fullName" autocomplete="name" class="eno-input" required value="${esc(state.formCache.fullName)}" placeholder="Ex.: Helena Duarte"></div>
                 <div class="eno-field">
                   <label for="s-email">E-mail profissional</label>
-                  <input id="s-email" name="email" type="email" class="eno-input" required value="${esc(state.formCache.email)}" placeholder="helena@exemplo.com.br" aria-invalid="${state.fieldError?.field === 'email' ? 'true' : 'false'}">
+                  <span class="eno-field-hint">Enviaremos um código de 6 dígitos para confirmar sua conta.</span>
+                  <input id="s-email" name="email" type="email" autocomplete="email" class="eno-input" required value="${esc(state.formCache.email)}" placeholder="helena@exemplo.com.br" aria-invalid="${state.fieldError?.field === 'email' ? 'true' : 'false'}">
                   ${state.fieldError?.field === 'email' ? `<span class="eno-field-err">${esc(state.fieldError.text)}</span>` : ''}
                 </div>
                 <div class="eno-grid-2" style="grid-template-columns:1fr 1fr;gap:10px">
-                  <div class="eno-field"><label for="s-crp">CRP ou CRM</label><input id="s-crp" name="crpOrCrm" class="eno-input" value="${esc(state.formCache.crpOrCrm)}" placeholder="CRP 06/148290"></div>
+                  <div class="eno-field">
+                    <div class="eno-label-row"><label for="s-crp">CRP ou CRM</label><span class="eno-opt-tag">(opcional)</span></div>
+                    <input id="s-crp" name="crpOrCrm" class="eno-input" value="${esc(state.formCache.crpOrCrm)}" placeholder="CRP 06/148290">
+                  </div>
                   <div class="eno-field"><label for="s-spec">Especialidade</label><select id="s-spec" name="specialty" class="eno-select"><option value="Psicologia" ${state.formCache.specialty === 'Psicologia' ? 'selected' : ''}>Psicologia</option><option value="Psiquiatria" ${state.formCache.specialty === 'Psiquiatria' ? 'selected' : ''}>Psiquiatria</option></select></div>
                 </div>
-                <div class="eno-field"><label for="s-pwd">Senha (mínimo 8 caracteres)</label><input id="s-pwd" name="password" type="password" class="eno-input" required minlength="8"></div>
+                ${renderPasswordField({
+                  id: 's-pwd',
+                  name: 'password',
+                  label: 'Senha',
+                  hint: 'Mínimo de 8 caracteres.',
+                  value: state.formCache.signupPwd,
+                  autocomplete: 'new-password',
+                  invalid: state.fieldError?.field === 'password',
+                  errorText: state.fieldError?.field === 'password' ? state.fieldError.text : '',
+                })}
                 <button type="submit" class="eno-btn">Criar conta e receber código</button>
               </form>
             ` : state.authMode === 'verify' ? `
@@ -289,12 +468,12 @@ export async function mountEnomeraPlatform(rootEl) {
               <form id="eno-verify-form" class="eno-list">
                 <div class="eno-field">
                   <label for="v-email">E-mail de verificação (você pode corrigir aqui se digitou errado)</label>
-                  <input id="v-email" name="email" type="email" class="eno-input" required value="${esc(emailTarget)}">
+                  <input id="v-email" name="email" type="email" autocomplete="email" class="eno-input" required value="${esc(emailTarget)}">
                 </div>
                 <div class="eno-field">
                   <label for="otp-0">Código de 6 dígitos (aceita colar o código inteiro)</label>
                   <div class="eno-otp-row" id="eno-otp-group">
-                    ${[0, 1, 2, 3, 4, 5].map((i) => `<input id="otp-${i}" class="eno-otp-digit" inputmode="numeric" autocomplete="${i === 0 ? 'one-time-code' : 'off'}" maxlength="6" value="${esc(state.otpDigits[i] || '')}" aria-label="Dígito ${i + 1} de 6">`).join('')}
+                    ${[0, 1, 2, 3, 4, 5].map((i) => `<input id="otp-${i}" class="eno-otp-digit" inputmode="numeric" autocomplete="${i === 0 ? 'one-time-code' : 'off'}" maxlength="6" value="${esc(state.otpDigits[i] || '')}" aria-label="Dígito ${i + 1} de 6" aria-invalid="${state.fieldError?.field === 'code' ? 'true' : 'false'}">`).join('')}
                   </div>
                   <input type="hidden" id="v-code" name="code" value="${esc(state.otpDigits.join(''))}">
                   ${state.fieldError?.field === 'code' ? `<span class="eno-field-err">${esc(state.fieldError.text)}</span>` : ''}
@@ -307,12 +486,21 @@ export async function mountEnomeraPlatform(rootEl) {
             ` : `
               <p class="eno-muted" style="margin-bottom:12px">Redefinir a senha encerra automaticamente sessões antigas em outros dispositivos.</p>
               <form id="eno-rec-req" class="eno-list" style="margin-bottom:14px">
-                <div class="eno-field"><label for="r-email">E-mail cadastrado</label><input id="r-email" name="email" type="email" class="eno-input" required value="${esc(emailTarget)}"></div>
+                <div class="eno-field"><label for="r-email">E-mail cadastrado</label><input id="r-email" name="email" type="email" autocomplete="email" class="eno-input" required value="${esc(emailTarget)}"></div>
                 <button type="submit" class="eno-btn eno-btn-sec">Enviar código de recuperação</button>
               </form>
               <form id="eno-rec-confirm" class="eno-list">
-                <div class="eno-field"><label for="rc-code">Código de 6 dígitos</label><input id="rc-code" name="code" class="eno-input" required maxlength="6" placeholder="000000"></div>
-                <div class="eno-field"><label for="rc-pwd">Nova senha (mínimo 8 caracteres)</label><input id="rc-pwd" name="newPassword" type="password" class="eno-input" required minlength="8"></div>
+                <div class="eno-field"><label for="rc-code">Código de 6 dígitos</label><input id="rc-code" name="code" inputmode="numeric" class="eno-input" required maxlength="6" value="${esc(state.formCache.recoveryCode)}" placeholder="000000"></div>
+                ${renderPasswordField({
+                  id: 'rc-pwd',
+                  name: 'newPassword',
+                  label: 'Nova senha',
+                  hint: 'Mínimo de 8 caracteres.',
+                  value: state.formCache.recoveryPwd,
+                  autocomplete: 'new-password',
+                  invalid: false,
+                  errorText: '',
+                })}
                 <button type="submit" class="eno-btn">Redefinir senha e entrar</button>
               </form>
             `}
@@ -647,11 +835,35 @@ export async function mountEnomeraPlatform(rootEl) {
         <form id="eno-pilot-form" class="eno-list">
           <div class="eno-field"><label for="pl-name">Nome completo</label><input id="pl-name" name="fullName" class="eno-input" required value="${esc(state.me?.user?.fullName || '')}"></div>
           <div class="eno-field"><label for="pl-email">E-mail</label><input id="pl-email" name="email" type="email" class="eno-input" required value="${esc(state.me?.user?.email || '')}"></div>
-          <div class="eno-field"><label for="pl-notes">O que deseja avaliar?</label><input id="pl-notes" name="notes" class="eno-input" placeholder="Ex.: agendamento no Ambo e prontuário no Minne"></div>
+          <div class="eno-field"><div class="eno-label-row"><label for="pl-notes">O que deseja avaliar?</label><span class="eno-opt-tag">(opcional)</span></div><input id="pl-notes" name="notes" class="eno-input" placeholder="Ex.: agendamento no Ambo e prontuário no Minne"></div>
           <button type="submit" class="eno-btn eno-btn-etha">Registrar interesse no piloto (sem cobrança)</button>
         </form>
       </section>
     `;
+  }
+
+  function animateSegmentedIndicators() {
+    const rootStyles = getComputedStyle(document.documentElement);
+    const pillDuration = parseInt(rootStyles.getPropertyValue('--eno-dur-base'), 10) || 180;
+    const pillEasing = rootStyles.getPropertyValue('--eno-ease-pill').trim() || 'ease-out';
+    rootEl.querySelectorAll('.eno-seg[id]').forEach((segEl) => {
+      const id = segEl.id;
+      const curIdx = Number(segEl.dataset.segIdx || 0);
+      const prevIdx = motionTracker.segIndices[id];
+      motionTracker.segIndices[id] = curIdx;
+      if (prevIdx !== undefined && prevIdx !== curIdx && !prefersReducedMotion()) {
+        const ind = segEl.querySelector('.eno-seg-indicator');
+        if (ind && typeof ind.animate === 'function') {
+          ind.animate(
+            [
+              { transform: `translateX(${prevIdx * 100}%)` },
+              { transform: `translateX(${curIdx * 100}%)` },
+            ],
+            { duration: pillDuration, easing: pillEasing }
+          );
+        }
+      }
+    });
   }
 
   function render() {
@@ -668,14 +880,20 @@ export async function mountEnomeraPlatform(rootEl) {
               ? { by: 'attr', attr: 'data-toggle-prod', val: active.dataset.toggleProd }
               : null;
 
-    const view = state.tab === 'auth' ? renderAuthView()
+    const animateAuthBody = state.tab === 'auth' && (motionTracker.prevTab !== 'auth' || motionTracker.prevAuthMode !== state.authMode);
+    motionTracker.prevTab = state.tab;
+    motionTracker.prevAuthMode = state.authMode;
+    motionTracker.prevViewMode = state.combo.viewMode;
+
+    const view = state.tab === 'auth' ? renderAuthView(animateAuthBody)
       : state.tab === 'plans' ? renderPlansAndCheckout()
       : state.tab === 'profile' ? renderProfileView()
       : state.tab === 'billing' ? renderBillingView()
       : state.tab === 'pilot' ? renderPilotView()
       : renderPortalView();
 
-    rootEl.innerHTML = `<div class="eno-shell">${renderTopbar()}<div class="eno-container" id="portal-content" tabindex="-1">${renderFeedback()}${view}</div></div>`;
+    rootEl.innerHTML = `<div class="eno-shell"><img class="eno-flower-watermark" src="/assets/flower.svg" alt="" aria-hidden="true">${renderTopbar()}<div class="eno-container" id="portal-content" tabindex="-1">${renderInfraAlert()}${renderStepper()}${renderFeedback()}${view}</div></div>`;
+    animateSegmentedIndicators();
     bindEvents();
 
     if (focusKey) {
@@ -785,16 +1003,93 @@ export async function mountEnomeraPlatform(rootEl) {
 
   function bindEvents() {
     bindOtpInputs();
+
+    // Live clear of inline errors + keep password/form values across error re-renders
+    rootEl.querySelectorAll('.eno-input, .eno-select, .eno-otp-digit').forEach((el) => {
+      el.addEventListener('input', () => {
+        if (el.id === 'l-email' || el.id === 's-email') state.formCache.email = el.value;
+        else if (el.id === 's-name') state.formCache.fullName = el.value;
+        else if (el.id === 's-crp') state.formCache.crpOrCrm = el.value;
+        else if (el.id === 's-spec') state.formCache.specialty = el.value;
+        else if (el.id === 'l-pwd') state.formCache.loginPwd = el.value;
+        else if (el.id === 's-pwd') state.formCache.signupPwd = el.value;
+        else if (el.id === 'rc-code') state.formCache.recoveryCode = el.value;
+        else if (el.id === 'rc-pwd') state.formCache.recoveryPwd = el.value;
+
+        if (el.getAttribute('aria-invalid') === 'true') {
+          el.setAttribute('aria-invalid', 'false');
+          const err = el.closest('.eno-field')?.querySelector('.eno-field-err');
+          if (err) err.remove();
+        }
+      });
+    });
+
+    rootEl.querySelector('#eno-retry-health')?.addEventListener('click', async () => {
+      await refreshSessionAndData();
+    });
+
+    rootEl.querySelector('#eno-step-back')?.addEventListener('click', () => {
+      state.fieldError = null;
+      if (state.tab === 'auth' && (state.authMode === 'verify' || state.authMode === 'recovery')) {
+        state.authMode = state.authMode === 'verify' ? 'signup' : 'login';
+      } else {
+        state.tab = 'plans';
+      }
+      syncHistory(state.tab, state.authMode);
+      render();
+    });
+
+    rootEl.querySelector('#eno-auth-back')?.addEventListener('click', () => {
+      state.fieldError = null;
+      state.authMode = state.authMode === 'verify' ? 'signup' : 'login';
+      syncHistory(state.tab, state.authMode);
+      render();
+    });
+
+    rootEl.querySelectorAll('[data-toggle-pwd]').forEach((btn) => btn.addEventListener('click', () => {
+      const targetId = btn.dataset.togglePwd;
+      if (!targetId) return;
+      state.pwdVisible[targetId] = !state.pwdVisible[targetId];
+      const input = rootEl.querySelector(`#${CSS.escape(targetId)}`);
+      if (input) {
+        input.type = state.pwdVisible[targetId] ? 'text' : 'password';
+        btn.textContent = state.pwdVisible[targetId] ? 'Ocultar' : 'Mostrar';
+        btn.setAttribute('aria-label', state.pwdVisible[targetId] ? 'Ocultar senha' : 'Mostrar senha');
+        input.focus();
+      }
+    }));
+
+    rootEl.querySelector('#eno-fill-dev-code')?.addEventListener('click', (ev) => {
+      const code = String(ev.currentTarget.dataset.devCode || '').replace(/\D/g, '').slice(0, 6);
+      if (!code) return;
+      if (state.authMode === 'recovery') {
+        state.formCache.recoveryCode = code;
+        const rc = rootEl.querySelector('#rc-code');
+        if (rc) rc.value = code;
+        return;
+      }
+      state.otpDigits = [0, 1, 2, 3, 4, 5].map((i) => code[i] || '');
+      const inputs = [...rootEl.querySelectorAll('.eno-otp-digit')];
+      inputs.forEach((inp, i) => {
+        inp.value = state.otpDigits[i];
+        inp.setAttribute('aria-invalid', 'false');
+      });
+      const hidden = rootEl.querySelector('#v-code');
+      if (hidden) hidden.value = code;
+    });
+
     rootEl.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => {
       state.tab = b.dataset.tab;
       state.feedback = null;
       state.fieldError = null;
+      syncHistory(state.tab, state.authMode);
       render();
     }));
     rootEl.querySelectorAll('[data-authmode]').forEach((b) => b.addEventListener('click', () => {
       state.authMode = b.dataset.authmode;
       state.feedback = null;
       state.fieldError = null;
+      syncHistory(state.tab, state.authMode);
       render();
     }));
     rootEl.querySelectorAll('[data-viewmode]').forEach((b) => b.addEventListener('click', () => {
@@ -804,27 +1099,33 @@ export async function mountEnomeraPlatform(rootEl) {
     }));
 
     rootEl.querySelector('#eno-fill-helena')?.addEventListener('click', () => {
+      state.formCache.email = 'helena@helenaduartepsi.com.br';
+      state.formCache.loginPwd = 'HelenaDemo!2026';
       const e = rootEl.querySelector('#l-email');
       const p = rootEl.querySelector('#l-pwd');
-      if (e) e.value = 'helena@helenaduartepsi.com.br';
-      if (p) p.value = 'HelenaDemo!2026';
+      if (e) e.value = state.formCache.email;
+      if (p) p.value = state.formCache.loginPwd;
     });
 
     rootEl.querySelector('#eno-login-form')?.addEventListener('submit', async (ev) => {
       ev.preventDefault();
       const fd = new FormData(ev.currentTarget);
       state.formCache.email = String(fd.get('email') || '');
+      state.formCache.loginPwd = String(fd.get('password') || '');
       const res = await apiFetch('/api/v1/auth/login', { method: 'POST', body: { email: fd.get('email'), password: fd.get('password') } });
+      if (res.infraError) state.infraError = res.infraError;
       if (!res.ok) {
         state.fieldError = { field: 'login', text: res.data.error || 'E-mail ou senha inválidos. Confira ou use Recuperar acesso.' };
         render();
         return;
       }
       setToken(res.data.sessionToken);
+      state.formCache.loginPwd = '';
       state.fieldError = null;
       state.feedback = { tone: 'ok', text: `Bem-vinda de volta, ${res.data.user.fullName}. Sua combinação foi mantida.` };
       state.tab = state.returnAfterAuth || 'portal';
       state.returnAfterAuth = null;
+      syncHistory(state.tab, state.authMode);
       await refreshSessionAndData();
     });
 
@@ -832,16 +1133,26 @@ export async function mountEnomeraPlatform(rootEl) {
       ev.preventDefault();
       const fd = new FormData(ev.currentTarget);
       const email = String(fd.get('email') || '').trim();
+      const password = String(fd.get('password') || '');
       state.formCache = {
+        ...state.formCache,
         fullName: String(fd.get('fullName') || ''),
         email,
         crpOrCrm: String(fd.get('crpOrCrm') || ''),
         specialty: String(fd.get('specialty') || 'Psicologia'),
+        signupPwd: password,
       };
       const res = await apiFetch('/api/v1/auth/signup', {
         method: 'POST',
-        body: { ...state.formCache, password: fd.get('password') },
+        body: {
+          fullName: state.formCache.fullName,
+          email: state.formCache.email,
+          crpOrCrm: state.formCache.crpOrCrm,
+          specialty: state.formCache.specialty,
+          password,
+        },
       });
+      if (res.infraError) state.infraError = res.infraError;
       if (!res.ok) {
         const isEmailErr = res.status === 409 || /e-?mail/i.test(res.data.error || '');
         if (isEmailErr) state.fieldError = { field: 'email', text: res.data.error };
@@ -850,6 +1161,7 @@ export async function mountEnomeraPlatform(rootEl) {
         return;
       }
       setToken(res.data.sessionToken);
+      state.formCache.signupPwd = '';
       state.fieldError = null;
       state.pendingEmail = email;
       state.lastSentEmail = email;
@@ -862,6 +1174,7 @@ export async function mountEnomeraPlatform(rootEl) {
       await refreshSessionAndData();
       state.tab = 'auth';
       state.authMode = 'verify';
+      syncHistory(state.tab, state.authMode);
       render();
       rootEl.querySelector('#otp-0')?.focus();
     });
@@ -936,14 +1249,14 @@ export async function mountEnomeraPlatform(rootEl) {
       render();
     });
 
-    const goAuthFromPlans = () => { state.returnAfterAuth = 'plans'; state.tab = 'auth'; state.authMode = 'signup'; render(); };
+    const goAuthFromPlans = () => { state.returnAfterAuth = 'plans'; state.tab = 'auth'; state.authMode = 'signup'; syncHistory(state.tab, state.authMode); render(); };
     rootEl.querySelector('#eno-go-auth')?.addEventListener('click', goAuthFromPlans);
     rootEl.querySelector('#eno-mobile-auth')?.addEventListener('click', goAuthFromPlans);
 
     rootEl.querySelector('#eno-go-verify')?.addEventListener('click', async () => {
       state.pendingEmail = state.me?.user?.email || '';
       await loadOutbox(state.pendingEmail);
-      state.tab = 'auth'; state.authMode = 'verify'; render();
+      state.tab = 'auth'; state.authMode = 'verify'; syncHistory(state.tab, state.authMode); render();
     });
 
     rootEl.querySelectorAll('[data-toggle-prod]').forEach((cb) => cb.addEventListener('change', async () => {
@@ -953,6 +1266,7 @@ export async function mountEnomeraPlatform(rootEl) {
         : state.combo.products.filter((x) => x !== prod);
       saveCombo(state.combo);
       state.checkoutIdempotencyKey = `chk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      render(); // resposta imediata ao clique antes da cotação retornar
       await refreshQuote(true);
       render();
     }));
@@ -980,10 +1294,10 @@ export async function mountEnomeraPlatform(rootEl) {
     rootEl.querySelector('#eno-checkout-submit')?.addEventListener('click', runCheckoutSubmit);
     rootEl.querySelector('#eno-mobile-checkout')?.addEventListener('click', runCheckoutSubmit);
 
-    // Hide mobile sticky bar while an input/select/textarea has focus so it never overlaps keyboard/controls
+    // Hide mobile sticky bar only while a virtual-keyboard text input has focus (not checkboxes/selects)
     const mobileBar = rootEl.querySelector('#eno-mobile-bar');
     if (mobileBar) {
-      rootEl.querySelectorAll('input, select, textarea').forEach((el) => {
+      rootEl.querySelectorAll('input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), textarea').forEach((el) => {
         el.addEventListener('focus', () => mobileBar.classList.add('is-hidden-for-input'));
         el.addEventListener('blur', () => mobileBar.classList.remove('is-hidden-for-input'));
       });
@@ -1075,7 +1389,9 @@ export async function mountEnomeraPlatform(rootEl) {
       await apiFetch('/api/v1/auth/logout', { method: 'POST', body: { revokeAll } });
       setToken(''); saveLastOrder(null);
       state.me = null; state.summary = null; state.lastOrder = null; state.tab = 'auth'; state.authMode = 'login'; state.returnAfterAuth = null;
+      state.formCache.loginPwd = ''; state.formCache.signupPwd = ''; state.formCache.recoveryCode = ''; state.formCache.recoveryPwd = '';
       state.feedback = { tone: 'ok', text: revokeAll ? 'Todas as sessões foram revogadas no servidor.' : 'Você saiu da conta.' };
+      syncHistory(state.tab, state.authMode);
       render();
     };
     rootEl.querySelector('#eno-logout')?.addEventListener('click', () => doLogout(false));

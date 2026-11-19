@@ -1,75 +1,60 @@
-/* Enomera Real Platform (Portal, Conta, Checkout Simulado & Ciclo de Vida) — Direção A + Motion Calibrado */
+/* ==========================================================================
+   Enomera Platform UI (Planos, Conta, Checkout Simulado, Portal & Perfil)
+   Direção A · Liquid Glass · Manrope · Tapa de UX + Emil Kowalski + Visant
+   ========================================================================== */
+
+:root {
+  --eno-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --eno-ease-pill: cubic-bezier(0.23, 1, 0.32, 1);
+  --eno-dur-fast: 140ms;
+  --eno-dur-base: 180ms;
+  --eno-dur-panel: 220ms;
+
+  --eno-bg-base: #F6F8FC;
+  --eno-ink-900: #111A2C;
+  --eno-ink-700: #334361;
+  --eno-ink-500: #556687;
+  --eno-brand: #304E8A;
+  --eno-brand-deep: #243C6E;
+
+  --eno-ambo-tint: #ECF6FE;
+  --eno-ambo-accent: #235D94;
+  --eno-minne-tint: #EDF8F7;
+  --eno-minne-accent: #1E625E;
+  --eno-etha-tint: #F2EFFE;
+  --eno-etha-accent: #53459A;
+
+  --eno-glass-surface: linear-gradient(135deg, rgba(255, 255, 255, 0.86) 0%, rgba(242, 246, 254, 0.72) 100%);
+  --eno-glass-elevated: linear-gradient(135deg, rgba(255, 255, 255, 0.94) 0%, rgba(245, 248, 255, 0.84) 100%);
+  --eno-glass-border: rgba(255, 255, 255, 0.94);
+  --eno-glass-stroke: rgba(188, 203, 232, 0.65);
+  --eno-glass-shadow:
+    0 14px 34px rgba(48, 78, 138, 0.08),
+    0 2px 6px rgba(17, 26, 44, 0.03),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+}
+
 .eno-shell {
-  min-height: 100dvh;
-  background: radial-gradient(circle at 12% 8%, rgba(199, 189, 244, 0.24), transparent 36%),
-              radial-gradient(circle at 88% 12%, rgba(164, 207, 246, 0.28), transparent 40%),
-              radial-gradient(circle at 52% 0%, rgba(166, 221, 216, 0.22), transparent 36%),
-              #F0F4FE;
-  color: #202D50;
-  font-family: 'Manrope', system-ui, sans-serif;
-  padding-bottom: 84px;
+  position: relative;
+  min-height: 100vh;
+  overflow-x: clip;
+  background:
+    radial-gradient(960px 520px at 10% -6%, rgba(169, 198, 255, 0.34), transparent 62%),
+    radial-gradient(880px 480px at 90% 4%, rgba(178, 224, 217, 0.28), transparent 60%),
+    radial-gradient(760px 440px at 50% 98%, rgba(203, 192, 247, 0.22), transparent 64%),
+    var(--eno-bg-base);
+  color: var(--eno-ink-900);
+  font-family: "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  padding: 18px clamp(14px, 3vw, 34px) 64px;
+  box-sizing: border-box;
 }
-.eno-topbar {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px clamp(16px, 4vw, 48px);
-  background: rgba(255, 255, 255, 0.88);
-  backdrop-filter: blur(18px);
-  border-bottom: 1px solid #D8E1F4;
+
+.eno-shell *,
+.eno-shell *::before,
+.eno-shell *::after {
+  box-sizing: border-box;
 }
-.eno-brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  font-weight: 700;
-  font-size: 1.05rem;
-  color: #202D50;
-  text-decoration: none;
-}
-.eno-nav-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 4px;
-  border-radius: 999px;
-  background: rgba(240, 244, 254, 0.9);
-  border: 1px solid #D8E1F4;
-}
-.eno-tab {
-  min-height: 44px;
-  padding: 8px 16px;
-  border-radius: 999px;
-  border: 1px solid transparent;
-  background: transparent;
-  color: #516083;
-  font: 600 0.88rem/1 'Manrope', sans-serif;
-  cursor: pointer;
-  transition: background 160ms cubic-bezier(0.22, 1, 0.36, 1), color 160ms ease-out, transform 120ms ease-out;
-}
-.eno-tab:hover { background: rgba(91, 112, 178, 0.09); color: #202D50; }
-.eno-tab:active { transform: scale(0.975); }
-.eno-tab[aria-current="page"], .eno-tab[aria-selected="true"] {
-  background: #5B70B2;
-  color: #FFFFFF;
-  box-shadow: 0 4px 12px rgba(91, 112, 178, 0.24);
-}
-.eno-tab:focus-visible,
-.eno-btn:focus-visible,
-.eno-input:focus-visible,
-.eno-select:focus-visible,
-.eno-otp-digit:focus-visible,
-.eno-seg button:focus-visible,
-.eno-brand:focus-visible,
-.eno-check-card input:focus-visible {
-  outline: 2px solid #42367D;
-  outline-offset: 2px;
-}
+
 .eno-sr-only {
   position: absolute;
   width: 1px;
@@ -82,268 +67,880 @@
   border: 0;
 }
 
-/* Sliding Segmented Control (150ms physical indicator) */
+/* Watermark floral exclusivo da Enomera (5 pétalas) */
+.eno-flower-watermark {
+  position: fixed;
+  right: -68px;
+  bottom: -76px;
+  width: 340px;
+  height: 340px;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.13;
+  filter: saturate(110%);
+}
+
+/* Topbar Liquid Glass */
+.eno-topbar {
+  position: sticky;
+  top: 12px;
+  z-index: 30;
+  max-width: 1180px;
+  margin: 0 auto 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid var(--eno-glass-border);
+  box-shadow:
+    0 10px 28px rgba(48, 78, 138, 0.08),
+    0 0 0 1px rgba(188, 203, 232, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+}
+
+.eno-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--eno-ink-900);
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: -0.02em;
+  padding: 4px 8px 4px 4px;
+  border-radius: 999px;
+  transition: transform var(--eno-dur-fast) var(--eno-ease-out), opacity var(--eno-dur-fast) var(--eno-ease-out);
+}
+
+.eno-brand:hover {
+  opacity: 0.9;
+}
+
+.eno-brand:active {
+  transform: scale(0.98);
+}
+
+.eno-brand img {
+  filter: drop-shadow(0 3px 8px rgba(48, 78, 138, 0.16));
+}
+
+.eno-nav-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  background: rgba(232, 238, 250, 0.72);
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid rgba(203, 215, 239, 0.7);
+}
+
+.eno-tab {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--eno-ink-700);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  padding: 8px 15px;
+  min-height: 38px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition:
+    color var(--eno-dur-base) var(--eno-ease-out),
+    background-color var(--eno-dur-base) var(--eno-ease-out),
+    transform var(--eno-dur-fast) var(--eno-ease-out),
+    box-shadow var(--eno-dur-base) var(--eno-ease-out);
+}
+
+.eno-tab:hover {
+  color: var(--eno-ink-900);
+}
+
+.eno-tab:active {
+  transform: scale(0.97);
+}
+
+.eno-tab:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(54, 89, 158, 0.3);
+}
+
+.eno-tab[aria-current="page"] {
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--eno-ink-900);
+  border-color: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 3px 10px rgba(34, 54, 98, 0.11);
+}
+
+.eno-container {
+  position: relative;
+  z-index: 1;
+  max-width: 1180px;
+  margin: 0 auto;
+  outline: none;
+}
+
+/* Tipografia e utilitários de layout */
+.eno-h1 {
+  margin: 4px 0 6px;
+  font-size: clamp(1.32rem, 2.3vw, 1.85rem);
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+  color: var(--eno-ink-900);
+  font-weight: 750;
+}
+
+.eno-h2 {
+  margin: 4px 0 4px;
+  font-size: 1.15rem;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+  color: var(--eno-ink-900);
+  font-weight: 700;
+}
+
+.eno-muted {
+  color: var(--eno-ink-500);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.eno-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.eno-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(248, 250, 255, 0.86);
+  border: 1px solid rgba(212, 222, 242, 0.85);
+}
+
+.eno-btn-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Stepper de jornada (Planos -> Conta & Código -> Portal) */
+.eno-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.74);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(212, 223, 245, 0.85);
+}
+
+.eno-stepper-steps {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.eno-step-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--eno-ink-500);
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: rgba(238, 243, 252, 0.78);
+  border: 1px solid rgba(209, 220, 242, 0.75);
+}
+
+.eno-step-pill.is-active {
+  color: var(--eno-brand-deep);
+  background: rgba(227, 237, 255, 0.96);
+  border-color: rgba(145, 175, 235, 0.95);
+  font-weight: 700;
+}
+
+.eno-step-pill.is-done {
+  color: #165B3F;
+  background: rgba(223, 246, 234, 0.92);
+  border-color: rgba(154, 219, 188, 0.9);
+}
+
+.eno-step-num {
+  width: 19px;
+  height: 19px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.92);
+  color: inherit;
+}
+
+/* Transição direcional suave apenas quando muda tab/authMode/viewMode */
+.eno-panel-enter {
+  animation: enoFadeSlide var(--eno-dur-panel) var(--eno-ease-out) both;
+}
+
+@keyframes enoFadeSlide {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.eno-delta-pulse {
+  animation: enoDeltaPulse 360ms var(--eno-ease-out);
+}
+
+@keyframes enoDeltaPulse {
+  0% {
+    transform: scale(0.992);
+    opacity: 0.88;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Segmented control com indicador físico deslizante */
 .eno-seg {
   position: relative;
   display: inline-grid;
   grid-auto-flow: column;
   grid-auto-columns: 1fr;
+  width: 100%;
+  background: rgba(226, 234, 249, 0.78);
   padding: 4px;
   border-radius: 999px;
-  background: #EDF2FC;
-  border: 1px solid #D4DDF2;
-  width: 100%;
-  max-width: 520px;
+  border: 1px solid rgba(196, 210, 237, 0.85);
+  user-select: none;
+  box-shadow: inset 0 1px 2px rgba(25, 43, 79, 0.05);
 }
+
 .eno-seg-indicator {
   position: absolute;
   top: 4px;
   bottom: 4px;
   left: 4px;
   border-radius: 999px;
-  background: #FFFFFF;
-  box-shadow: 0 3px 10px rgba(32, 45, 80, 0.12);
-  transition: transform 170ms cubic-bezier(0.22, 1, 0.36, 1), width 170ms cubic-bezier(0.22, 1, 0.36, 1);
+  background: linear-gradient(180deg, #FFFFFF 0%, #F7FAFF 100%);
+  border: 1px solid rgba(255, 255, 255, 0.98);
+  box-shadow: 0 3px 10px rgba(32, 53, 98, 0.12);
+  transition: transform var(--eno-dur-base) var(--eno-ease-pill);
   pointer-events: none;
+  will-change: transform;
 }
+
 .eno-seg button {
   position: relative;
   z-index: 1;
-  min-height: 44px;
-  padding: 8px 12px;
-  border: none;
+  appearance: none;
+  border: 0;
   background: transparent;
-  color: #516083;
-  font: 600 0.86rem/1.15 'Manrope', sans-serif;
+  padding: 9px 12px;
+  min-height: 40px;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--eno-ink-700);
   border-radius: 999px;
   cursor: pointer;
-  transition: color 150ms ease-out;
+  transition: color var(--eno-dur-fast) var(--eno-ease-out), transform var(--eno-dur-fast) var(--eno-ease-out);
 }
-.eno-seg button[aria-selected="true"] { color: #202D50; font-weight: 700; }
 
-.eno-container {
-  max-width: 1180px;
-  margin: 0 auto;
-  padding: clamp(18px, 3vw, 32px) clamp(16px, 4vw, 32px);
-  display: grid;
-  gap: 20px;
+.eno-seg button:active {
+  transform: scale(0.98);
 }
+
+.eno-seg button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(54, 89, 158, 0.28);
+}
+
+.eno-seg button[aria-selected="true"] {
+  color: var(--eno-ink-900);
+  font-weight: 700;
+}
+
+/* Grid & Cards Liquid Glass */
 .eno-grid-2 {
   display: grid;
-  grid-template-columns: minmax(0, 1.32fr) minmax(320px, 0.88fr);
-  gap: 22px;
+  grid-template-columns: 1.32fr 1fr;
+  gap: 20px;
   align-items: start;
 }
+
 .eno-grid-3 {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
 }
-@media (max-width: 860px) {
-  html { scroll-padding-bottom: 112px; }
-  .eno-topbar { position: static; padding: 12px 16px; gap: 10px; }
-  .eno-nav-tabs { width: 100%; border-radius: 18px; }
-  .eno-grid-2 { grid-template-columns: 1fr; }
-  .eno-container { padding-bottom: 120px; }
+
+@media (max-width: 920px) {
+  .eno-grid-2,
+  .eno-grid-3 {
+    grid-template-columns: 1fr;
+  }
 }
 
 .eno-card {
-  background: #FFFFFF;
-  border: 1px solid #D8E1F4;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--eno-glass-surface);
+  backdrop-filter: blur(18px) saturate(135%);
+  -webkit-backdrop-filter: blur(18px) saturate(135%);
+  border: 1px solid var(--eno-glass-border);
   border-radius: 22px;
-  padding: clamp(18px, 3vw, 28px);
-  box-shadow: 0 10px 30px rgba(32, 45, 80, 0.05);
-  display: grid;
-  gap: 14px;
-}
-.eno-panel-enter {
-  animation: enoPanelIn 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-@keyframes enoPanelIn {
-  from { opacity: 0; transform: translate3d(0, 7px, 0); }
-  to { opacity: 1; transform: translate3d(0, 0, 0); }
-}
-.eno-delta-pulse {
-  animation: enoDeltaPulse 260ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-@keyframes enoDeltaPulse {
-  0% { background-color: rgba(91, 112, 178, 0.16); transform: scale(1.01); }
-  100% { background-color: #F0F4FE; transform: scale(1); }
+  padding: 22px;
+  box-shadow:
+    var(--eno-glass-shadow),
+    0 0 0 1px var(--eno-glass-stroke);
+  transition:
+    transform var(--eno-dur-base) var(--eno-ease-out),
+    box-shadow var(--eno-dur-base) var(--eno-ease-out);
 }
 
-.eno-card-ambo { background: #ECF6FE; border-color: #A4CFF6; }
-.eno-card-minne { background: #EDF8F7; border-color: #A6DDD8; }
-.eno-card-etha { background: #F2EFFE; border-color: #C7BDF4; }
-.eno-card-warn { background: #FDF8EC; border-color: #E6C98E; }
-.eno-card-err { background: #FFF6F8; border-color: #E6B3C0; }
-.eno-card-highlight { box-shadow: 0 0 0 2px #5B70B2, 0 14px 32px rgba(91, 112, 178, 0.14); }
+.eno-card-highlight {
+  background: var(--eno-glass-elevated);
+  box-shadow:
+    0 18px 40px rgba(48, 78, 138, 0.12),
+    0 0 0 1px rgba(132, 163, 225, 0.78),
+    inset 0 1px 0 #FFFFFF;
+}
 
+.eno-card-ambo {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.92) 0%, rgba(236, 246, 254, 0.82) 100%);
+  box-shadow:
+    var(--eno-glass-shadow),
+    0 0 0 1px rgba(154, 198, 238, 0.76);
+}
+
+.eno-card-minne {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.92) 0%, rgba(237, 248, 247, 0.82) 100%);
+  box-shadow:
+    var(--eno-glass-shadow),
+    0 0 0 1px rgba(152, 211, 205, 0.76);
+}
+
+.eno-card-etha {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.92) 0%, rgba(242, 239, 254, 0.82) 100%);
+  box-shadow:
+    var(--eno-glass-shadow),
+    0 0 0 1px rgba(185, 173, 236, 0.76);
+}
+
+.eno-card-warn {
+  background: linear-gradient(145deg, rgba(255, 250, 238, 0.95) 0%, rgba(254, 243, 218, 0.88) 100%);
+  box-shadow:
+    var(--eno-glass-shadow),
+    0 0 0 1px rgba(235, 198, 120, 0.85);
+}
+
+.eno-card-err {
+  background: linear-gradient(145deg, rgba(255, 245, 245, 0.95) 0%, rgba(253, 232, 232, 0.88) 100%);
+  box-shadow:
+    var(--eno-glass-shadow),
+    0 0 0 1px rgba(236, 168, 168, 0.85);
+}
+
+/* Pills / Badges */
 .eno-pill {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   width: fit-content;
-  padding: 5px 12px;
-  border-radius: 999px;
-  font-size: 0.78rem;
+  font-size: 0.73rem;
   font-weight: 700;
-  background: #F0F4FE;
-  color: #435694;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(233, 240, 253, 0.94);
+  color: #234078;
+  border: 1px solid rgba(178, 198, 238, 0.75);
+  letter-spacing: 0.01em;
 }
-.eno-pill-ok { background: #DFF4E8; color: #1B653E; }
-.eno-pill-warn { background: #F8EDD3; color: #7D5112; }
-.eno-pill-err { background: #FBE8EE; color: #992F49; }
-.eno-pill-ambo { background: #ECF6FE; color: #235D94; }
-.eno-pill-minne { background: #EDF8F7; color: #1E625E; }
-.eno-pill-etha { background: #F2EFFE; color: #53459A; }
 
-.eno-h1 { margin: 0; font-size: clamp(1.45rem, 2.8vw, 2rem); line-height: 1.18; color: #202D50; }
-.eno-h2 { margin: 0; font-size: 1.18rem; line-height: 1.25; color: #202D50; }
-.eno-muted { margin: 0; color: #516083; font-size: 0.92rem; line-height: 1.5; }
-.eno-field { display: grid; gap: 6px; }
-.eno-field label { font-weight: 600; font-size: 0.86rem; color: #202D50; }
-.eno-field-err { font-size: 0.82rem; font-weight: 600; color: #992F49; }
-.eno-input, .eno-select {
-  min-height: 46px;
-  padding: 10px 14px;
-  border-radius: 12px;
-  border: 1.5px solid #C5D1EC;
-  background: #FFFFFF;
-  color: #202D50;
-  font: 500 0.95rem/1.4 'Manrope', sans-serif;
-  width: 100%;
-  box-sizing: border-box;
-  transition: border-color 140ms ease-out, box-shadow 140ms ease-out;
+.eno-pill-ok {
+  background: rgba(224, 247, 235, 0.95);
+  color: #155B3E;
+  border-color: rgba(151, 219, 187, 0.88);
 }
-.eno-input[aria-invalid="true"] { border-color: #992F49; background: #FFF9FA; }
 
-/* 6-Digit Segmented OTP Input (supports full paste + keyboard navigation) */
-.eno-otp-row {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(44px, 54px));
+.eno-pill-warn {
+  background: rgba(254, 244, 218, 0.95);
+  color: #7A4B00;
+  border-color: rgba(237, 202, 128, 0.88);
+}
+
+.eno-pill-err {
+  background: rgba(253, 232, 232, 0.96);
+  color: #8E1F1F;
+  border-color: rgba(238, 172, 172, 0.88);
+}
+
+.eno-pill-ambo {
+  background: rgba(236, 246, 254, 0.96);
+  color: var(--eno-ambo-accent);
+  border-color: rgba(154, 198, 238, 0.88);
+}
+
+.eno-pill-minne {
+  background: rgba(237, 248, 247, 0.96);
+  color: var(--eno-minne-accent);
+  border-color: rgba(152, 211, 205, 0.88);
+}
+
+.eno-pill-etha {
+  background: rgba(242, 239, 254, 0.96);
+  color: var(--eno-etha-accent);
+  border-color: rgba(185, 173, 236, 0.88);
+}
+
+/* Formulários (Tapa de UX: 16px, dicas, toggle senha, erro inline claro) */
+.eno-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.eno-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
   gap: 8px;
 }
-@media (max-width: 420px) {
-  .eno-otp-row {
-    grid-template-columns: repeat(6, minmax(44px, 1fr));
-    gap: 5px;
-  }
-}
-.eno-otp-digit {
-  height: 54px;
-  border-radius: 14px;
-  border: 1.5px solid #C5D1EC;
-  background: #FFFFFF;
-  color: #202D50;
-  text-align: center;
-  font: 700 1.25rem/1 'Manrope', sans-serif;
-  transition: border-color 140ms ease-out, transform 120ms ease-out, background 140ms ease-out;
-}
-.eno-otp-digit:focus { border-color: #5B70B2; transform: translateY(-1px); }
 
-.eno-btn-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-.eno-btn {
-  min-height: 46px;
-  padding: 11px 20px;
-  border-radius: 999px;
-  border: 1px solid transparent;
-  background: #5B70B2;
-  color: #FFFFFF;
-  font: 600 0.92rem/1.1 'Manrope', sans-serif;
+.eno-field label {
+  font-size: 0.84rem;
+  font-weight: 650;
+  color: #21304D;
+}
+
+.eno-opt-tag {
+  font-size: 0.74rem;
+  font-weight: 500;
+  color: var(--eno-ink-500);
+}
+
+.eno-field-hint {
+  font-size: 0.76rem;
+  color: var(--eno-ink-500);
+  line-height: 1.38;
+}
+
+.eno-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.eno-input,
+.eno-select {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 13px;
+  border-radius: 12px;
+  border: 1px solid #C4D2EC;
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--eno-ink-900);
+  font: inherit;
+  font-size: 1rem; /* >=16px evita zoom forçado no iOS */
+  box-shadow: inset 0 1px 2px rgba(17, 26, 44, 0.03);
+  transition:
+    border-color var(--eno-dur-fast) var(--eno-ease-out),
+    box-shadow var(--eno-dur-fast) var(--eno-ease-out),
+    background-color var(--eno-dur-fast) var(--eno-ease-out);
+}
+
+.eno-input-with-toggle {
+  padding-right: 88px;
+}
+
+.eno-pwd-toggle {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  appearance: none;
+  border: 1px solid rgba(196, 210, 236, 0.85);
+  background: rgba(242, 246, 254, 0.94);
+  color: var(--eno-brand-deep);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 650;
+  padding: 6px 10px;
+  min-height: 32px;
+  border-radius: 8px;
   cursor: pointer;
-  text-decoration: none;
+  transition: background-color var(--eno-dur-fast) var(--eno-ease-out);
+}
+
+.eno-pwd-toggle:hover {
+  background: rgba(228, 236, 252, 0.98);
+}
+
+.eno-pwd-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(54, 89, 158, 0.28);
+}
+
+.eno-input:focus-visible,
+.eno-select:focus-visible {
+  outline: none;
+  border-color: #36599E;
+  background: #FFFFFF;
+  box-shadow: 0 0 0 2px rgba(54, 89, 158, 0.24);
+}
+
+.eno-input[aria-invalid="true"] {
+  border-color: #C53030;
+  background: #FFFDFD;
+  box-shadow: 0 0 0 1px rgba(197, 48, 48, 0.36);
+}
+
+.eno-field-err {
+  font-size: 0.79rem;
+  color: #B42318;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+/* OTP 6 dígitos ergonômico */
+.eno-otp-row {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  margin: 4px 0;
+}
+
+.eno-otp-digit {
+  width: 100%;
+  height: 52px;
+  text-align: center;
+  font: inherit;
+  font-size: 1.25rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  border-radius: 12px;
+  border: 1px solid #BDCBE7;
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--eno-ink-900);
+  box-shadow: inset 0 1px 2px rgba(17, 26, 44, 0.04);
+  transition:
+    border-color var(--eno-dur-fast) var(--eno-ease-out),
+    box-shadow var(--eno-dur-fast) var(--eno-ease-out),
+    transform var(--eno-dur-fast) var(--eno-ease-out);
+}
+
+.eno-otp-digit:focus-visible {
+  outline: none;
+  border-color: #36599E;
+  background: #FFFFFF;
+  box-shadow: 0 0 0 2px rgba(54, 89, 158, 0.26);
+  transform: translateY(-1px);
+}
+
+.eno-otp-digit[aria-invalid="true"] {
+  border-color: #C53030;
+  box-shadow: 0 0 0 1px rgba(197, 48, 48, 0.38);
+}
+
+/* Botões com todos os estados */
+.eno-btn {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  min-height: 44px;
+  padding: 10px 20px;
+  font: inherit;
+  font-size: 0.89rem;
+  font-weight: 650;
+  cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  transition: transform 130ms cubic-bezier(0.22, 1, 0.36, 1), background 150ms ease-out, box-shadow 150ms ease-out;
+  text-decoration: none;
+  background: linear-gradient(180deg, #35579B 0%, #284580 100%);
+  color: #FFFFFF;
+  box-shadow:
+    0 8px 20px rgba(40, 69, 128, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.26);
+  transition:
+    transform var(--eno-dur-fast) var(--eno-ease-out),
+    background-color var(--eno-dur-fast) var(--eno-ease-out),
+    box-shadow var(--eno-dur-fast) var(--eno-ease-out),
+    opacity var(--eno-dur-fast) var(--eno-ease-out);
 }
-.eno-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(32, 45, 80, 0.12); }
-.eno-btn:active { transform: scale(0.98); }
-.eno-btn:disabled { opacity: 0.58; cursor: not-allowed; transform: none; box-shadow: none; }
-.eno-btn-sec { background: #FFFFFF; color: #202D50; border-color: #CAD4F8; }
-.eno-btn-ambo { background: #235D94; color: #FFFFFF; }
-.eno-btn-minne { background: #1E625E; color: #FFFFFF; }
-.eno-btn-etha { background: #53459A; color: #FFFFFF; }
-.eno-btn-danger { background: #992F49; color: #FFFFFF; }
+
+.eno-btn:hover:not(:disabled) {
+  background: linear-gradient(180deg, #2D4D8E 0%, #213B70 100%);
+  box-shadow:
+    0 10px 24px rgba(40, 69, 128, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.34);
+}
+
+.eno-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(54, 89, 158, 0.32);
+}
+
+.eno-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.eno-btn:disabled {
+  opacity: 0.56;
+  cursor: not-allowed;
+}
+
+.eno-btn-sec {
+  background: rgba(235, 241, 253, 0.94);
+  color: #1E335C;
+  border-color: rgba(182, 200, 236, 0.88);
+  box-shadow: none;
+}
+
+.eno-btn-sec:hover:not(:disabled) {
+  background: rgba(223, 233, 251, 0.98);
+  box-shadow: 0 4px 12px rgba(40, 69, 128, 0.1);
+}
+
+.eno-btn-ambo {
+  background: linear-gradient(180deg, #2B6CA9 0%, #235D94 100%);
+  color: #FFFFFF;
+}
+
+.eno-btn-ambo:hover:not(:disabled) {
+  background: linear-gradient(180deg, #245D94 0%, #1C4D7B 100%);
+}
+
+.eno-btn-minne {
+  background: linear-gradient(180deg, #24726D 0%, #1E625E 100%);
+  color: #FFFFFF;
+}
+
+.eno-btn-minne:hover:not(:disabled) {
+  background: linear-gradient(180deg, #1E635E 0%, #17504C 100%);
+}
+
+.eno-btn-etha {
+  background: linear-gradient(180deg, #6252B1 0%, #53459A 100%);
+  color: #FFFFFF;
+}
+
+.eno-btn-etha:hover:not(:disabled) {
+  background: linear-gradient(180deg, #54469B 0%, #453884 100%);
+}
+
+.eno-btn-danger {
+  background: linear-gradient(180deg, #B93232 0%, #992424 100%);
+  color: #FFFFFF;
+}
+
+.eno-btn-danger:hover:not(:disabled) {
+  background: linear-gradient(180deg, #A32727 0%, #821C1C 100%);
+}
+
+.eno-btn-sm {
+  min-height: 36px;
+  padding: 6px 13px;
+  font-size: 0.8rem;
+}
+
+/* Seleção de produtos (com identidade cromática de cada produto) */
+.eno-check-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 15px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(196, 210, 236, 0.88);
+  background: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  transition:
+    border-color var(--eno-dur-fast) var(--eno-ease-out),
+    background-color var(--eno-dur-fast) var(--eno-ease-out),
+    box-shadow var(--eno-dur-fast) var(--eno-ease-out),
+    transform var(--eno-dur-fast) var(--eno-ease-out);
+}
+
+.eno-check-card:hover {
+  border-color: rgba(132, 162, 222, 0.95);
+  background: rgba(255, 255, 255, 0.98);
+}
+
+.eno-check-card:active {
+  transform: scale(0.992);
+}
+
+.eno-check-card[data-selected="true"] {
+  border-color: #35589C;
+  background: linear-gradient(135deg, rgba(242, 247, 255, 0.96) 0%, rgba(255, 255, 255, 0.96) 100%);
+  box-shadow:
+    0 8px 20px rgba(48, 78, 138, 0.1),
+    0 0 0 1px rgba(53, 88, 156, 0.25);
+}
+
+.eno-check-card[data-prod="ambo"][data-selected="true"] {
+  border-color: var(--eno-ambo-accent);
+  background: linear-gradient(135deg, rgba(236, 246, 254, 0.96) 0%, rgba(255, 255, 255, 0.96) 100%);
+  box-shadow:
+    0 8px 20px rgba(35, 93, 148, 0.11),
+    0 0 0 1px rgba(35, 93, 148, 0.24);
+}
+
+.eno-check-card[data-prod="minne"][data-selected="true"] {
+  border-color: var(--eno-minne-accent);
+  background: linear-gradient(135deg, rgba(237, 248, 247, 0.96) 0%, rgba(255, 255, 255, 0.96) 100%);
+  box-shadow:
+    0 8px 20px rgba(30, 98, 94, 0.11),
+    0 0 0 1px rgba(30, 98, 94, 0.24);
+}
+
+.eno-check-card[data-prod="etha"][data-selected="true"] {
+  border-color: var(--eno-etha-accent);
+  background: linear-gradient(135deg, rgba(242, 239, 254, 0.96) 0%, rgba(255, 255, 255, 0.96) 100%);
+  box-shadow:
+    0 8px 20px rgba(83, 69, 154, 0.11),
+    0 0 0 1px rgba(83, 69, 154, 0.24);
+}
+
+/* Alertas, status banners & alerta 503 de infraestrutura remota */
+.eno-status-banner {
+  border-radius: 16px;
+  padding: 13px 16px;
+  margin-bottom: 16px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.45;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.eno-infra-alert {
+  border-radius: 18px;
+  padding: 16px 18px;
+  margin-bottom: 18px;
+  background: linear-gradient(135deg, rgba(255, 248, 235, 0.96) 0%, rgba(254, 241, 216, 0.92) 100%);
+  border: 1px solid rgba(234, 189, 104, 0.95);
+  box-shadow: 0 10px 26px rgba(122, 75, 0, 0.08);
+  color: #5F3800;
+}
+
+.eno-infra-env-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 6px;
+}
+
+.eno-infra-env-pill {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(218, 171, 88, 0.85);
+  color: #4A2B00;
+}
 
 .eno-spinner {
   width: 15px;
   height: 15px;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.38);
-  border-top-color: #FFFFFF;
-  animation: enoSpin 650ms linear infinite;
+  border: 1px solid currentColor;
+  border-right-color: transparent;
+  display: inline-block;
+  animation: enoSpin 640ms linear infinite;
 }
-@keyframes enoSpin { to { transform: rotate(360deg); } }
 
-.eno-check-card {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 16px;
-  border-radius: 18px;
-  border: 1.5px solid #D8E1F4;
-  background: #FFFFFF;
-  cursor: pointer;
-  transition: border-color 160ms ease-out, background 180ms ease-out, transform 140ms ease-out, box-shadow 160ms ease-out;
+@keyframes enoSpin {
+  to {
+    transform: rotate(360deg);
+  }
 }
-.eno-check-card:hover { transform: translateY(-1px); }
-.eno-check-card[data-selected="true"][data-prod="ambo"] { background: #ECF6FE; border-color: #235D94; box-shadow: 0 6px 18px rgba(35, 93, 148, 0.10); }
-.eno-check-card[data-selected="true"][data-prod="minne"] { background: #EDF8F7; border-color: #1E625E; box-shadow: 0 6px 18px rgba(30, 98, 94, 0.10); }
-.eno-check-card[data-selected="true"][data-prod="etha"] { background: #F2EFFE; border-color: #53459A; box-shadow: 0 6px 18px rgba(83, 69, 154, 0.10); }
 
-.eno-status-banner {
-  padding: 14px 16px;
-  border-radius: 14px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  animation: enoPanelIn 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
 .eno-outbox {
-  background: #F8EDD3;
-  border: 1px dashed #7D5112;
-  border-radius: 14px;
-  padding: 12px 14px;
-  font-size: 0.85rem;
-  color: #4A310B;
-  display: grid;
+  margin-top: 8px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(242, 246, 253, 0.94);
+  border: 1px dashed rgba(164, 184, 222, 0.95);
+  font-size: 0.82rem;
+  color: #2B3B5C;
+  display: flex;
+  flex-direction: column;
   gap: 6px;
 }
-.eno-list { display: grid; gap: 10px; }
-.eno-row {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
-  border-radius: 14px;
-  border: 1px solid #E2E9F7;
-  background: #F9FBFF;
+
+/* Barra fixa inferior no mobile */
+.eno-mobile-bar {
+  display: none;
 }
 
-/* Mobile sticky summary bar — never covers inputs or virtual keyboard */
-.eno-mobile-bar { display: none; }
-@media (max-width: 860px) {
+@media (max-width: 760px) {
+  .eno-shell {
+    padding-bottom: 98px;
+  }
+  .eno-topbar {
+    border-radius: 20px;
+    padding: 10px 12px;
+  }
   .eno-mobile-bar {
     position: fixed;
-    left: 12px;
-    right: 12px;
-    bottom: max(12px, env(safe-area-inset-bottom));
-    z-index: 30;
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    z-index: 45;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    padding: 12px 16px;
-    border-radius: 20px;
-    background: rgba(255, 255, 255, 0.96);
-    backdrop-filter: blur(16px);
-    border: 1px solid #CAD4F8;
-    box-shadow: 0 12px 28px rgba(32, 45, 80, 0.16);
-    transition: opacity 160ms ease-out, transform 160ms ease-out;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    border: 1px solid rgba(196, 210, 238, 0.95);
+    box-shadow: 0 12px 32px rgba(24, 39, 71, 0.16);
+    transition: transform var(--eno-dur-fast) var(--eno-ease-out), opacity var(--eno-dur-fast) var(--eno-ease-out);
   }
   .eno-mobile-bar.is-hidden-for-input {
     opacity: 0;
@@ -353,13 +950,16 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .eno-seg-indicator, .eno-seg button, .eno-input, .eno-select, .eno-mobile-bar {
+  .eno-panel-enter,
+  .eno-delta-pulse,
+  .eno-seg-indicator,
+  .eno-btn,
+  .eno-card,
+  .eno-check-card,
+  .eno-otp-digit,
+  .eno-tab,
+  .eno-mobile-bar {
     animation: none !important;
     transition: none !important;
-  }
-  .eno-btn, .eno-tab, .eno-check-card, .eno-panel-enter, .eno-delta-pulse, .eno-status-banner, .eno-otp-digit, .eno-spinner {
-    animation: none !important;
-    transition: none !important;
-    transform: none !important;
   }
 }
