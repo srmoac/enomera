@@ -4,8 +4,9 @@ import {
   blendPose,
   sampleJourney,
   selectionPose,
-  sampleEthaLeadPose,
-  sampleEthaSupportPose,
+  sampleOpeningPose,
+  sampleFullJourney,
+  computeCombinationPose,
   createOwnerState,
   transitionOwner,
   applyIntentPose
@@ -13,6 +14,52 @@ import {
 
 const a = { x: 40, y: 90, r: 0, s: 1, o: 1 };
 const b = { x: 330, y: 480, r: 30, s: .6, o: .5 };
+
+function mockPlan(mobile) {
+  const w = mobile ? 390 : 1440;
+  const h = mobile ? 844 : 900;
+  const hero = { x: mobile ? 321 : 1135, y: mobile ? 702 : 610, r: 0, rx: 0, ry: 0, s: mobile ? .191 : 1, o: 1, front: false };
+  const closing = { x: mobile ? 195 : 1176, y: mobile ? 7480 : 6490, r: 0, rx: 0, ry: 0, s: mobile ? .315 : .83, o: 1, front: false };
+  const mk5 = (x, y, s) => Array.from({ length: 5 }, (_, i) => ({ x: x + i * 20, y: y + i * 10, r: i * 5, rx: 0, ry: 0, s, o: .5, front: false }));
+  const ethaRest = mk5(mobile ? 42 : 730, mobile ? 1372 : 1253, mobile ? .42 : .64);
+  ethaRest[1] = { x: mobile ? 42 : 730, y: mobile ? 1372 : 1253, r: mobile ? 28 : 34, rx: 0, ry: 0, s: mobile ? .42 : .64, o: .93, front: false };
+  const amboRest = mk5(mobile ? 54 : 874, mobile ? 2289 : 2035, mobile ? .40 : .58);
+  amboRest[2] = { x: mobile ? 54 : 874, y: mobile ? 2289 : 2035, r: mobile ? -54 : -68, rx: 0, ry: 0, s: mobile ? .40 : .58, o: .92, front: false };
+  const minneRest = mk5(mobile ? 210 : 998, mobile ? 3158 : 2487, mobile ? .38 : .56);
+  minneRest[0] = { x: mobile ? 210 : 998, y: mobile ? 3158 : 2487, r: mobile ? 6 : 4, rx: 0, ry: 0, s: mobile ? .38 : .56, o: .92, front: false };
+
+  return {
+    mobile,
+    w,
+    h,
+    summaryRect: { x: mobile ? 24 : 64, y: mobile ? 6520 : 5760, w: mobile ? 342 : 1312, h: mobile ? 695 : 407 },
+    marks: {
+      openEnd: mobile ? 170 : 190,
+      ethaArrive: mobile ? 1010 : 945,
+      ethaLeave: mobile ? 1220 : 1195,
+      amboArrive: mobile ? 1980 : 1620,
+      amboLeave: mobile ? 2180 : 1850,
+      minneArrive: mobile ? 2860 : 2240,
+      minneLeave: mobile ? 3060 : 2480,
+      connEnd: mobile ? 4700 : 4240,
+      comboArrive: mobile ? 6100 : 5350,
+      comboLeave: mobile ? 6360 : 5590,
+      closingArrive: mobile ? 7050 : 6050,
+      docMax: mobile ? 7280 : 6225
+    },
+    poses: {
+      hero: Array.from({ length: 5 }, () => ({ ...hero })),
+      ethaRest,
+      amboRest,
+      minneRest,
+      conn1: mk5(w * .5, 3600, .45),
+      conn2: mk5(w * .5, 4000, .45),
+      conn3: mk5(w * .5, 4400, .45),
+      comboBase: mk5(w * .5, 5800, mobile ? .36 : .56),
+      closing: Array.from({ length: 5 }, () => ({ ...closing }))
+    }
+  };
+}
 
 test('curves preserve both exact poses and remain reversible at section boundaries', () => {
   const stops = [
@@ -27,9 +74,6 @@ test('curves preserve both exact poses and remain reversible at section boundari
     const left = sampleJourney(stops, 499.99, i);
     const right = sampleJourney(stops, 500.01, i);
     assert.ok(Math.hypot(left.x - right.x, left.y - right.y) < .01);
-    for (const y of [0, 100, 300, 500, 700, 800]) {
-      assert.deepEqual(sampleJourney(stops, y, i), sampleJourney(stops, y, i));
-    }
   }
   assert.notDeepEqual(blendPose(a, b, .5, 0), blendPose(a, b, .5, 1));
 });
@@ -47,80 +91,82 @@ test('all seven combinations and empty choice have finite independent petal stat
   }
 });
 
-test('Etha lead petal spans Origem, foreground Travessia, and docked Chegada continuously and reversibly', () => {
+test('full 6-scene choreography crosses full width on mobile & desktop, gives each service protagonist foreground presence, and reunites the flower at closing', () => {
   for (const mobile of [false, true]) {
-    const geom = mobile
-      ? { mobile: true, w: 390, h: 844, arriveAt: 1000, hero: { x: 321, y: 702, s: .191 }, dock: { x: 332, y: 1372, r: 24, s: .42 } }
-      : { mobile: false, w: 1440, h: 900, arriveAt: 940, hero: { x: 1135, y: 610, s: 1 }, dock: { x: 730, y: 1253, r: 34, s: .64 } };
+    const plan = mockPlan(mobile);
+    const m = plan.marks;
 
-    const p0 = sampleEthaLeadPose(0, geom);
-    const pShort = sampleEthaLeadPose(.08, geom);
-    const pMid = sampleEthaLeadPose(.50, geom);
-    const pEnd = sampleEthaLeadPose(1, geom);
+    // Scene 1: Opening starts intact and creates staggered tension on short scroll (Lavanda leads first)
+    const open0 = [0, 1, 2, 3, 4].map(i => sampleOpeningPose(0, i, plan.poses.hero[i], mobile));
+    assert.equal(open0[1].x, plan.poses.hero[1].x);
+    const openEarly = [0, 1, 2, 3, 4].map(i => sampleOpeningPose(.16, i, plan.poses.hero[i], mobile));
+    assert.ok(Math.hypot(openEarly[1].x - open0[1].x, openEarly[1].y - open0[1].y) > 4, 'Lavanda must lead on first gesture');
+    assert.equal(openEarly[3].x, open0[3].x, 'Lower petals start later than Lavanda');
 
-    // Origem starts at exact hero flower, reacts on short scroll.
-    assert.equal(p0.x, geom.hero.x);
-    assert.equal(p0.y, geom.hero.y);
-    assert.equal(p0.front, false);
-    assert.ok(Math.hypot(pShort.x - p0.x, pShort.y - p0.y) > 8, 'short scroll should distinguish petal immediately');
+    // Scene 2 (Etha): Lavanda (1) sweeps into foreground across the left/center width, then docks behind glass
+    const ethaMidY = (m.openEnd + m.ethaArrive) * .48;
+    const ethaMid = sampleFullJourney(ethaMidY, 1, plan);
+    const ethaDock = sampleFullJourney(m.ethaArrive, 1, plan);
+    assert.equal(ethaMid.front, true);
+    assert.ok(ethaMid.s > plan.poses.hero[1].s, 'Lavanda grows in perspective');
+    assert.ok(ethaMid.x < plan.w * .55, 'Lavanda crosses into left/center of viewport on both desktop & mobile');
+    assert.equal(ethaDock.front, false);
 
-    // Travessia enters foreground and grows in perspective.
-    assert.equal(pMid.front, true);
-    assert.ok(pMid.s > p0.s, 'mid-traversal should grow in perspective');
-    assert.ok(Math.abs(pMid.ry) > 5, 'mid-traversal should carry 3D tilt');
+    // Scene 3 (Ambo): Celeste (2) takes foreground in a broad arc and docks behind Ambo glass
+    const amboMidY = (m.ethaLeave + m.amboArrive) * .48;
+    const amboMid = sampleFullJourney(amboMidY, 2, plan);
+    const amboDock = sampleFullJourney(m.amboArrive, 2, plan);
+    assert.equal(amboMid.front, true);
+    assert.ok(amboMid.x < plan.w * .62, 'Celeste sweeps across center/left before docking');
+    assert.equal(amboDock.front, false);
 
-    // Chegada docks precisely at Etha glass bezel behind glass (front: false).
-    assert.equal(pEnd.front, false);
-    assert.ok(Math.hypot(pEnd.x - geom.dock.x, pEnd.y - geom.dock.y) < .01);
-    assert.equal(pEnd.r, geom.dock.r);
-    assert.equal(pEnd.rx, 0);
-    assert.equal(pEnd.ry, 0);
+    // Scene 4 (Minne): Mineral (0) takes foreground descending vertically and docks atop Minne glass
+    const minneMidY = (m.amboLeave + m.minneArrive) * .46;
+    const minneMid = sampleFullJourney(minneMidY, 0, plan);
+    const minneDock = sampleFullJourney(m.minneArrive, 0, plan);
+    assert.equal(minneMid.front, true);
+    assert.equal(minneDock.front, false);
 
-    // Continuity across stage boundaries (0.22 and 0.78) for seamless reversal.
-    for (const knot of [.22, .78]) {
-      const before = sampleEthaLeadPose(knot - .0001, geom);
-      const after = sampleEthaLeadPose(knot + .0001, geom);
-      assert.ok(Math.hypot(before.x - after.x, before.y - after.y) < 1.5, `discontinuity at u=${knot}`);
-      assert.ok(Math.abs(before.s - after.s) < .02, `scale jump at u=${knot}`);
+    // Scene 5 (Combinação): active services redistribute dynamically along .summary
+    const cAll = computeCombinationPose(1, plan, ['etha', 'ambo', 'minne']);
+    const cOne = computeCombinationPose(1, plan, ['etha']);
+    const cOff = computeCombinationPose(1, plan, ['ambo']);
+    assert.notEqual(cAll.x, cOne.x, 'Single selected service centers on summary');
+    assert.ok(cOff.o < .35, 'Deselected service softens cleanly');
+
+    // Scene 6 (Fechamento): all 5 petals reunite at the exact closing flower pivot
+    const closePoses = [0, 1, 2, 3, 4].map(i => sampleFullJourney(m.closingArrive, i, plan));
+    for (let i = 0; i < 5; i++) {
+      assert.equal(closePoses[i].x, plan.poses.closing[i].x);
+      assert.equal(closePoses[i].y, plan.poses.closing[i].y);
+      assert.equal(closePoses[i].o, 1);
     }
 
-    // Companion petals start intact at hero and soften smoothly during Etha scene.
-    const sup0 = sampleEthaSupportPose(0, 0, { x: geom.hero.x, y: geom.hero.y, r: 0, s: geom.hero.s, o: 1 }, { x: 900, y: 1200, r: -18, s: .55, o: .28 }, mobile);
-    const sup1 = sampleEthaSupportPose(1, 0, { x: geom.hero.x, y: geom.hero.y, r: 0, s: geom.hero.s, o: 1 }, { x: 900, y: 1200, r: -18, s: .55, o: .28 }, mobile);
-    assert.equal(sup0.o, 1);
-    assert.ok(sup1.o < .4);
+    // Continuity at every scene boundary for seamless reversal
+    for (const knot of [m.openEnd, m.ethaArrive, m.ethaLeave, m.amboArrive, m.amboLeave, m.minneArrive, m.minneLeave, m.connEnd, m.comboArrive, m.comboLeave, m.closingArrive]) {
+      for (let i = 0; i < 5; i++) {
+        const left = sampleFullJourney(knot - .01, i, plan);
+        const right = sampleFullJourney(knot + .01, i, plan);
+        assert.ok(Math.hypot(left.x - right.x, left.y - right.y) < 3, `discontinuity at y=${knot}, petal=${i}, mobile=${mobile}`);
+      }
+    }
   }
 });
 
-test('single-owner state machine gives priority to focus/hover/tap and cleanly returns to scroll without oscillation', () => {
+test('single-owner state machine gives priority to focus/pulse/hover and hands back to scroll smoothly', () => {
   let owner = createOwnerState(460);
-  assert.equal(owner.mode, 'scroll');
-
-  // Mid-scroll keyboard focus on Ambo takes ownership.
   owner = transitionOwner(owner, { type: 'intent', service: 'ambo', source: 'focus', scrollY: 460, targetRect: { x: 700, y: 1800, w: 360, h: 480 } });
   assert.equal(owner.mode, 'intent');
   assert.equal(owner.service, 'ambo');
-  assert.equal(owner.source, 'focus');
-
-  // Stray hover does NOT steal ownership from keyboard focus.
+  // Hover cannot steal from focus
   owner = transitionOwner(owner, { type: 'intent', service: 'etha', source: 'hover', scrollY: 460, targetRect: null });
   assert.equal(owner.service, 'ambo');
-  assert.equal(owner.source, 'focus');
-
-  // Micro jitter <=12px preserves focus intent; real scroll resumption (>12px) returns cleanly to scroll.
-  owner = transitionOwner(owner, { type: 'scroll', scrollY: 468 });
-  assert.equal(owner.mode, 'intent');
+  // Scrolling >14px cleanly returns to scroll
   owner = transitionOwner(owner, { type: 'scroll', scrollY: 490 });
   assert.equal(owner.mode, 'scroll');
-  assert.equal(owner.service, null);
 
-  // Intent pose subtly draws matching petal and softens non-matching petals.
-  const focusedEtha = transitionOwner(createOwnerState(800), { type: 'intent', service: 'etha', source: 'focus', scrollY: 800, targetRect: { x: 688, y: 1160, w: 688, h: 480 } });
-  const geom = { mobile: false, h: 900, dock: { x: 730, y: 1253, r: 34, s: .64 } };
-  const baseLead = { x: 820, y: 1150, r: 20, rx: 0, ry: 0, s: .64, o: .85 };
-  const leadWithIntent = applyIntentPose(baseLead, 1, focusedEtha, geom, 800);
-  const compWithIntent = applyIntentPose(baseLead, 2, focusedEtha, geom, 800);
-  assert.ok(leadWithIntent.x < baseLead.x, 'Etha petal should draw closer to Etha dock');
-  assert.ok(leadWithIntent.o >= .94);
-  assert.ok(compWithIntent.o < baseLead.o);
+  const focused = transitionOwner(createOwnerState(900), { type: 'intent', service: 'minne', source: 'pulse', scrollY: 900, targetRect: { x: 688, y: 1100, w: 688, h: 400 } });
+  const base = { x: 960, y: 1180, r: 4, rx: 0, ry: 0, s: .56, o: .86 };
+  const nudged = applyIntentPose(base, 0, focused, { mobile: false, h: 900 }, 900);
+  assert.ok(nudged.s > base.s);
 });

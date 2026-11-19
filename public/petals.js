@@ -1,10 +1,6 @@
 import {
   clamp,
-  blendPose,
-  sampleJourney,
-  selectionPose,
-  sampleEthaLeadPose,
-  sampleEthaSupportPose,
+  sampleFullJourney,
   createOwnerState,
   transitionOwner,
   applyIntentPose,
@@ -57,20 +53,15 @@ export async function mountPetalJourney() {
   const portal = location.pathname.replace(/\/$/, '') === '/portal';
   document.body.classList.add('has-petal-journey');
 
-  const ethaFrameEl = document.querySelector('#etha-frame');
-  const ethaGlowEl = ethaFrameEl?.querySelector('.etha-dock-glow') || null;
-
-  let stops = [];
-  let ethaGeom = null;
-  let ethaRestPoses = null;
+  let plan = null;
   let frame = 0, last = 0, started = performance.now(), settleUntil = 0;
   let portalRevision = 0, hidden = false, snapNext = false;
   let dimensions = { w: innerWidth, h: innerHeight };
   let lastIntent = performance.now(), lastScroll = 0;
   let owner = createOwnerState(scrollY);
-  let lastDockOpacity = -1;
-  let lastDockedClass = false;
   let lastInputModality = 'pointer';
+  let lastGlows = { etha: -1, ambo: -1, minne: -1 };
+  let lastEthaDocked = false;
 
   const anchors = new Map();
 
@@ -94,262 +85,253 @@ export async function mountPetalJourney() {
     }));
   }
 
-  function computeEthaDock(mobile) {
-    const frameRect = anchors.get('#etha-frame') || anchors.get('#etha .demo-wrap');
-    if (!frameRect) return null;
-    if (mobile) {
-      // Top-right corner of the Etha Liquid Glass bezel, right beside the lavender 'etha' pill.
+  function buildPlan() {
+    const w = dimensions.w;
+    const h = dimensions.h;
+    const mobile = w < 700;
+
+    const hero = anchors.get('.hero-flower');
+    const ethaFrame = anchors.get('#etha-frame') || anchors.get('#etha .demo-wrap');
+    const amboDemo = anchors.get('#ambo-demo') || anchors.get('#ambo .demo-wrap');
+    const minneDemo = anchors.get('#minne-demo') || anchors.get('.minne');
+    const connection = anchors.get('.connection');
+    const combinacao = anchors.get('#combinacao');
+    const summaryRect = anchors.get('.summary');
+    const closingTop = anchors.get('.closing-top');
+    if (!hero || !ethaFrame || !amboDemo || !minneDemo || !connection || !combinacao || !summaryRect || !closingTop) {
+      return null;
+    }
+
+    const heroPoses = flower(hero, 1);
+
+    // --- Scroll marks calibrated to real section geometry & generous reading pauses ---
+    const openEnd = mobile ? 170 : 190;
+
+    const ethaArrive = mobile
+      ? Math.round(clamp(ethaFrame.y - h * .34, openEnd + 540, Math.max(openEnd + 560, ethaFrame.y - 120)))
+      : Math.round(clamp(ethaFrame.y - h * .24, openEnd + 520, Math.max(openEnd + 540, ethaFrame.y - 110)));
+    const ethaLeave = ethaArrive + (mobile ? 210 : 250);
+
+    const amboArrive = mobile
+      ? Math.round(Math.max(ethaLeave + 460, amboDemo.y - h * .26))
+      : Math.round(Math.max(ethaLeave + 360, amboDemo.y - h * .22));
+    const amboLeave = amboArrive + (mobile ? 200 : 230);
+
+    const minneArrive = mobile
+      ? Math.round(Math.max(amboLeave + 460, minneDemo.y - h * .28))
+      : Math.round(Math.max(amboLeave + 340, minneDemo.y - h * .24));
+    const minneLeave = minneArrive + (mobile ? 200 : 240);
+
+    const connEnd = Math.round(Math.max(minneLeave + 300, connection.y + Math.max(1, connection.h - h)));
+
+    const comboArrive = Math.round(Math.max(connEnd + 240, summaryRect.y - h * .46));
+    const comboLeave = comboArrive + (mobile ? 260 : 240);
+
+    const docMax = Math.max(comboLeave + 260, document.documentElement.scrollHeight - h);
+    const closingArrive = Math.round(Math.min(docMax - 40, Math.max(comboLeave + 240, closingTop.y - h * .30)));
+
+    // --- Exact geometric rest poses for each scene ---
+    const ethaDock = mobile
+      ? { x: ethaFrame.x + 42, y: ethaFrame.y + 82, r: 28, rx: 0, ry: 0, s: .36, o: .93, front: false }
+      : { x: ethaFrame.x + 42, y: ethaFrame.y + 92, r: 34, rx: 0, ry: 0, s: .64, o: .93, front: false };
+
+    const ethaRest = [
+      // 0: Minne waits calmly upper-right
+      { x: mobile ? w * .92 : ethaFrame.x + ethaFrame.w * .88, y: ethaFrame.y + (mobile ? 24 : 36), r: -14, rx: 0, ry: 0, s: mobile ? .28 : .44, o: .26, front: false },
+      // 1: Etha docked precisely behind top-left Liquid Glass corner
+      ethaDock,
+      // 2: Ambo poised gently on right flank ready to launch next!
+      { x: mobile ? w * .96 : Math.min(w - 40, ethaFrame.x + ethaFrame.w + 26), y: ethaFrame.y + ethaFrame.h * .52, r: 22, rx: 0, ry: 0, s: mobile ? .32 : .50, o: .34, front: false },
+      // 3 & 4: Institutional petals quiet in lower periphery
+      { x: mobile ? w * .12 : ethaFrame.x - 40, y: ethaFrame.y + ethaFrame.h * .92, r: -28, rx: 0, ry: 0, s: mobile ? .24 : .40, o: .20, front: false },
+      { x: mobile ? w * .92 : ethaFrame.x + ethaFrame.w * .94, y: ethaFrame.y + ethaFrame.h * .94, r: 28, rx: 0, ry: 0, s: mobile ? .24 : .40, o: .20, front: false }
+    ];
+
+    const amboDock = mobile
+      ? { x: amboDemo.x + 54, y: amboDemo.y + 70, r: -54, rx: 0, ry: 0, s: .40, o: .92, front: false }
+      : { x: amboDemo.x + 22, y: amboDemo.y + 215, r: -68, rx: 0, ry: 0, s: .58, o: .92, front: false };
+
+    const amboRest = [
+      // 0: Minne poised high center-top inside visible horizon ready for vertical descent!
+      { x: mobile ? w * .52 : w * .52, y: amboDemo.y + (mobile ? 80 : 185), r: 6, rx: 0, ry: 0, s: mobile ? .32 : .50, o: .36, front: false },
+      // 1: Etha softly recedes above/right
+      { x: mobile ? w * .92 : amboDemo.x + amboDemo.w + 48, y: amboDemo.y + 72, r: 24, rx: 0, ry: 0, s: mobile ? .26 : .42, o: .24, front: false },
+      // 2: Ambo docked aligned with Modalidade / CTA glass edge
+      amboDock,
+      // 3 & 4: Institutional balance
+      { x: mobile ? w * .10 : amboDemo.x - 70, y: amboDemo.y + amboDemo.h * .90, r: -24, rx: 0, ry: 0, s: mobile ? .24 : .38, o: .20, front: false },
+      { x: mobile ? w * .92 : amboDemo.x + amboDemo.w + 44, y: amboDemo.y + amboDemo.h * .90, r: 26, rx: 0, ry: 0, s: mobile ? .24 : .38, o: .20, front: false }
+    ];
+
+    const minneDock = mobile
+      ? { x: minneDemo.x + minneDemo.w * .54, y: minneDemo.y + 44, r: 6, rx: 0, ry: 0, s: .38, o: .92, front: false }
+      : { x: minneDemo.x + minneDemo.w * .45, y: minneDemo.y + 54, r: 4, rx: 0, ry: 0, s: .56, o: .92, front: false };
+
+    const minneRest = [
+      // 0: Minne docked atop agenda -> detail panel seam
+      minneDock,
+      // 1: Etha quiet left-lower periphery
+      { x: mobile ? w * .08 : minneDemo.x - 42, y: minneDemo.y + minneDemo.h * .76, r: -22, rx: 0, ry: 0, s: mobile ? .26 : .40, o: .24, front: false },
+      // 2: Ambo quiet right periphery
+      { x: mobile ? w * .94 : minneDemo.x + minneDemo.w + 26, y: minneDemo.y + minneDemo.h * .52, r: 22, rx: 0, ry: 0, s: mobile ? .26 : .42, o: .26, front: false },
+      // 3 & 4: Institutional
+      { x: mobile ? w * .12 : minneDemo.x + 40, y: minneDemo.y + minneDemo.h * .96, r: -20, rx: 0, ry: 0, s: mobile ? .22 : .36, o: .20, front: false },
+      { x: mobile ? w * .90 : minneDemo.x + minneDemo.w * .90, y: minneDemo.y + minneDemo.h * .96, r: 24, rx: 0, ry: 0, s: mobile ? .22 : .36, o: .20, front: false }
+    ];
+
+    // Connection horizontal relay poses (Etha -> Ambo -> Minne)
+    const connY1 = connection.y + h * .46;
+    const connY2 = connection.y + (connection.h - h) * .5 + h * .46;
+    const connY3 = connection.y + Math.max(1, connection.h - h) + h * .46;
+    const makeConn = (cy, leadIdx) => [0, 1, 2, 3, 4].map(idx => {
+      const xs = mobile ? [.50, .20, .80, .18, .82] : [.68, .54, .82, .50, .86];
+      const ys = mobile ? [.24, .28, .28, .82, .82] : [.20, .24, .24, .76, .76];
+      const isLead = idx === leadIdx;
       return {
-        x: frameRect.x + frameRect.w - 34,
-        y: frameRect.y + 62,
-        r: 24,
-        s: .42
+        x: w * xs[idx],
+        y: cy + (ys[idx] - .5) * h * .64 + (isLead ? (mobile ? -18 : -28) : 0),
+        r: isLead ? [0, -14, 14, 0, 0][idx] : [-12, -26, 26, -18, 18][idx],
+        rx: 0,
+        ry: 0,
+        s: (mobile ? .36 : .58) * (isLead ? 1.18 : .72),
+        o: isLead ? .90 : .32,
+        front: false
       };
-    }
-    // Top-left corner of the Etha Liquid Glass bezel, right behind the lavender 'etha' pill.
+    });
+
+    const comboBase = [
+      { x: summaryRect.x + summaryRect.w * .50, y: summaryRect.y + (mobile ? 30 : 48), r: 0, rx: 0, ry: 0, s: mobile ? .36 : .56, o: .88, front: false },
+      { x: summaryRect.x + summaryRect.w * .83, y: summaryRect.y + (mobile ? 30 : 48), r: 24, rx: 0, ry: 0, s: mobile ? .36 : .56, o: .88, front: false },
+      { x: summaryRect.x + summaryRect.w * .17, y: summaryRect.y + (mobile ? 30 : 48), r: -24, rx: 0, ry: 0, s: mobile ? .36 : .56, o: .88, front: false },
+      { x: summaryRect.x + summaryRect.w * .14, y: summaryRect.y + summaryRect.h - 24, r: -18, rx: 0, ry: 0, s: mobile ? .28 : .46, o: .36, front: false },
+      { x: summaryRect.x + summaryRect.w * .86, y: summaryRect.y + summaryRect.h - 24, r: 18, rx: 0, ry: 0, s: mobile ? .28 : .46, o: .36, front: false }
+    ];
+
+    // Closing flower: full recognizable 5-petal Enomera symbol on BOTH desktop AND mobile!
+    const closeW = mobile ? 148 : Math.min(400, closingTop.w * .30);
+    const closeH = closeW * (388 / 470);
+    const closeBox = mobile
+      ? { x: (w - closeW) / 2, y: closingTop.y + closingTop.h - closeH - 8, w: closeW, h: closeH }
+      : { x: closingTop.x + closingTop.w - closeW, y: closingTop.y + Math.max(0, (closingTop.h - closeH) / 2), w: closeW, h: closeH };
+
     return {
-      x: frameRect.x + 42,
-      y: frameRect.y + 92,
-      r: 34,
-      s: .64
-    };
-  }
-
-  function spread(r, kind) {
-    const mobile = dimensions.w < 700;
-    const scale = mobile ? .34 : .60;
-    const desktopOffsets = {
-      etha: [[.84, .06, -18], [.08, .12, 34], [1.02, .44, -14], [.94, .96, 38], [.46, .98, -28]],
-      ambo: [[.32, .20, -14], [.88, .28, 24], [.78, .66, -22], [.40, .95, 32], [.98, .92, -30]],
-      minne: [[.88, .12, 10], [.36, .22, -24], [.98, .48, 26], [.44, .92, -20], [.86, .95, 32]],
-      open: [[.18, .35, -28], [.42, .22, -12], [.66, .48, 26], [.82, .72, -32], [.94, .82, 34]],
-      meet: [[.26, .30, -16], [.48, .42, -8], [.68, .55, 16], [.84, .68, -14], [.95, .80, 22]],
-      continuity: [[.32, .26, 0], [.54, .38, 10], [.72, .52, 20], [.86, .68, 28], [.96, .84, 36]]
-    };
-    const mobileOffsets = {
-      etha: [[1.08, .48, -16], [.92, .14, 24], [1.08, .72, -10], [1.08, .88, 30], [1.06, .98, -18]],
-      ambo: [[1.04, .46, -10], [1.02, .58, 24], [1.04, .72, -12], [1.06, .86, 32], [1.04, .96, -16]],
-      minne: [[1.04, .46, 8], [1.02, .60, -14], [1.04, .74, 20], [1.06, .86, -12], [1.04, .96, 24]],
-      open: [[.86, .35, -20], [.94, .25, -8], [.98, .52, 20], [.90, .74, -22], [.96, .88, 24]],
-      meet: [[.86, .35, -12], [.94, .44, -8], [.98, .58, 14], [.90, .74, -10], [.96, .88, 18]],
-      continuity: [[.86, .32, 0], [.94, .44, 10], [.98, .58, 16], [.90, .74, 22], [.96, .88, 26]]
-    };
-    const offsets = (mobile ? mobileOffsets : desktopOffsets)[kind];
-    const poses = offsets.map(([x, y, angle], i) => ({
-      x: r.x + r.w * x,
-      y: r.y + r.h * y,
-      r: angle,
-      rx: 0,
-      ry: 0,
-      s: scale * (i === 0 ? .90 : .94),
-      o: mobile ? .28 : .36,
-      front: false
-    }));
-
-    const lead = SERVICE_PETAL[kind];
-    if (lead !== undefined) {
-      if (kind === 'etha') {
-        const dock = computeEthaDock(mobile);
-        if (dock) {
-          poses[1] = { x: dock.x, y: dock.y, r: dock.r, rx: 0, ry: 0, s: dock.s, o: .93, front: false };
-        }
-        for (let i = 0; i < 5; i++) if (i !== 1) poses[i].o = mobile ? .20 : .28;
-      } else {
-        const destination = rect({ ambo: '#ambo-demo', minne: '#mini-content' }[kind]) || r;
-        poses[lead] = {
-          x: destination.x + destination.w * (mobile ? .86 : .80),
-          y: destination.y + Math.min(destination.h * .42, 150),
-          r: { ambo: 22, minne: 8 }[kind],
-          rx: 0,
-          ry: 0,
-          s: mobile ? .31 : .48,
-          o: .82,
-          front: false
-        };
-        for (let i = 0; i < 5; i++) if (i !== lead) poses[i].o = mobile ? .23 : .34;
+      mobile,
+      w,
+      h,
+      summaryRect,
+      docks: { etha: ethaDock, ambo: amboDock, minne: minneDock },
+      marks: {
+        openEnd,
+        ethaArrive,
+        ethaLeave,
+        amboArrive,
+        amboLeave,
+        minneArrive,
+        minneLeave,
+        connEnd,
+        comboArrive,
+        comboLeave,
+        closingArrive,
+        docMax
+      },
+      poses: {
+        hero: heroPoses,
+        ethaRest,
+        amboRest,
+        minneRest,
+        conn1: makeConn(connY1, 1),
+        conn2: makeConn(connY2, 2),
+        conn3: makeConn(connY3, 0),
+        comboBase,
+        closing: flower(closeBox, 1)
       }
-    }
-    return poses;
+    };
   }
 
   function measure() {
     dimensions = { w: innerWidth, h: innerHeight };
     anchors.clear();
     const keys = [
-      '.hero-flower', '#etha', '#etha .demo-wrap', '#etha-frame', '#etha-dock-anchor',
-      '#ambo', '#ambo .demo-wrap', '#minne', '#minne .demo-wrap',
-      '.connection', '#combinacao', '#service-options', '.closing-top', '.pilot', '.portal-main'
+      '.hero-flower', '#etha', '#etha .demo-wrap', '#etha-frame',
+      '#ambo', '#ambo .demo-wrap', '#ambo-demo',
+      '#minne', '#minne .demo-wrap', '#minne-demo', '.minne',
+      '.connection', '#combinacao', '#service-options', '.summary',
+      '.closing-top', '.pilot', '.portal-main'
     ];
     for (const key of keys) {
       const r = rect(key);
       if (r) anchors.set(key, r);
     }
     if (portal) { schedule(); return; }
-
-    const h = dimensions.h;
-    const mobile = dimensions.w < 700;
-    const hero = anchors.get('.hero-flower');
-    const closing = anchors.get('.closing-top');
-    const ethaFrame = anchors.get('#etha-frame') || anchors.get('#etha .demo-wrap');
-    if (!hero || !closing || !ethaFrame) return;
-
-    const read = selector => {
-      const r = anchors.get(selector);
-      return Math.max(0, r.y + Math.min(r.h * .45, h * .55) - h * .5);
-    };
-
-    const heroPoses = flower(hero);
-    const ethaDock = computeEthaDock(mobile);
-
-    // Calibrate arrival distance so Origem begins on the first gesture, Travessia spans
-    // ~2.5-3 comfortable scroll steps, and Repouso gives clear reading time at Etha.
-    const ethaArriveAt = mobile
-      ? Math.round(clamp(ethaFrame.y - h * .34, 720, Math.max(760, ethaFrame.y - 120)))
-      : Math.round(clamp(ethaFrame.y - h * .24, 680, Math.max(720, ethaFrame.y - 110)));
-    const ethaLeaveAt = ethaArriveAt + (mobile ? 220 : 250);
-
-    ethaGeom = {
-      mobile,
-      w: dimensions.w,
-      h,
-      arriveAt: ethaArriveAt,
-      leaveAt: ethaLeaveAt,
-      hero: heroPoses[1],
-      heroPoses,
-      dock: ethaDock
-    };
-
-    const ethaZone = anchors.get('#etha .demo-wrap') || anchors.get('#etha');
-    ethaRestPoses = spread(ethaZone, 'etha');
-
-    // Stops from Etha rest plateau onward (Ambo, Minne, Connection, Combination, Closing).
-    stops = [
-      { at: 0, poses: heroPoses },
-      { at: ethaArriveAt, poses: ethaRestPoses },
-      { at: ethaLeaveAt, poses: ethaRestPoses }
-    ];
-
-    for (const [sel, kind] of [['#ambo', 'ambo'], ['#minne', 'minne']]) {
-      const demo = anchors.get(sel + ' .demo-wrap') || anchors.get(sel);
-      const at = read(demo ? sel + ' .demo-wrap' : sel);
-      stops.push(
-        { at: Math.max(stops.at(-1).at + 1, at - 90), poses: spread(demo, kind) },
-        { at: Math.max(stops.at(-1).at + 2, at + 90), poses: spread(demo, kind) }
-      );
-    }
-
-    const connection = anchors.get('.connection');
-    const travel = Math.max(1, connection.h - h);
-    for (const [t, kind] of [[0, 'open'], [.5, 'meet'], [1, 'continuity']]) {
-      const at = connection.y + travel * t;
-      const zone = mobile
-        ? { x: 36, y: at + h * .88, w: dimensions.w - 64, h: h * .10 }
-        : { x: dimensions.w * .54, y: at + h * .84, w: dimensions.w * .42, h: h * .13 };
-      stops.push({ at, poses: spread(zone, kind) });
-    }
-
-    const combination = anchors.get('#combinacao');
-    const serviceCards = anchors.get('#service-options') || combination;
-    const cAt = read('#combinacao');
-    const cZone = mobile
-      ? { x: serviceCards.x + serviceCards.w * .75, y: serviceCards.y + 60, w: serviceCards.w * .28, h: Math.max(280, combination.y + combination.h - serviceCards.y - 100) }
-      : { x: serviceCards.x + serviceCards.w * .44, y: serviceCards.y + 40, w: serviceCards.w * .56, h: Math.max(280, combination.y + combination.h - serviceCards.y - 100) };
-    stops.push({ at: cAt, poses: spread(cZone, 'meet') }, { at: cAt + 140, poses: spread(cZone, 'meet') });
-
-    const width = mobile ? 100 : Math.min(400, closing.w * .30);
-    const pilotRect = anchors.get('.pilot');
-    const end = {
-      x: mobile ? dimensions.w - width - 24 : closing.x + closing.w - width,
-      y: mobile ? (pilotRect ? pilotRect.y + 12 : closing.y + closing.h + 16) : closing.y + Math.max(0, (closing.h - width * .825) / 2),
-      w: width,
-      h: width * .825
-    };
-    const endAt = Math.max(stops.at(-1).at + 1, closing.y - h * .25);
-    stops.push(
-      { at: endAt, poses: flower(end) },
-      { at: Math.max(endAt + 1, document.documentElement.scrollHeight - h), poses: flower(end) }
-    );
-    stops.sort((a, b) => a.at - b.at);
+    plan = buildPlan();
     schedule();
   }
 
   function selection() {
-    return [...document.querySelectorAll('[data-service][aria-pressed=true]')].map(b => b.dataset.service);
-  }
-
-  function scrollPose(i, y, context) {
-    if (portal) {
-      const mobile = dimensions.w < 700;
-      const r = context.portalRect;
-      if (!r) return petals[i].pose;
-      const width = mobile ? 160 : Math.min(400, r.width * .42);
-      const base = { x: dimensions.w - width - 20, y: Math.max(300, dimensions.h - width * .825 - 24) + y, w: width, h: width * .825 };
-      const p = flower(base, .45)[i];
-      const amount = portalRevision % 5;
-      return { ...p, x: p.x + Math.sin(i * 1.7 + amount) * 8, y: p.y + Math.cos(i + amount) * 6, r: Math.sin(i * 1.3 + amount) * 5 };
-    }
-
-    // Hero -> Etha 4-moment expressive scene (Origem, Travessia, Chegada, Repouso).
-    if (ethaGeom && y <= ethaGeom.arriveAt) {
-      const u = clamp(y / Math.max(1, ethaGeom.arriveAt), 0, 1);
-      if (i === 1) return sampleEthaLeadPose(u, ethaGeom);
-      return sampleEthaSupportPose(u, i, ethaGeom.heroPoses[i], ethaRestPoses[i], ethaGeom.mobile);
-    }
-
-    // Etha reading plateau & downstream journey.
-    let p = sampleJourney(stops, y, i);
-    const c = anchors.get('#combinacao'), end = anchors.get('.closing-top');
-    if (c && end) {
-      const weight = clamp((y - (c.y - dimensions.h * .6)) / 180) * clamp((end.y - dimensions.h * .3 - y) / 220);
-      const changed = selectionPose(p, i, context.selected);
-      p = blendPose(p, changed, weight, i);
-    }
-    if (context.pilotOpen && y > (end?.y || Infinity) - dimensions.h * .6) {
-      p = { ...p, x: p.x + (i % 2 ? 6 : -6), r: p.r + (i - 2) * 2 };
-    }
-    return p;
+    return [...document.querySelectorAll('button[data-service][aria-pressed=true]')].map(b => b.dataset.service);
   }
 
   function target(i, now, context) {
     const y = context.scrollY;
-    let p = scrollPose(i, y, context);
-    if (!p) return null;
 
-    // Reduced motion: static whole flower in hero, static docked lavender petal at Etha.
-    if (reduced.matches) {
-      if (!portal && ethaGeom) {
-        if (y < ethaGeom.arriveAt * .45) {
-          p = { ...ethaGeom.heroPoses[i], rx: 0, ry: 0, front: false };
-        } else if (i === 1 && ethaGeom.dock) {
-          p = { x: ethaGeom.dock.x, y: ethaGeom.dock.y, r: ethaGeom.dock.r, rx: 0, ry: 0, s: ethaGeom.dock.s, o: .92, front: false };
-        } else {
-          p = { ...p, rx: 0, ry: 0, front: false, o: Math.min(p.o, .34) };
-        }
-      } else {
-        p = { ...p, x: dimensions.w - 62, y: y + dimensions.h - 38, r: 0, rx: 0, ry: 0, s: .19 * (p.s < .6 ? .85 : 1), o: .30, front: false };
-      }
+    if (portal) {
+      const mobile = dimensions.w < 700;
+      const r = context.portalRect;
+      if (!r) return petals[i].pose;
+      const width = mobile ? 150 : Math.min(390, r.width * .40);
+      const base = { x: dimensions.w - width - 20, y: Math.max(300, dimensions.h - width * .825 - 24) + y, w: width, h: width * .825 };
+      const f = flower(base, .45)[i];
+      const amount = portalRevision % 5;
+      const p = reduced.matches
+        ? f
+        : { ...f, x: f.x + Math.sin(i * 1.7 + amount) * 8, y: f.y + Math.cos(i + amount) * 6, r: Math.sin(i * 1.3 + amount) * 5 };
       return { ...p, y: p.y - y };
     }
 
-    // Apply explicit user intent (desktop hover/focus or mobile in-page service control).
-    if (!portal && owner.mode === 'intent') {
-      p = applyIntentPose(p, i, owner, ethaGeom, y);
+    if (!plan) return null;
+
+    // Reduced motion: static whole flower at hero & closing, static docked service petals at each product.
+    if (reduced.matches) {
+      const m = plan.marks;
+      let p;
+      if (y < m.ethaArrive * .45) p = plan.poses.hero[i];
+      else if (y < m.amboArrive - 160) p = plan.poses.ethaRest[i];
+      else if (y < m.minneArrive - 160) p = plan.poses.amboRest[i];
+      else if (y < m.comboArrive - 160) p = plan.poses.minneRest[i];
+      else if (y < m.closingArrive - 120) p = sampleFullJourney(m.comboArrive, i, plan, context.selected);
+      else p = plan.poses.closing[i];
+      return { ...p, rx: 0, ry: 0, front: false, y: p.y - y };
     }
 
-    // Subtle finite settling breath only while not reading/typing.
-    const idle = !context.reading && now < settleUntil && now - lastIntent > 160;
-    const remaining = clamp((settleUntil - now) / 1800);
+    let p = sampleFullJourney(y, i, plan, context.selected);
+
+    if (context.pilotOpen && y > plan.marks.closingArrive - 180) {
+      p = { ...p, x: p.x + (i % 2 ? 7 : -7), r: p.r + (i - 2) * 2.2 };
+    }
+
+    // Expire transient service pulse smoothly after its short local nod.
+    if (owner.mode === 'intent' && owner.expiresAt && now >= owner.expiresAt) {
+      owner = createOwnerState(y);
+    }
+
+    if (owner.mode === 'intent') {
+      p = applyIntentPose(p, i, owner, plan, y);
+    }
+
+    // Gentle finite settling breath that stops completely during reading/typing.
+    const idle = !context.reading && now < settleUntil && now - lastIntent > 180;
+    const remaining = clamp((settleUntil - now) / 1600);
     if (idle) {
       p = {
         ...p,
-        r: p.r + Math.sin((now - started) / 1400 + i * 1.8) * .8 * remaining,
-        y: p.y + Math.sin((now - started) / 1700 + i * 1.3) * 1.3 * remaining
+        r: p.r + Math.sin((now - started) / 1400 + i * 1.8) * .7 * remaining,
+        y: p.y + Math.sin((now - started) / 1700 + i * 1.3) * 1.1 * remaining
       };
     }
 
-    // Crisp hero entrance settling only at scrollY == 0 on initial load.
-    if (!portal && y < 16 && now - started < 1200) {
-      const entrance = clamp((now - started - i * 45) / 1000);
+    // Initial load blossom settle at y = 0.
+    if (y < 16 && now - started < 1150) {
+      const entrance = clamp((now - started - i * 45) / 980);
       const energy = (1 - entrance) ** 3;
       p = {
         ...p,
@@ -362,33 +344,40 @@ export async function mountPetalJourney() {
     return { ...p, rx: p.rx || 0, ry: p.ry || 0, front: !!p.front, y: p.y - y };
   }
 
-  function updateEthaDockGlow(y) {
-    if (!ethaGlowEl || !ethaGeom?.dock) return;
-    let dockLevel = 0;
+  function syncDockGlow(service, petalIdx, y, glowEl, frameEl) {
+    if (!glowEl || !plan?.docks?.[service]) return;
+    const dock = plan.docks[service];
+    const m = plan.marks;
+    let level = 0;
+
     if (reduced.matches) {
-      dockLevel = y >= ethaGeom.arriveAt * .45 && y <= ethaGeom.leaveAt + 420 ? .92 : 0;
-    } else if (petals[1]?.pose) {
-      const pose = petals[1].pose;
-      const dockVpX = ethaGeom.dock.x;
-      const dockVpY = ethaGeom.dock.y - y;
-      const dist = Math.hypot(pose.x - dockVpX, pose.y - dockVpY);
-      const radius = ethaGeom.mobile ? 170 : 240;
-      const proximity = clamp(1 - dist / radius);
-      const inEthaWindow = y > ethaGeom.arriveAt * .55 && y < ethaGeom.leaveAt + 460;
-      const ethaFocused = owner.mode === 'intent' && owner.service === 'etha';
-      dockLevel = (inEthaWindow || ethaFocused) ? proximity * proximity * (3 - 2 * proximity) : 0;
-      if (ethaFocused) dockLevel = Math.max(dockLevel, .55);
+      const windows = {
+        etha: y >= m.ethaArrive * .45 && y < m.amboArrive - 160,
+        ambo: y >= m.amboArrive - 160 && y < m.minneArrive - 160,
+        minne: y >= m.minneArrive - 160 && y < m.comboArrive - 160
+      };
+      level = windows[service] ? .92 : 0;
+    } else if (petals[petalIdx]?.pose) {
+      const pose = petals[petalIdx].pose;
+      const dist = Math.hypot(pose.x - dock.x, pose.y - (dock.y - y));
+      const radius = plan.mobile ? 185 : 260;
+      const prox = clamp(1 - dist / radius);
+      const smoothProx = prox * prox * (3 - 2 * prox);
+      const focused = owner.mode === 'intent' && owner.service === service;
+      level = focused ? Math.max(smoothProx, .52) : smoothProx;
     }
 
-    const quantized = Math.round(dockLevel * 100) / 100;
-    if (quantized !== lastDockOpacity) {
-      lastDockOpacity = quantized;
-      ethaGlowEl.style.opacity = String(quantized);
+    const q = Math.round(level * 100) / 100;
+    if (q !== lastGlows[service]) {
+      lastGlows[service] = q;
+      glowEl.style.opacity = String(q);
     }
-    const dockedNow = quantized >= .58;
-    if (dockedNow !== lastDockedClass) {
-      lastDockedClass = dockedNow;
-      ethaFrameEl.classList.toggle('is-docked', dockedNow);
+    if (service === 'etha' && frameEl) {
+      const docked = q >= .55;
+      if (docked !== lastEthaDocked) {
+        lastEthaDocked = docked;
+        frameEl.classList.toggle('is-docked', docked);
+      }
     }
   }
 
@@ -396,7 +385,7 @@ export async function mountPetalJourney() {
 
   function tick(now) {
     frame = 0;
-    if (hidden || (!stops.length && !portal)) return;
+    if (hidden || (!plan && !portal)) return;
     const snap = snapNext || reduced.matches;
     snapNext = false;
     if (!snap && document.activeElement?.matches('input,textarea,select') && now - lastScroll > 48) {
@@ -408,7 +397,7 @@ export async function mountPetalJourney() {
     last = now;
     let moving = false;
 
-    // Group DOM reads before any style writes.
+    // Group all DOM reads before any style writes.
     const y = scrollY;
     const context = {
       scrollY: y,
@@ -417,6 +406,10 @@ export async function mountPetalJourney() {
       pilotOpen: !!document.querySelector('.pilot')?.open,
       portalRect: portal ? document.querySelector('.portal-main')?.getBoundingClientRect() : null
     };
+    const ethaFrameEl = document.querySelector('#etha-frame');
+    const ethaGlow = ethaFrameEl?.querySelector('.etha-dock-glow');
+    const amboGlow = document.querySelector('#ambo-demo .ambo-dock-glow');
+    const minneGlow = document.querySelector('#minne-demo .minne-dock-glow');
 
     const goals = petals.map((_, i) => target(i, now, context));
 
@@ -427,8 +420,8 @@ export async function mountPetalJourney() {
         petal.pose = { x: goal.x, y: goal.y, r: goal.r, rx: goal.rx, ry: goal.ry, s: goal.s, o: goal.o };
       }
       const p = petal.pose;
-      // Lead Etha petal tracks scroll & explicit intent crisply; companions follow with subtle stagger.
-      const tau = portal ? 110 : (i === 1 ? 68 : 88 + i * 7);
+      // Active foreground protagonist responds crisply; companion & resting petals settle smoothly.
+      const tau = portal ? 110 : (goal.front ? 66 : 86 + i * 6);
       const rate = snap ? 1 : 1 - Math.exp(-dt / tau);
 
       for (const key of ['x', 'y', 'r', 'rx', 'ry', 's', 'o']) {
@@ -447,7 +440,7 @@ export async function mountPetalJourney() {
         petal.slot.style.zIndex = String(wantZ);
       }
 
-      const visible = p.y > -480 && p.y < dimensions.h + 480;
+      const visible = p.y > -560 && p.y < dimensions.h + 560;
       petal.outer.style.visibility = visible ? 'visible' : 'hidden';
       petal.outer.style.transform = `translate3d(${p.x.toFixed(2)}px,${p.y.toFixed(2)}px,0) scale(${p.s.toFixed(4)})`;
       petal.outer.style.opacity = p.o.toFixed(3);
@@ -456,9 +449,13 @@ export async function mountPetalJourney() {
         : `rotateZ(${p.r.toFixed(2)}deg)`;
     });
 
-    updateEthaDockGlow(y);
+    if (!portal) {
+      syncDockGlow('etha', 1, y, ethaGlow, ethaFrameEl);
+      syncDockGlow('ambo', 2, y, amboGlow, null);
+      syncDockGlow('minne', 0, y, minneGlow, null);
+    }
 
-    if (moving || (!reduced.matches && (now - started < 1250 || now < settleUntil))) {
+    if (moving || (!reduced.matches && (now - started < 1200 || now < settleUntil || (owner.expiresAt && now < owner.expiresAt)))) {
       frame = requestAnimationFrame(tick);
     } else {
       last = 0;
@@ -474,7 +471,7 @@ export async function mountPetalJourney() {
     if (keepSettle) {
       settleUntil = document.activeElement?.matches('input,textarea,select')
         ? 0
-        : lastIntent + (portal ? 650 : 1800);
+        : lastIntent + (portal ? 650 : 1600);
     }
     schedule();
   }
@@ -487,7 +484,9 @@ export async function mountPetalJourney() {
       if (id && id in SERVICE_PETAL) return { service: id, el: explicit };
     }
     const article = el.closest('#etha,#ambo,#minne');
-    if (article && article.id in SERVICE_PETAL) return { service: article.id, el: el.closest('a,button,.etha-frame,.ambo,.minne') || article };
+    if (article && article.id in SERVICE_PETAL) {
+      return { service: article.id, el: el.closest('a,button,.etha-frame,.ambo,.minne') || article };
+    }
     return null;
   }
 
@@ -505,7 +504,6 @@ export async function mountPetalJourney() {
     }
   }
 
-  // Input modality tracking so focus intent activates cleanly on keyboard navigation.
   document.addEventListener('keydown', e => {
     if (e.key === 'Tab' || e.key.startsWith('Arrow') || e.key === 'Enter' || e.key === ' ') {
       lastInputModality = 'keyboard';
@@ -513,7 +511,6 @@ export async function mountPetalJourney() {
   }, true);
   document.addEventListener('pointerdown', () => { lastInputModality = 'pointer'; }, { passive: true, capture: true });
 
-  // Scroll owns the narrative; moving >12px cleanly releases any prior hover/focus/tap intent.
   addEventListener('scroll', () => {
     lastScroll = performance.now();
     owner = transitionOwner(owner, { type: 'scroll', scrollY });
@@ -525,31 +522,13 @@ export async function mountPetalJourney() {
     measure();
   }, { passive: true });
 
-  // Desktop hover: localized attentive response on service cards/sections/links.
+  // Desktop hover: localized attentive orientation without restarting the scene.
   if (!portal) {
-    const serviceRegions = document.querySelectorAll('#etha, #ambo, #minne');
-    for (const region of serviceRegions) {
-      region.addEventListener('pointerenter', () => {
-        if (!fineHover.matches) return;
-        dispatchOwner({
-          type: 'intent',
-          service: region.id,
-          source: 'hover',
-          scrollY,
-          targetRect: elementDocRect(region.querySelector('.etha-frame,.ambo,.minne') || region)
-        });
-      });
-      region.addEventListener('pointerleave', () => {
-        if (!fineHover.matches) return;
-        dispatchOwner({ type: 'release', source: 'hover', scrollY });
-      });
-    }
-
     document.addEventListener('pointerover', e => {
       if (!fineHover.matches) return;
-      const card = e.target.closest?.('[data-service], [data-service-link], [data-service-example]');
-      if (!card) return;
-      const hit = detectServiceFromElement(card);
+      const targetEl = e.target.closest?.('button[data-service],[data-service-link],[data-service-example],#etha-frame,#ambo-demo,#minne-demo');
+      if (!targetEl) return;
+      const hit = detectServiceFromElement(targetEl);
       if (!hit) return;
       dispatchOwner({
         type: 'intent',
@@ -562,15 +541,30 @@ export async function mountPetalJourney() {
 
     document.addEventListener('pointerout', e => {
       if (!fineHover.matches) return;
-      const card = e.target.closest?.('[data-service], [data-service-link], [data-service-example]');
-      if (!card) return;
+      const targetEl = e.target.closest?.('button[data-service],[data-service-link],[data-service-example],#etha-frame,#ambo-demo,#minne-demo');
+      if (!targetEl) return;
       const related = e.relatedTarget instanceof Element ? e.relatedTarget : null;
-      if (related && related.closest('#etha,#ambo,#minne,[data-service]')) return;
+      if (related && related.closest('button[data-service],[data-service-link],[data-service-example],#etha-frame,#ambo-demo,#minne-demo')) return;
       dispatchOwner({ type: 'release', source: 'hover', scrollY });
     }, { passive: true });
+
+    // Subtle localized pulse when interacting with Ambo/Minne controls (then returns calmly to rest).
+    window.addEventListener('enomera:service-pulse', e => {
+      if (reduced.matches) return;
+      const service = e.detail?.service;
+      if (!service || !(service in SERVICE_PETAL)) return;
+      dispatchOwner({
+        type: 'intent',
+        service,
+        source: 'pulse',
+        scrollY,
+        targetRect: elementDocRect(e.detail?.el),
+        expiresAt: performance.now() + 680
+      });
+    });
   }
 
-  // Keyboard focus: immediate native :focus-visible + localized petal response.
+  // Keyboard focus: immediate native :focus-visible + localized petal orientation.
   document.addEventListener('focusin', e => {
     settleUntil = 0;
     const targetEl = e.target instanceof Element ? e.target : null;
@@ -605,28 +599,12 @@ export async function mountPetalJourney() {
     }
   });
 
-  // In-page service controls (including mobile tap): drive composition without EVER intercepting external links.
+  // In-page service clicks trigger redistribution; external links are NEVER intercepted.
   document.addEventListener('click', e => {
-    const externalLink = e.target.closest?.('a[target="_blank"]');
-    if (externalLink) return; // First tap immediately opens product on mobile & desktop.
-
-    const inPageControl = e.target.closest?.('[data-service],[data-ambo],[data-mode],[data-day],[data-mini],[data-portal],[data-goto],[data-active]');
-    if (!inPageControl) return;
+    if (e.target.closest?.('a[target="_blank"]')) return;
+    const control = e.target.closest?.('button[data-service],[data-billing],[data-portal],[data-goto],[data-active]');
+    if (!control) return;
     portalRevision++;
-
-    if (!portal) {
-      const hit = detectServiceFromElement(inPageControl);
-      if (hit) {
-        dispatchOwner({
-          type: 'intent',
-          service: hit.service,
-          source: 'tap',
-          scrollY,
-          targetRect: elementDocRect(hit.el)
-        });
-      }
-    }
-
     requestAnimationFrame(() => {
       if (portal) measure();
       intention(true);
@@ -660,19 +638,14 @@ export async function mountPetalJourney() {
     resize.observe(el);
   }
 
-  // Read-only telemetry for automated motion & state-machine verification.
   window.__enomeraPetals = {
     snapshot() {
       const y = scrollY;
-      const arriveAt = ethaGeom?.arriveAt || 1;
       return {
         owner: { mode: owner.mode, service: owner.service, source: owner.source, sinceScrollY: owner.sinceScrollY },
         scrollY: y,
-        ethaArriveAt: ethaGeom?.arriveAt ?? null,
-        ethaLeaveAt: ethaGeom?.leaveAt ?? null,
-        ethaProgress: clamp(y / arriveAt, 0, 1),
-        dockOpacity: lastDockOpacity,
-        docked: lastDockedClass,
+        marks: plan?.marks ? { ...plan.marks } : null,
+        glows: { ...lastGlows },
         petals: petals.map((p, i) => ({
           i,
           z: p.z,

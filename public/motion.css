@@ -1,9 +1,10 @@
 :root {
-  --motion-response: 120ms;
+  --motion-response: 130ms;
   --motion-selection: 240ms;
   --motion-surface: 280ms;
   --motion-narrative: 1100ms;
   --motion-rest: 420ms;
+  --ease-spring: cubic-bezier(.22, 1, .36, 1);
   --ease-drawer: cubic-bezier(.32, .72, 0, 1);
 }
 
@@ -14,34 +15,42 @@
 .closing-flower { max-width: 30%; height: auto; }
 .petal { transform-box: view-box; }
 
-/* Single consolidated Liquid Glass lens: static geometry, transform-only slide. */
+/* Liquid Glass lens: smoothly animates position AND real width/height with interruptible reversal. */
 .motion-lens {
   position: absolute;
   left: 0;
   top: 0;
   pointer-events: none;
   z-index: -1;
+  contain: layout style;
   border: 1px solid #ffffffdc;
   border-radius: 24px;
-  background: linear-gradient(135deg, #ffffff85, #ffffff32 55%, #c3d6ee5c);
+  background: linear-gradient(135deg, #ffffff8c, #ffffff38 55%, #c3d6ee66);
   box-shadow: inset 0 1px 2px #fff, 0 5px 16px #4061a61f;
-  backdrop-filter: blur(14px) saturate(130%);
-  -webkit-backdrop-filter: blur(14px) saturate(130%);
-  transition: transform 220ms var(--ease);
+  backdrop-filter: blur(14px) saturate(135%);
+  -webkit-backdrop-filter: blur(14px) saturate(135%);
+  transition:
+    transform var(--motion-selection) var(--ease-spring),
+    width var(--motion-selection) var(--ease-spring),
+    height var(--motion-selection) var(--ease-spring),
+    border-radius var(--motion-selection) var(--ease-spring),
+    opacity 160ms var(--ease);
 }
 
-#nav-links, .billing-toggle, .mini-sidebar, .portal-side nav, .choice-group {
+#nav-links, .billing-toggle, .mini-sidebar, .minne-list, .portal-side nav, .choice-group {
   position: relative;
   isolation: isolate;
 }
 #nav-links > a:not(.button) {
   padding: 10px 8px;
   margin-inline: -8px;
+  transition: color 160ms var(--ease);
 }
 
 .billing-toggle [aria-pressed=true],
 .choice-group:has([data-mode]) [aria-pressed=true],
 .mini-sidebar [aria-pressed=true],
+.minne-list [aria-pressed=true],
 .portal-side button[aria-current=page] {
   background: transparent !important;
   box-shadow: none;
@@ -50,10 +59,12 @@
 
 .billing-toggle button,
 .choice-group button {
-  transition: background-color var(--motion-selection) var(--ease),
+  transition:
+    background-color var(--motion-selection) var(--ease),
     border-color var(--motion-selection) var(--ease),
     box-shadow var(--motion-selection) var(--ease),
-    color var(--motion-selection) var(--ease);
+    color var(--motion-selection) var(--ease),
+    transform var(--motion-response) var(--ease);
 }
 
 .mini-sidebar button,
@@ -61,45 +72,97 @@
   padding-inline: 8px;
   border-radius: 10px;
 }
-.portal-side button { border: 1px solid transparent; }
-.back { border-radius: 18px; }
-
-/* Restrained tactile controls preserving Liquid Glass (faf057a). */
-.button {
-  transition: transform 160ms var(--ease),
-    box-shadow 160ms var(--ease),
+.portal-side button {
+  border: 1px solid transparent;
+  transition:
     background-color 160ms var(--ease),
+    color 160ms var(--ease),
+    transform 130ms var(--ease);
+}
+.back {
+  border-radius: 18px;
+  transition:
+    background-color 160ms var(--ease),
+    box-shadow 160ms var(--ease),
+    transform 130ms var(--ease),
     color 160ms var(--ease);
 }
+
+/* Tactile buttons, links & cards: recovered press, release, lift, and icon transitions. */
+.button {
+  position: relative;
+  overflow: hidden;
+  transition:
+    transform 170ms var(--ease-spring),
+    box-shadow 180ms var(--ease),
+    background-color 170ms var(--ease),
+    border-color 170ms var(--ease),
+    color 170ms var(--ease);
+}
 button {
-  transition: background-color 140ms var(--ease),
-    color 140ms var(--ease),
-    border-color 140ms var(--ease),
-    box-shadow 160ms var(--ease),
-    transform 140ms var(--ease);
+  transition:
+    background-color 160ms var(--ease),
+    color 160ms var(--ease),
+    border-color 160ms var(--ease),
+    box-shadow 180ms var(--ease),
+    transform 140ms var(--ease-spring);
 }
-.button:active {
-  transform: scale(.985) !important;
-  opacity: 1;
-  box-shadow: inset 0 1px 4px #202d5018;
+.button:active,
+.button.is-pressed {
+  transform: translateY(0) scale(.982) !important;
+  box-shadow: inset 0 2px 6px #202d501f, 0 4px 12px #4061a614 !important;
 }
-button:active, .is-pressed {
-  transform: scale(.985);
+button:active,
+button.is-pressed {
+  transform: scale(.984);
+}
+.choice-group[aria-label=Dias] button:active,
+.choice-group[aria-label=Dias] button.is-pressed {
+  transform: scale(.955);
+}
+
+.text-link {
+  transition: color 160ms var(--ease), transform 170ms var(--ease-spring);
 }
 
 .service-option {
-  transition: background-color 180ms var(--ease),
-    border-color 180ms var(--ease),
-    box-shadow var(--motion-surface) var(--ease);
+  transition:
+    transform 200ms var(--ease-spring),
+    background-color 220ms var(--ease),
+    border-color 200ms var(--ease),
+    box-shadow 240ms var(--ease);
 }
-.service-option .check,
+.service-option .check {
+  display: inline-block;
+  width: fit-content;
+  transform-origin: center;
+  transform: rotate(0deg) scale(1);
+  transition:
+    transform 240ms var(--ease-spring),
+    opacity 180ms var(--ease),
+    color 180ms var(--ease);
+}
 .service-option[aria-pressed=false] .check {
-  transform: none;
-  transition: opacity 120ms var(--ease);
+  transform: rotate(-35deg) scale(.86);
+  opacity: .62;
 }
-.service-option[aria-pressed=false] .check { opacity: .65; }
 .service-option[aria-pressed=true] {
-  box-shadow: var(--elevation), inset 0 0 32px #ffffff40;
+  box-shadow: var(--elevation), inset 0 0 32px #ffffff46;
+}
+.service-option:active,
+.service-option.is-pressed {
+  transform: translateY(0) scale(.988) !important;
+}
+
+.stat {
+  transition:
+    transform 190ms var(--ease-spring),
+    box-shadow 200ms var(--ease),
+    border-color 180ms var(--ease);
+}
+.stat:active,
+.stat.is-pressed {
+  transform: translateY(0) scale(.986) !important;
 }
 
 /* Custom Liquid Glass checkbox in Portal active products. */
@@ -116,26 +179,36 @@ button:active, .is-pressed {
   border-radius: 7px;
   background: #ffffff50;
   box-shadow: inset 0 1px 2px #fff, 0 3px 8px #4061a61a;
-  transition: background-color 140ms var(--ease), border-color 140ms var(--ease);
+  transition:
+    background-color 160ms var(--ease),
+    border-color 160ms var(--ease),
+    transform 140ms var(--ease-spring),
+    box-shadow 160ms var(--ease);
 }
 .active-products input:checked {
   background: #5b70b280;
   border-color: #5b70b2;
 }
+.active-products input:active { transform: scale(.92); }
 .active-products input:after {
   content: '';
   width: 9px;
   height: 5px;
   border-left: 2px solid white;
   border-bottom: 2px solid white;
-  transform: translateY(-1px) rotate(-45deg);
+  transform: translateY(-1px) rotate(-45deg) scale(.6);
   opacity: 0;
+  transition: transform 180ms var(--ease-spring), opacity 140ms var(--ease);
 }
-.active-products input:checked:after { opacity: 1; }
+.active-products input:checked:after {
+  opacity: 1;
+  transform: translateY(-1px) rotate(-45deg) scale(1);
+}
 .active-products input:focus-visible { outline: 2px solid #415fa8; outline-offset: 3px; }
 
 input, select, textarea {
-  transition: border-color var(--motion-selection),
+  transition:
+    border-color var(--motion-selection),
     box-shadow var(--motion-selection),
     background-color var(--motion-selection);
 }
@@ -149,11 +222,15 @@ input:focus, select:focus, textarea:focus {
 .pilot summary { margin-bottom: 0 !important; }
 .disclosure-content { padding-top: 24px; }
 .disclosure-content > :last-child { margin-bottom: 0; }
-.pilot summary span { transition: transform 180ms var(--ease); transform: rotate(0); }
+.pilot summary span {
+  display: inline-block;
+  transition: transform 200ms var(--ease-spring);
+  transform: rotate(0deg);
+}
 .pilot[open] summary span { transform: rotate(45deg); }
 
 /* Dialog top-layer transitions. */
-dialog[open] { animation: dialog-enter 240ms var(--ease); }
+dialog[open] { animation: dialog-enter 240ms var(--ease-spring); }
 @keyframes dialog-enter {
   from { opacity: .4; transform: scale(.97); }
   to { opacity: 1; transform: scale(1); }
@@ -162,18 +239,20 @@ dialog[open] { animation: dialog-enter 240ms var(--ease); }
   dialog {
     opacity: 0;
     transform: translateY(6px) scale(.98);
-    transition: opacity 160ms var(--ease),
-      transform 200ms var(--ease),
-      display 200ms allow-discrete,
-      overlay 200ms allow-discrete;
+    transition:
+      opacity 160ms var(--ease),
+      transform 220ms var(--ease-spring),
+      display 220ms allow-discrete,
+      overlay 220ms allow-discrete;
   }
   dialog[open] { opacity: 1; transform: none; animation: none; }
   dialog::backdrop {
     background: #202d5000;
     backdrop-filter: none;
-    transition: background-color 160ms var(--ease),
-      display 200ms allow-discrete,
-      overlay 200ms allow-discrete;
+    transition:
+      background-color 180ms var(--ease),
+      display 220ms allow-discrete,
+      overlay 220ms allow-discrete;
   }
   dialog[open]::backdrop { background: #202d5045; }
   @starting-style {
@@ -194,7 +273,8 @@ dialog[open] { animation: dialog-enter 240ms var(--ease); }
     opacity: 0;
     transform: translateY(-4px);
     transform-origin: top;
-    transition: opacity 160ms var(--ease),
+    transition:
+      opacity 160ms var(--ease),
       transform 180ms var(--ease),
       display 180ms allow-discrete,
       overlay 180ms allow-discrete;
@@ -209,29 +289,38 @@ dialog[open] { animation: dialog-enter 240ms var(--ease); }
   .ambo select:open::picker-icon { transform: rotate(180deg); }
 }
 
-/* Pointer hover feedback: subtle 1px lift on buttons, no jitter on cards. */
+/* Desktop pointer hover feedback: crisp lift on buttons, cards & portal stats. */
 @media (hover: hover) and (pointer: fine) {
   .button:hover {
-    transform: translateY(-1px);
-    box-shadow: inset 0 1px 2px #fff9, 0 10px 22px #4061a62b;
+    transform: translateY(-2px);
+    box-shadow: inset 0 1px 2px #fffb, 0 12px 26px #4061a62e;
   }
   .service-option:hover {
-    transform: none;
+    transform: translateY(-3px);
     border-color: var(--action, var(--blue));
+    box-shadow: 0 16px 34px rgba(64, 97, 166, .16), inset 0 1px 2px #fff;
+  }
+  .stat:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 30px rgba(64, 97, 166, .16), inset 0 1px 2px #fff;
+  }
+  .text-link:hover {
+    transform: translateX(2px);
   }
   .back:hover {
-    background: #ffffff45;
-    box-shadow: inset 0 1px 1px #ffffffa0;
+    background: #ffffff52;
+    box-shadow: inset 0 1px 1px #ffffffb8;
   }
   .mini-sidebar button:hover,
   .portal-side button:hover {
-    background-color: #ffffff50;
+    background-color: #ffffff58;
   }
 }
 
-/* Mobile menu drawer. */
+/* Mobile menu drawer & closing flower breathing room. */
 @media (max-width: 700px) {
   .closing-flower { display: none; }
+  .closing-top { padding-bottom: 132px; }
   #nav-links { position: absolute; }
   .nav nav {
     display: flex;
@@ -240,7 +329,8 @@ dialog[open] { animation: dialog-enter 240ms var(--ease); }
     pointer-events: none;
     transform: translateY(-8px) scale(.97);
     transform-origin: calc(100% - 32px) 0;
-    transition: opacity 200ms var(--ease),
+    transition:
+      opacity 200ms var(--ease),
       transform 240ms var(--ease-drawer),
       visibility 0s linear 240ms;
   }
@@ -249,16 +339,17 @@ dialog[open] { animation: dialog-enter 240ms var(--ease); }
     visibility: visible;
     pointer-events: auto;
     transform: translateY(0) scale(1);
-    transition: opacity 200ms var(--ease),
+    transition:
+      opacity 200ms var(--ease),
       transform 240ms var(--ease-drawer),
       visibility 0s;
   }
   .nav nav > .motion-lens { display: none; }
-  .menu-toggle { transition: background-color 180ms, box-shadow 180ms; }
+  .menu-toggle { transition: background-color 180ms, box-shadow 180ms, transform 140ms var(--ease); }
   .menu-toggle[aria-expanded=true] { background: #aebff060; }
 }
 
-/* Petal journey layers. */
+/* Petal journey 5-slot depth layers (z:1 behind glass / z:12 foreground sweep / nav stays z:20). */
 body.has-petal-journey { isolation: isolate; }
 .has-petal-journey section { isolation: auto; }
 .has-petal-journey .substrate { z-index: 0; }
@@ -312,12 +403,16 @@ body.has-petal-journey { isolation: isolate; }
   .petal { transform: none !important; }
   .motion-lens { transition: none; }
   .pilot summary span { transition: none; }
-  .button:hover, .button:active, button:active { transform: none !important; }
+  .button:hover, .button:active, button:active,
+  .service-option:hover, .service-option:active,
+  .stat:hover, .stat:active, .text-link:hover { transform: none !important; }
+  .service-option .check, .service-option[aria-pressed=false] .check { transform: none !important; transition: none; }
   .nav nav { transform: none !important; }
   dialog, dialog[open] { animation: none; transform: none; }
   .ambo select::picker(select) { transform: none !important; transition: none; }
   .ambo select::picker-icon { transition: none; }
-  .journey-petal, .journey-petal-plane, .etha-dock-glow { will-change: auto; }
+  .journey-petal, .journey-petal-plane,
+  .etha-dock-glow, .ambo-dock-glow, .minne-dock-glow { will-change: auto; }
   .etha-dock-pill { transition: none; }
 }
 
