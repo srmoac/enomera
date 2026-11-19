@@ -5,7 +5,14 @@ import path from 'node:path';
 import test from 'node:test';
 import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
-import { getDb, closeDb, toPostgresPlaceholders, getAppliedMigrations } from '../server/db.mjs';
+import {
+  getDb,
+  closeDb,
+  toPostgresPlaceholders,
+  getAppliedMigrations,
+  isRemoteInfraRequired,
+  getRemoteInfraGuard,
+} from '../server/db.mjs';
 import { createEnomeraServer } from '../scripts/server.mjs';
 
 let server;
@@ -674,4 +681,107 @@ test('8. Two independent real accounts: isolation, clinical file attachment 403,
   const persistedNote = await reopenedDb.get('SELECT id, attachment_file_ids_json FROM clinical_notes WHERE id = ?', draftA.data.noteId);
   assert.ok(persistedNote);
   assert.ok(JSON.parse(persistedNote.attachment_file_ids_json).includes(fileIdA));
+});
+
+test('9. Remote delivery infra guard (ENOMERA_REQUIRE_REMOTE_INFRA / VERCEL=1): 503 health + subsystem guards without silent local fallback', async () => {
+  const prevEnv = {
+    ENOMERA_REQUIRE_REMOTE_INFRA: process.env.ENOMERA_REQUIRE_REMOTE_INFRA,
+    ENOMERA_ALLOW_LOCAL_FALLBACK: process.env.ENOMERA_ALLOW_LOCAL_FALLBACK,
+    VERCEL: process.env.VERCEL,
+    DATABASE_URL: process.env.DATABASE_URL,
+    POSTGRES_URL: process.env.POSTGRES_URL,
+    BLOB_READ_WRITE_TOKEN: process.env.BLOB_READ_WRITE_TOKEN,
+    RESEND_API_KEY: process.env.RESEND_API_KEY,
+    RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
+  };
+
+  try {
+    // 1. Default local dev/test mode: remote infra NOT required, /api/v1/health is 200 OK
+    delete process.env.ENOMERA_REQUIRE_REMOTE_INFRA;
+    delete process.env.VERCEL;
+    assert.equal(isRemoteInfraRequired(), false);
+    const localHealth = await api('/api/v1/health');
+    assert.equal(localHealth.status, 200);
+    assert.equal(localHealth.data.ok, true);
+    assert.equal(localHealth.data.requireRemoteInfra, false);
+
+    // 2. VERCEL=1 activates remote requirement unless ENOMERA_ALLOW_LOCAL_FALLBACK=true
+    process.env.VERCEL = '1';
+    assert.equal(isRemoteInfraRequired(), true);
+    process.env.ENOMERA_ALLOW_LOCAL_FALLBACK = 'true';
+    assert.equal(isRemoteInfraRequired(), false);
+    delete process.env.ENOMERA_ALLOW_LOCAL_FALLBACK;
+    delete process.env.VERCEL;
+
+    // 3. Explicit ENOMERA_REQUIRE_REMOTE_INFRA=true with missing remote vars -> 503 REMOTE_INFRA_NOT_CONFIGURED on /api/v1/health
+    process.env.ENOMERA_REQUIRE_REMOTE_INFRA = 'true';
+    delete process.env.DATABASE_URL;
+    delete process.env.POSTGRES_URL;
+    delete process.env.BLOB_READ_WRITE_TOKEN;
+    delete process.env.RESEND_API_KEY;
+    delete process.env.RESEND_FROM_EMAIL;
+
+    const guard = getRemoteInfraGuard();
+    assert.equal(guard.required, true);
+    assert.equal(guard.ready, false);
+    assert.deepEqual(guard.missingEnvVars, ['DATABASE_URL', 'BLOB_READ_WRITE_TOKEN', 'RESEND_API_KEY', 'RESEND_FROM_EMAIL']);
+
+    const remoteHealth = await api('/api/v1/health');
+    assert.equal(remoteHealth.status, 503);
+    assert.equal(remoteHealth.data.ok, false);
+    assert.equal(remoteHealth.data.code, 'REMOTE_INFRA_NOT_CONFIGURED');
+    assert.equal(remoteHealth.data.requireRemoteInfra, true);
+    assert.deepEqual(remoteHealth.data.missingEnvVars, ['DATABASE_URL', 'BLOB_READ_WRITE_TOKEN', 'RESEND_API_KEY', 'RESEND_FROM_EMAIL']);
+    assert.equal(remoteHealth.data.integrations.database.activeBackend, 'unconfigured_remote_required');
+    assert.equal(remoteHealth.data.integrations.storage.backend, 'unconfigured_remote_required');
+    assert.equal(remoteHealth.data.integrations.mailer.provider, 'unconfigured_remote_required');
+
+    // 4. Subsystem guard: getDb() without customPath or DATABASE_URL throws 503 REMOTE_DB_NOT_CONFIGURED
+    await assert.rejects(
+      () => getDb(),
+      (err) => err.status === 503 && err.code === 'REMOTE_DB_NOT_CONFIGURED' && Array.isArray(err.missingEnvVars) && err.missingEnvVars.includes('DATABASE_URL')
+    );
+
+    // 5. Subsystem guard: mailer refuses silent fallback to local outbox (503 REMOTE_MAILER_NOT_CONFIGURED)
+    const mailerFail = await api('/api/v1/auth/recovery/request', {
+      method: 'POST',
+      body: { email: 'helena@helenaduartepsi.com.br' },
+    });
+    assert.equal(mailerFail.status, 503);
+    assert.equal(mailerFail.data.code, 'REMOTE_MAILER_NOT_CONFIGURED');
+    assert.deepEqual(mailerFail.data.missingEnvVars, ['RESEND_API_KEY', 'RESEND_FROM_EMAIL']);
+
+    // 6. Subsystem guard: dev/outbox is strictly disabled (403 OUTBOX_DISABLED)
+    const outboxDisabled = await api('/api/v1/dev/outbox?recipient=helena@helenaduartepsi.com.br');
+    assert.equal(outboxDisabled.status, 403);
+    assert.equal(outboxDisabled.data.code, 'OUTBOX_DISABLED');
+
+    // 7. Subsystem guard: private storage refuses silent fallback to local disk (503 REMOTE_BLOB_NOT_CONFIGURED)
+    const loginHelena = await api('/api/v1/auth/login', {
+      method: 'POST',
+      body: { email: 'helena@helenaduartepsi.com.br', password: 'HelenaDemo!2026' },
+    });
+    assert.equal(loginHelena.status, 200);
+    const pdfBuf = makeSimplePdfBuffer('Teste guard blob remoto');
+    const wsHelena = await api('/api/v1/minne/workspace', { token: loginHelena.data.sessionToken });
+    const draftNote = await api('/api/v1/minne/notes/draft', {
+      method: 'POST',
+      token: loginHelena.data.sessionToken,
+      body: { patientId: wsHelena.data.patients[0].id, blocks: [{ id: 'g1', type: 'paragraph', text: 'Nota teste' }] },
+    });
+    assert.equal(draftNote.status, 200);
+    const blobFail = await api(`/api/v1/minne/notes/${draftNote.data.noteId}/attachments`, {
+      method: 'POST',
+      token: loginHelena.data.sessionToken,
+      body: { originalName: 'laudo.pdf', contentBase64: pdfBuf.toString('base64') },
+    });
+    assert.equal(blobFail.status, 503);
+    assert.equal(blobFail.data.code, 'REMOTE_BLOB_NOT_CONFIGURED');
+    assert.deepEqual(blobFail.data.missingEnvVars, ['BLOB_READ_WRITE_TOKEN']);
+  } finally {
+    for (const [k, v] of Object.entries(prevEnv)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
 });

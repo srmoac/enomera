@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { detectFileMagic, nowIso, randomId, sha256Hex } from './crypto.mjs';
+import { isRemoteInfraRequired } from './db.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB per single file
@@ -15,11 +16,18 @@ export function resolvePrivateStorageRoot() {
 
 export function getStorageBackendStatus() {
   const hasBlobToken = Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+  const remoteRequired = isRemoteInfraRequired();
   return {
-    backend: hasBlobToken ? 'vercel_blob_private' : 'local_private',
+    backend: hasBlobToken
+      ? 'vercel_blob_private'
+      : remoteRequired
+        ? 'unconfigured_remote_required'
+        : 'local_private',
     vercelBlobConfigured: hasBlobToken,
+    remoteRequired,
+    missingEnvVars: hasBlobToken ? [] : ['BLOB_READ_WRITE_TOKEN'],
     privateAccessEnforced: true,
-    localFallbackRoot: resolvePrivateStorageRoot(),
+    localFallbackRoot: remoteRequired && !hasBlobToken ? null : resolvePrivateStorageRoot(),
   };
 }
 
@@ -69,6 +77,15 @@ export async function savePrivateFile(db, { accountId, ownerUserId, scope, origi
     });
     storageBackend = 'vercel_blob_private';
     storagePath = uploaded.pathname || uploaded.url;
+  } else if (isRemoteInfraRequired()) {
+    throw Object.assign(
+      new Error('Armazenamento privado remoto (Vercel Blob Private) não configurado neste ambiente de entrega. Defina BLOB_READ_WRITE_TOKEN no ambiente Preview da Vercel.'),
+      {
+        status: 503,
+        code: 'REMOTE_BLOB_NOT_CONFIGURED',
+        missingEnvVars: ['BLOB_READ_WRITE_TOKEN'],
+      }
+    );
   } else {
     const root = resolvePrivateStorageRoot();
     const accountDir = path.join(root, safeAcct);
@@ -101,7 +118,19 @@ export async function savePrivateFile(db, { accountId, ownerUserId, scope, origi
 export async function readPrivateFileBinary(fileRow) {
   if (!fileRow || !fileRow.storage_path) return null;
   if (fileRow.storage_backend === 'vercel_blob_private') {
-    if (!process.env.BLOB_READ_WRITE_TOKEN) return null;
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      if (isRemoteInfraRequired()) {
+        throw Object.assign(
+          new Error('Armazenamento privado remoto (Vercel Blob Private) não configurado neste ambiente de entrega. Defina BLOB_READ_WRITE_TOKEN no ambiente Preview da Vercel.'),
+          {
+            status: 503,
+            code: 'REMOTE_BLOB_NOT_CONFIGURED',
+            missingEnvVars: ['BLOB_READ_WRITE_TOKEN'],
+          }
+        );
+      }
+      return null;
+    }
     const blobMod = await import('@vercel/blob');
     const result = await blobMod.get(fileRow.storage_path, {
       access: 'private',
@@ -111,6 +140,16 @@ export async function readPrivateFileBinary(fileRow) {
     const chunks = [];
     for await (const chunk of result.stream) chunks.push(Buffer.from(chunk));
     return Buffer.concat(chunks);
+  }
+  if (isRemoteInfraRequired() && !process.env.BLOB_READ_WRITE_TOKEN) {
+    throw Object.assign(
+      new Error('Armazenamento privado remoto (Vercel Blob Private) não configurado neste ambiente de entrega. Defina BLOB_READ_WRITE_TOKEN no ambiente Preview da Vercel.'),
+      {
+        status: 503,
+        code: 'REMOTE_BLOB_NOT_CONFIGURED',
+        missingEnvVars: ['BLOB_READ_WRITE_TOKEN'],
+      }
+    );
   }
   const root = path.resolve(resolvePrivateStorageRoot());
   const resolved = path.resolve(fileRow.storage_path);

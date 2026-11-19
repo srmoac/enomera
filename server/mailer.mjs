@@ -1,21 +1,34 @@
 import { nowIso, randomId } from './crypto.mjs';
+import { isRemoteInfraRequired } from './db.mjs';
 
 /**
  * Pluggable transactional email transport.
  * - Uses Resend HTTPS API when RESEND_API_KEY + RESEND_FROM_EMAIL are configured on the server.
- * - Falls back honestly to local homologation outbox (dev_outbox_messages) when unconfigured,
- *   NEVER claiming an external email was sent if no provider accepted it.
+ * - Refuses silent fallback to local outbox when remote delivery infra is required (ENOMERA_REQUIRE_REMOTE_INFRA=true).
+ * - Falls back honestly to local homologation outbox (dev_outbox_messages) only in local dev/tests.
  */
 export function getMailerStatus() {
-  const configured = Boolean(process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL);
+  const hasKey = Boolean(process.env.RESEND_API_KEY);
+  const hasFrom = Boolean(process.env.RESEND_FROM_EMAIL);
+  const configured = hasKey && hasFrom;
+  const remoteRequired = isRemoteInfraRequired();
+  const missingEnvVars = [];
+  if (!hasKey) missingEnvVars.push('RESEND_API_KEY');
+  if (!hasFrom) missingEnvVars.push('RESEND_FROM_EMAIL');
   const allowlistCount = (process.env.RESEND_TEST_ALLOWLIST || '')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean).length;
   return {
-    provider: configured ? 'resend' : 'local_homologation_outbox',
+    provider: configured
+      ? 'resend'
+      : remoteRequired
+        ? 'unconfigured_remote_required'
+        : 'local_homologation_outbox',
     configured,
-    fromConfigured: Boolean(process.env.RESEND_FROM_EMAIL),
+    fromConfigured: hasFrom,
+    remoteRequired,
+    missingEnvVars,
     allowlistActive: allowlistCount > 0,
     allowlistCount,
   };
@@ -26,6 +39,21 @@ export async function sendTransactionalEmail(db, { recipient, subject, textBody,
   const createdAt = nowIso();
   const apiKey = process.env.RESEND_API_KEY || '';
   const fromEmail = process.env.RESEND_FROM_EMAIL || '';
+  const remoteRequired = isRemoteInfraRequired();
+
+  if (remoteRequired && (!apiKey || !fromEmail)) {
+    const missingEnvVars = [];
+    if (!apiKey) missingEnvVars.push('RESEND_API_KEY');
+    if (!fromEmail) missingEnvVars.push('RESEND_FROM_EMAIL');
+    throw Object.assign(
+      new Error(`Canal de envio transacional (Resend) não configurado neste ambiente de entrega. Defina ${missingEnvVars.join(' e ')} no ambiente Preview da Vercel.`),
+      {
+        status: 503,
+        code: 'REMOTE_MAILER_NOT_CONFIGURED',
+        missingEnvVars,
+      }
+    );
+  }
   const allowlist = (process.env.RESEND_TEST_ALLOWLIST || '')
     .split(',')
     .map((s) => s.trim().toLowerCase())

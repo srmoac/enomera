@@ -44,6 +44,37 @@ export function resolvePostgresUrl() {
   return process.env.DATABASE_URL || process.env.POSTGRES_URL || '';
 }
 
+export function isRemoteInfraRequired() {
+  if (process.env.ENOMERA_REQUIRE_REMOTE_INFRA === 'true') return true;
+  if (process.env.ENOMERA_REQUIRE_REMOTE_INFRA === 'false') return false;
+  return process.env.VERCEL === '1' && process.env.ENOMERA_ALLOW_LOCAL_FALLBACK !== 'true';
+}
+
+export function getRemoteInfraGuard() {
+  const required = isRemoteInfraRequired();
+  const hasDb = Boolean(resolvePostgresUrl());
+  const hasBlob = Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+  const hasResendKey = Boolean(process.env.RESEND_API_KEY);
+  const hasResendFrom = Boolean(process.env.RESEND_FROM_EMAIL);
+
+  const missingEnvVars = [];
+  if (!hasDb) missingEnvVars.push('DATABASE_URL');
+  if (!hasBlob) missingEnvVars.push('BLOB_READ_WRITE_TOKEN');
+  if (!hasResendKey) missingEnvVars.push('RESEND_API_KEY');
+  if (!hasResendFrom) missingEnvVars.push('RESEND_FROM_EMAIL');
+
+  return {
+    required,
+    ready: !required || missingEnvVars.length === 0,
+    missingEnvVars,
+    components: {
+      database: { configured: hasDb, requiredEnv: ['DATABASE_URL'] },
+      storage: { configured: hasBlob, requiredEnv: ['BLOB_READ_WRITE_TOKEN'] },
+      mailer: { configured: hasResendKey && hasResendFrom, requiredEnv: ['RESEND_API_KEY', 'RESEND_FROM_EMAIL'] },
+    },
+  };
+}
+
 export function resolveDbPath() {
   if (process.env.ENOMERA_DB_PATH) return process.env.ENOMERA_DB_PATH;
   if (process.env.VERCEL) return '/tmp/enomera-preview.sqlite';
@@ -58,6 +89,7 @@ function wrapSqliteConn(rawDb) {
   const client = {
     dialect: 'sqlite',
     raw: rawDb,
+    closed: false,
     async get(sql, ...params) {
       return rawDb.prepare(sql).get(...params);
     },
@@ -102,6 +134,7 @@ function wrapSqliteConn(rawDb) {
       }
     },
     async close() {
+      client.closed = true;
       try { rawDb.close(); } catch {}
     },
   };
@@ -218,6 +251,16 @@ export async function getAppliedMigrations(db) {
 
 export async function getDb(customPath) {
   const pgUrl = customPath ? '' : resolvePostgresUrl();
+  if (!customPath && !pgUrl && isRemoteInfraRequired()) {
+    throw Object.assign(
+      new Error('Banco de dados remoto (Neon Postgres) não configurado neste ambiente de entrega. Defina DATABASE_URL no ambiente Preview da Vercel.'),
+      {
+        status: 503,
+        code: 'REMOTE_DB_NOT_CONFIGURED',
+        missingEnvVars: ['DATABASE_URL'],
+      }
+    );
+  }
   const key = pgUrl ? `pg:${pgUrl}` : `sqlite:${customPath || resolveDbPath()}`;
   if (_db && _dbKey === key) return _db;
   if (_dbInitPromise && _dbKey === key) return _dbInitPromise;

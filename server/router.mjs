@@ -11,7 +11,15 @@ import {
   sha256Hex,
   verifyPassword,
 } from './crypto.mjs';
-import { getAppliedMigrations, getDb, queueDevOutbox, runTransaction, writeAudit } from './db.mjs';
+import {
+  getAppliedMigrations,
+  getDb,
+  getRemoteInfraGuard,
+  isRemoteInfraRequired,
+  queueDevOutbox,
+  runTransaction,
+  writeAudit,
+} from './db.mjs';
 import { getMailerStatus, sendTransactionalEmail } from './mailer.mjs';
 import {
   SUPPORTED_IMPORT_FORMATS,
@@ -279,7 +287,12 @@ async function issueVerificationCode(db, { purpose, targetContact, userId = null
     purpose,
   });
 
-  return { tokenId: id, expiresAt, delivery, devCode: delivery.sentExternally ? undefined : code };
+  return {
+    tokenId: id,
+    expiresAt,
+    delivery,
+    devCode: delivery.sentExternally || isRemoteInfraRequired() ? undefined : code,
+  };
 }
 
 async function consumeVerificationCode(db, { purpose, targetContact, code }) {
@@ -318,28 +331,56 @@ export async function handleApiRequest(req, res, customDb = null) {
     return;
   }
 
-  const db = customDb || await getDb();
-  await seedDatabase(db);
-
   const url = new URL(req.url, 'http://localhost');
   const pathname = url.pathname.replace(/\/+$/, '') || '/';
   const method = req.method.toUpperCase();
-  const auth = await getSessionFromRequest(db, req);
 
   try {
     // ── HEALTH & CATALOG ──────────────────────────────────────────────
     if (method === 'GET' && pathname === '/api/v1/health') {
+      const guard = getRemoteInfraGuard();
+      if (guard.required && !guard.ready) {
+        return json(res, 503, {
+          ok: false,
+          code: 'REMOTE_INFRA_NOT_CONFIGURED',
+          error: `Ambiente de entrega requer infraestrutura remota completa (Neon Postgres, Vercel Blob Private e Resend). Variáveis ausentes: ${guard.missingEnvVars.join(', ')}.`,
+          service: 'enomera-core-api',
+          catalogVersion: COMMERCIAL_CATALOG.version,
+          time: nowIso(),
+          requireRemoteInfra: true,
+          missingEnvVars: guard.missingEnvVars,
+          integrations: {
+            database: {
+              dialect: guard.components.database.configured ? 'postgres' : 'unconfigured',
+              activeBackend: guard.components.database.configured ? 'neon_postgres' : 'unconfigured_remote_required',
+              neonUrlPresent: guard.components.database.configured,
+              configured: guard.components.database.configured,
+              missingEnvVars: guard.components.database.configured ? [] : ['DATABASE_URL'],
+              appliedMigrations: [],
+            },
+            storage: getStorageBackendStatus(),
+            mailer: getMailerStatus(),
+          },
+        });
+      }
+
+      const db = (customDb && !customDb.closed) ? customDb : await getDb(customDb ? process.env.ENOMERA_DB_PATH : undefined);
+      await seedDatabase(db);
       const appliedMigrations = await getAppliedMigrations(db);
       return json(res, 200, {
         ok: true,
         service: 'enomera-core-api',
         catalogVersion: COMMERCIAL_CATALOG.version,
         time: nowIso(),
+        requireRemoteInfra: guard.required,
+        missingEnvVars: guard.missingEnvVars,
         integrations: {
           database: {
             dialect: db.dialect,
             activeBackend: db.dialect === 'postgres' ? 'neon_postgres' : 'sqlite_local',
             neonUrlPresent: Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL),
+            configured: db.dialect === 'postgres' || !guard.required,
+            missingEnvVars: Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL) ? [] : ['DATABASE_URL'],
             appliedMigrations: appliedMigrations.map((m) => m.version),
           },
           storage: getStorageBackendStatus(),
@@ -347,6 +388,11 @@ export async function handleApiRequest(req, res, customDb = null) {
         },
       });
     }
+
+    const db = (customDb && !customDb.closed) ? customDb : await getDb(customDb ? process.env.ENOMERA_DB_PATH : undefined);
+    await seedDatabase(db);
+    const auth = await getSessionFromRequest(db, req);
+
     if (method === 'GET' && pathname === '/api/v1/catalog') {
       return json(res, 200, COMMERCIAL_CATALOG);
     }
@@ -623,8 +669,8 @@ export async function handleApiRequest(req, res, customDb = null) {
     // Dev/Homologation Outbox inspection (ONLY when SMTP is unconfigured — honest inspection for verification flows!)
     if (method === 'GET' && pathname === '/api/v1/dev/outbox') {
       const realMailerOn = Boolean(process.env.SMTP_URL || (process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL));
-      if (process.env.ENOMERA_ENABLE_DEV_OUTBOX === 'false' || (realMailerOn && process.env.ENOMERA_ENABLE_DEV_OUTBOX !== 'true')) {
-        throw Object.assign(new Error('Caixa local de homologação indisponível quando o envio real de e-mail está ativo.'), { status: 403, code: 'OUTBOX_DISABLED' });
+      if (isRemoteInfraRequired() || process.env.ENOMERA_ENABLE_DEV_OUTBOX === 'false' || (realMailerOn && process.env.ENOMERA_ENABLE_DEV_OUTBOX !== 'true')) {
+        throw Object.assign(new Error('Caixa local de homologação indisponível quando o envio real de e-mail ou o modo de infraestrutura remota está ativo.'), { status: 403, code: 'OUTBOX_DISABLED' });
       }
       const recipient = url.searchParams.get('recipient');
       if (!recipient) throw Object.assign(new Error('Informe recipient para consultar a caixa de homologação.'), { status: 400, code: 'RECIPIENT_REQUIRED' });
@@ -1977,6 +2023,7 @@ export async function handleApiRequest(req, res, customDb = null) {
     const payload = { error: err.message || 'Erro interno no servidor.', code: err.code || 'INTERNAL_ERROR' };
     if (err.suggestions) payload.suggestions = err.suggestions;
     if (err.product) payload.product = err.product;
+    if (err.missingEnvVars) payload.missingEnvVars = err.missingEnvVars;
     return json(res, status, payload);
   }
 }
