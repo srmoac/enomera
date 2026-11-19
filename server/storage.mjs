@@ -67,8 +67,45 @@ export function savePrivateFile(db, { accountId, ownerUserId, scope, originalNam
   };
 }
 
+export function getStorageBackendStatus() {
+  const hasBlobToken = Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+  return {
+    backend: hasBlobToken ? 'vercel_blob_private' : 'local_private',
+    vercelBlobConfigured: hasBlobToken,
+    privateAccessEnforced: true,
+    localFallbackRoot: resolvePrivateStorageRoot(),
+  };
+}
+
+export async function mirrorPrivateFileToBlobIfConfigured(db, fileId, { accountId, scope, buffer, mime }) {
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    return { mirrored: false, backend: 'local_private' };
+  }
+  try {
+    const blobMod = await import('@vercel/blob');
+    const safeAcct = String(accountId || 'acct').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const safeScope = String(scope || 'private').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const pathname = `private/${safeAcct}/${safeScope}/${fileId}.bin`;
+    const uploaded = await blobMod.put(pathname, buffer, {
+      access: 'private',
+      contentType: mime || 'application/octet-stream',
+      addRandomSuffix: false,
+      token: process.env.BLOB_READ_WRITE_TOKEN,
+    });
+    db.prepare(`
+      UPDATE private_files
+      SET storage_backend = 'vercel_blob_private', storage_path = ?
+      WHERE id = ?
+    `).run(uploaded.pathname || uploaded.url, fileId);
+    return { mirrored: true, backend: 'vercel_blob_private', pathname: uploaded.pathname || uploaded.url };
+  } catch (err) {
+    return { mirrored: false, backend: 'local_private', error: err?.message || 'blob_mirror_failed' };
+  }
+}
+
 export function readPrivateFileBinary(fileRow) {
   if (!fileRow || !fileRow.storage_path) return null;
+  if (fileRow.storage_backend === 'vercel_blob_private') return null;
   const root = path.resolve(resolvePrivateStorageRoot());
   const resolved = path.resolve(fileRow.storage_path);
   if (!resolved.startsWith(root + path.sep)) {
@@ -76,4 +113,27 @@ export function readPrivateFileBinary(fileRow) {
   }
   if (!fs.existsSync(resolved)) return null;
   return fs.readFileSync(resolved);
+}
+
+export async function readPrivateFileBinaryAsync(fileRow) {
+  if (!fileRow || !fileRow.storage_path) return null;
+  if (fileRow.storage_backend === 'vercel_blob_private' && process.env.BLOB_READ_WRITE_TOKEN) {
+    try {
+      const blobMod = await import('@vercel/blob');
+      if (typeof blobMod.get === 'function') {
+        const result = await blobMod.get(fileRow.storage_path, {
+          access: 'private',
+          token: process.env.BLOB_READ_WRITE_TOKEN,
+        });
+        if (result?.stream) {
+          const chunks = [];
+          for await (const chunk of result.stream) chunks.push(Buffer.from(chunk));
+          return Buffer.concat(chunks);
+        }
+      }
+    } catch {
+      // Fallback below if local mirror exists
+    }
+  }
+  return readPrivateFileBinary(fileRow);
 }

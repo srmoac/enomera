@@ -12,6 +12,7 @@ import {
   verifyPassword,
 } from './crypto.mjs';
 import { getDb, queueDevOutbox, runTransaction, writeAudit } from './db.mjs';
+import { getMailerStatus, sendTransactionalEmail } from './mailer.mjs';
 import {
   SUPPORTED_IMPORT_FORMATS,
   cancelImportBatch,
@@ -33,7 +34,12 @@ import {
   reserveSlotByInvitation,
 } from './scheduling.mjs';
 import { seedDatabase } from './seed.mjs';
-import { readPrivateFileBinary, savePrivateFile } from './storage.mjs';
+import {
+  getStorageBackendStatus,
+  mirrorPrivateFileToBlobIfConfigured,
+  readPrivateFileBinaryAsync,
+  savePrivateFile,
+} from './storage.mjs';
 
 const COOKIE_NAME = 'enomera_sid';
 const MAX_BODY_BYTES = 35 * 1024 * 1024; // allows base64-encoded 25 MB ZIP
@@ -247,7 +253,7 @@ function buildPublicSiteDto(db, account) {
   };
 }
 
-function issueVerificationCode(db, { purpose, targetContact, userId = null, accountId = null, patientId = null, subject, ttlMinutes = 15 }) {
+async function issueVerificationCode(db, { purpose, targetContact, userId = null, accountId = null, patientId = null, subject, ttlMinutes = 15 }) {
   const code = randomDigits(6);
   const id = randomId('ver');
   const now = nowIso();
@@ -257,15 +263,16 @@ function issueVerificationCode(db, { purpose, targetContact, userId = null, acco
     VALUES (?, ?, ?, ?, ?, ?, ?, 0, 5, ?, ?)
   `).run(id, purpose, targetContact.toLowerCase(), userId, accountId, patientId, sha256Hex(code), expiresAt, now);
 
-  const delivery = queueDevOutbox(db, {
+  const delivery = await sendTransactionalEmail(db, {
     channel: targetContact.includes('@') ? 'email' : 'whatsapp',
     recipient: targetContact,
     subject,
-    bodyPreview: `Seu código de uso único (expira em ${ttlMinutes} min): ${code}`,
+    textBody: `Seu código de uso único (expira em ${ttlMinutes} min): ${code}`,
+    htmlBody: `<p>Seu código de uso único na Enomera (expira em ${ttlMinutes} minutos):</p><p style="font-size:24px;font-weight:700;letter-spacing:4px">${code}</p>`,
     purpose,
   });
 
-  return { tokenId: id, expiresAt, delivery, devCode: process.env.NODE_ENV === 'production' && process.env.SMTP_URL ? undefined : code };
+  return { tokenId: id, expiresAt, delivery, devCode: delivery.sentExternally ? undefined : code };
 }
 
 function consumeVerificationCode(db, { purpose, targetContact, code }) {
@@ -308,7 +315,21 @@ export async function handleApiRequest(req, res, customDb = null) {
   try {
     // ── HEALTH & CATALOG ──────────────────────────────────────────────
     if (method === 'GET' && pathname === '/api/v1/health') {
-      return json(res, 200, { ok: true, service: 'enomera-core-api', catalogVersion: COMMERCIAL_CATALOG.version, time: nowIso() });
+      return json(res, 200, {
+        ok: true,
+        service: 'enomera-core-api',
+        catalogVersion: COMMERCIAL_CATALOG.version,
+        time: nowIso(),
+        integrations: {
+          database: {
+            activeBackend: process.env.DATABASE_URL ? 'postgres_configured_sqlite_runtime' : 'sqlite_local',
+            neonUrlPresent: Boolean(process.env.DATABASE_URL),
+            postgresMigrationReady: true,
+          },
+          storage: getStorageBackendStatus(),
+          mailer: getMailerStatus(),
+        },
+      });
     }
     if (method === 'GET' && pathname === '/api/v1/catalog') {
       return json(res, 200, COMMERCIAL_CATALOG);
@@ -368,7 +389,7 @@ export async function handleApiRequest(req, res, customDb = null) {
         writeAudit(db, { actorUserId: userId, actorType: 'professional', accountId, action: 'auth.signup', resourceType: 'user', resourceId: userId });
       });
 
-      const ver = issueVerificationCode(db, {
+      const ver = await issueVerificationCode(db, {
         purpose: 'email_verify',
         targetContact: normEmail,
         userId,
@@ -402,7 +423,7 @@ export async function handleApiRequest(req, res, customDb = null) {
       const email = String(body.email || auth?.user?.email || '').trim().toLowerCase();
       const u = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
       if (!u) return json(res, 200, { ok: true, delivery: { deliveryStatus: 'ignored_unknown_account' } });
-      const ver = issueVerificationCode(db, { purpose: 'email_verify', targetContact: email, userId: u.id, subject: 'Novo código de verificação · Enomera' });
+      const ver = await issueVerificationCode(db, { purpose: 'email_verify', targetContact: email, userId: u.id, subject: 'Novo código de verificação · Enomera' });
       return json(res, 200, { ok: true, expiresAt: ver.expiresAt, delivery: ver.delivery });
     }
 
@@ -455,7 +476,7 @@ export async function handleApiRequest(req, res, customDb = null) {
       if (!u) {
         return json(res, 200, { ok: true, message: 'Se o e-mail estiver cadastrado, um código de recuperação de uso único foi gerado.' });
       }
-      const ver = issueVerificationCode(db, { purpose: 'password_reset', targetContact: email, userId: u.id, subject: 'Recuperação de acesso · Enomera' });
+      const ver = await issueVerificationCode(db, { purpose: 'password_reset', targetContact: email, userId: u.id, subject: 'Recuperação de acesso · Enomera' });
       return json(res, 200, { ok: true, expiresAt: ver.expiresAt, delivery: ver.delivery });
     }
 
@@ -476,7 +497,7 @@ export async function handleApiRequest(req, res, customDb = null) {
 
     if (method === 'POST' && pathname === '/api/v1/auth/stepup/request') {
       requireProfessional(auth);
-      const ver = issueVerificationCode(db, {
+      const ver = await issueVerificationCode(db, {
         purpose: 'clinical_stepup',
         targetContact: auth.user.email,
         userId: auth.user.id,
@@ -1002,7 +1023,7 @@ export async function handleApiRequest(req, res, customDb = null) {
       if (!pat && !reqRow) {
         return json(res, 200, { ok: true, message: 'Se houver solicitação ou cadastro associado a este contato, um código de verificação será gerado.' });
       }
-      const ver = issueVerificationCode(db, {
+      const ver = await issueVerificationCode(db, {
         purpose: 'patient_access',
         targetContact: contact,
         accountId: acc.id,
@@ -1638,7 +1659,7 @@ export async function handleApiRequest(req, res, customDb = null) {
         }
       }
 
-      const bin = readPrivateFileBinary(fileRow);
+      const bin = await readPrivateFileBinaryAsync(fileRow);
       if (!bin) throw Object.assign(new Error('Conteúdo do arquivo indisponível no armazenamento.'), { status: 404, code: 'FILE_MISSING_DISK' });
       writeAudit(db, { actorUserId: auth.user.id, actorType: auth.session.actor_type, accountId: fileRow.account_id, action: 'file.download', resourceType: 'private_file', resourceId: fileRow.id, outcome: 'allow' });
       res.writeHead(200, {
@@ -1692,12 +1713,19 @@ export async function handleApiRequest(req, res, customDb = null) {
       const fileIds = JSON.parse(proj.attachment_file_ids_json || '[]');
       if (Array.isArray(body.files)) {
         for (const f of body.files) {
+          const buf = Buffer.from(String(f.contentBase64 || ''), 'base64');
           const saved = savePrivateFile(db, {
             accountId: auth.account.id,
             ownerUserId: auth.user.id,
             scope: 'etha_briefing',
             originalName: f.originalName || 'anexo-briefing.jpg',
-            buffer: Buffer.from(String(f.contentBase64 || ''), 'base64'),
+            buffer: buf,
+          });
+          await mirrorPrivateFileToBlobIfConfigured(db, saved.id, {
+            accountId: auth.account.id,
+            scope: 'etha_briefing',
+            buffer: buf,
+            mime: saved.detectedMime,
           });
           fileIds.push(saved.id);
         }
