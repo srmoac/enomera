@@ -4,7 +4,7 @@
 | Ambo | Leve | 9 → 9 | 0d071f1 | https://lotus-3re6lxvv4-marcosvmgs-projects.vercel.app/ |
 | Minne | Leve | 14 → 14 | ae0ecd0 | https://compasso-eyzax1beh-marcosvmgs-projects.vercel.app/ |
 | Etha | Leve | 14 → 11 | 0f6f9e8 | https://etha-enomera-86kdb392r-marcosvmgs-projects.vercel.app/ |
-| Portfólio | Leve | 4 → 4, copy própria | Em integração das amostras | Em preparação |
+| Portfólio | Leve | 4 → 4, copy própria | 6a42560 | https://mrsaoc-portfolio-irle269nn-marcosvmgs-projects.vercel.app/ |
 
 **Reescritas**
 - Skill solicitada: https://github.com/felipebasurto/unslop-ui, instalada globalmente em C:/Users/mrsao/.codex/skills/unslop-ui. Disponível automaticamente no catálogo no próximo turno; instruções lidas e aplicadas nesta rodada.
@@ -12,6 +12,7 @@
 - [Ambo: duas frases simplificadas](C:/Users/mrsao/Documents/Codex/ambo-direction-a-evidence/unslop-ui-relatorio.md).
 - [Etha: títulos concretos, rascunho local e notas internas removidas](C:/Users/mrsao/Documents/Codex/etha-direction-a-2026-11-18/UNSLOP-UI-REPORT.md).
 - [Minne: contagens e reescritas](C:/Users/mrsao/Documents/Codex/2026-11-14/o-usu-rio-pediu-um-chat/minne-direction-a/docs/unslop-ui.md).
+- [Portfólio: revisão e sincronização das amostras](C:/Users/mrsao/.codex/visualizations/2026/11/13/01a1d39f-17de-7d01-8d46-95fb1eccf523/direction-a-portfolio/docs/unslop-ui/relatorio.md). Preview READY; build, tipos e25 verificações afetadas passaram.171 outros arquivos da aplicação preservados.
 - Minne: cinco textos redundantes removidos e dois simplificados. Portfólio: nove ajustes na copy própria e sincronização das amostras dos produtos.
 
 **Mantidos de propósito**
