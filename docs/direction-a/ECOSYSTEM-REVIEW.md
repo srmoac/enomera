@@ -1,5 +1,7 @@
 # Enomera — Direção A para revisão
 
+Rodada posterior de copy: [unslop-ui nos cinco projetos](../unslop-ui/ECOSYSTEM.md). Os links e vídeos abaixo registram a entrega da Direção A anterior à revisão textual.
+
 18 de novembro de 2026. A Direção B foi descartada. Esta rodada publica somente previews; os domínios de produção foram preservados.
 
 ## Versões navegáveis
