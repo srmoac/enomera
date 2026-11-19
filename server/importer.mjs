@@ -1,11 +1,34 @@
-import ExcelJS from 'exceljs';
-import JSZip from 'jszip';
-import mammoth from 'mammoth';
-import { PDFParse } from 'pdf-parse';
 import path from 'node:path';
 import { detectFileMagic, nowIso, randomId, sha256Hex } from './crypto.mjs';
 import { runTransaction, writeAudit } from './db.mjs';
 import { savePrivateFile } from './storage.mjs';
+
+async function loadExcelJS() {
+  const mod = await import('exceljs');
+  return mod.default || mod;
+}
+async function loadJSZip() {
+  const mod = await import('jszip');
+  return mod.default || mod;
+}
+async function loadMammoth() {
+  const mod = await import('mammoth');
+  return mod.default || mod;
+}
+async function loadPdfParse() {
+  if (typeof globalThis.DOMMatrix === 'undefined') {
+    globalThis.DOMMatrix = class DOMMatrixShim {
+      constructor() { this.a = 1; this.b = 0; this.c = 0; this.d = 1; this.e = 0; this.f = 0; }
+      multiplySelf() { return this; }
+      preMultiplySelf() { return this; }
+      translate() { return this; }
+      scale() { return this; }
+      invertSelf() { return this; }
+    };
+  }
+  const { PDFParse } = await import('pdf-parse');
+  return PDFParse;
+}
 
 const MAX_ZIP_ENTRIES = 50;
 const MAX_ZIP_UNCOMPRESSED = 25 * 1024 * 1024; // 25 MB
@@ -199,6 +222,7 @@ async function extractSingleFile(buffer, filename) {
   }
   if (magic.format === 'docx') {
     try {
+      const mammoth = await loadMammoth();
       const res = await mammoth.extractRawText({ buffer });
       const text = (res.value || '').trim();
       const warnings = (res.messages || []).map((m) => m.message).slice(0, 5);
@@ -211,6 +235,7 @@ async function extractSingleFile(buffer, filename) {
   if (magic.format === 'pdf') {
     let parser = null;
     try {
+      const PDFParse = await loadPdfParse();
       parser = new PDFParse({ data: new Uint8Array(buffer) });
       const out = await parser.getText();
       const text = (out?.text || '').replace(/\u0000/g, '').trim();
@@ -260,6 +285,7 @@ export async function generateSpreadsheetTemplateBuffer(format = 'csv') {
     'Histórico externo fictício de exemplo para conferência antes de confirmar a importação.',
   ];
   if (format === 'xlsx') {
+    const ExcelJS = await loadExcelJS();
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Importacao_Minne');
     ws.addRow(headers);
@@ -350,6 +376,7 @@ export async function stageImportBatch(db, {
       rows = parsed.records;
     } else if (saved.detectedFormat === 'xlsx') {
       try {
+        const ExcelJS = await loadExcelJS();
         const wb = new ExcelJS.Workbook();
         await wb.xlsx.load(file.buffer);
         const ws = wb.worksheets[0];
@@ -534,7 +561,7 @@ export async function stageImportBatch(db, {
     const zipFile = files[0];
     if (!zipFile) throw Object.assign(new Error('Envie um arquivo ZIP para importação em lote.'), { status: 400, code: 'MISSING_ZIP' });
     let zip;
-    try { zip = await JSZip.loadAsync(zipFile.buffer); } catch {
+    try { const JSZip = await loadJSZip(); zip = await JSZip.loadAsync(zipFile.buffer); } catch {
       throw Object.assign(new Error('Arquivo ZIP corrompido ou estrutura inválida.'), { status: 400, code: 'INVALID_ZIP' });
     }
     const entries = Object.values(zip.files).filter((e) => !e.dir && !e.name.startsWith('__MACOSX/'));
