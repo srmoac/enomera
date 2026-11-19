@@ -61,7 +61,12 @@ function updateSiteIndicator() {
   }
   const target = nav.querySelector(`a[href="/#${id}"]`);
   if (target) {
-    nav.querySelectorAll('a').forEach(a => a.toggleAttribute('data-current', a === target));
+    nav.querySelectorAll('a').forEach(a => {
+      const current = a === target;
+      a.toggleAttribute('data-current', current);
+      if (current) a.setAttribute('aria-current', 'location');
+      else a.removeAttribute('aria-current');
+    });
     lens(nav, '[data-current]');
   }
 }

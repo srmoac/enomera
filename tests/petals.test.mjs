@@ -5,6 +5,7 @@ import {
   sampleJourney,
   selectionPose,
   contemplativeWarp,
+  stickyDocY,
   sampleOpeningPose,
   sampleFullJourney,
   sceneProfileAt,
@@ -180,4 +181,12 @@ test('single-owner state machine gives priority to focus/pulse/hover and hands b
   const base = { x: 960, y: 1180, r: 4, rx: 0, ry: 0, s: .56, o: .86 };
   const nudged = applyIntentPose(base, 0, focused, { mobile: false, h: 900 }, 900);
   assert.ok(nudged.s > base.s);
+});
+
+test('stickyDocY tracks CSS position:sticky cleanly before, during, and after the sticky range', () => {
+  // Static top 1180, track bottom 2260, element height 540 -> maxTop = 1720, stickyTop = 122
+  assert.equal(stickyDocY(800, 1180, 2260, 540, 122), 1180);  // before sticky engages
+  assert.equal(stickyDocY(1200, 1180, 2260, 540, 122), 1322); // stuck at viewport y=122
+  assert.equal(stickyDocY(1800, 1180, 2260, 540, 122), 1720); // released cleanly at track bottom
+  assert.equal(stickyDocY(1200, 1180, 2260, 540, null), 1180); // non-sticky mobile/reduced fallback
 });

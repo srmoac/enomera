@@ -1,5 +1,6 @@
 import {
   clamp,
+  stickyDocY,
   sampleFullJourney,
   sceneProfileAt,
   createOwnerState,
@@ -104,44 +105,85 @@ export async function mountPetalJourney() {
     const mobile = w < 700;
 
     const hero = anchors.get('.hero-flower');
-    const ethaFrame = anchors.get('#etha-frame') || anchors.get('#etha .demo-wrap');
-    const amboDemo = anchors.get('#ambo-demo') || anchors.get('#ambo .demo-wrap');
-    const minneDemo = anchors.get('#minne-demo') || anchors.get('.minne');
+    const ethaArticle = anchors.get('#etha');
+    const amboArticle = anchors.get('#ambo');
+    const minneArticle = anchors.get('#minne');
+    const ethaFrameRaw = anchors.get('#etha-frame') || anchors.get('#etha .demo-wrap');
+    const amboDemoRaw = anchors.get('#ambo-demo') || anchors.get('#ambo .demo-wrap');
+    const minneDemoRaw = anchors.get('#minne-demo') || anchors.get('.minne');
     const connection = anchors.get('.connection');
     const combinacao = anchors.get('#combinacao');
     const summaryRect = anchors.get('.summary');
     const closingTop = anchors.get('.closing-top');
-    if (!hero || !ethaFrame || !amboDemo || !minneDemo || !connection || !combinacao || !summaryRect || !closingTop) {
+    if (!hero || !ethaArticle || !amboArticle || !minneArticle || !ethaFrameRaw || !amboDemoRaw || !minneDemoRaw || !connection || !combinacao || !summaryRect || !closingTop) {
       return null;
     }
 
+    // Measure scroll-invariant static top & CSS sticky parameters for desktop sticky stages
+    function stickyMeta(articleSel, cardRaw) {
+      const artEl = document.querySelector(articleSel);
+      const wrapEl = artEl?.querySelector('.demo-wrap');
+      const art = anchors.get(articleSel);
+      if (!artEl || !wrapEl || !art) return { card: cardRaw, sticky: null };
+      const wrapCs = getComputedStyle(wrapEl);
+      const isSticky = !mobile && wrapCs.position === 'sticky';
+      if (!isSticky) return { card: cardRaw, sticky: null };
+      const artCs = getComputedStyle(artEl);
+      const padTop = parseFloat(artCs.paddingTop) || 0;
+      const padBot = parseFloat(artCs.paddingBottom) || 0;
+      const stickyTop = parseFloat(wrapCs.top) || 120;
+      const wrapH = wrapEl.getBoundingClientRect().height;
+      const staticTop = art.y + padTop;
+      const trackBottom = art.y + art.h - padBot;
+      return {
+        card: { x: cardRaw.x, y: staticTop, w: cardRaw.w, h: cardRaw.h },
+        sticky: { staticTop, trackBottom, elHeight: wrapH, stickyTop }
+      };
+    }
+
+    const ethaM = stickyMeta('#etha', ethaFrameRaw);
+    const amboM = stickyMeta('#ambo', amboDemoRaw);
+    const minneM = stickyMeta('#minne', minneDemoRaw);
+    const ethaFrame = ethaM.card;
+    const amboDemo = amboM.card;
+    const minneDemo = minneM.card;
+    const sticky = { etha: ethaM.sticky, ambo: amboM.sticky, minne: minneM.sticky };
+
     const heroPoses = flower(hero, 1);
 
-    // Keep exact usable scroll distances intact while giving generous contemplative pacing
-    const openEnd = mobile ? 165 : 185;
+    // Calibrate scroll marks separately for desktop sticky stages (+40-75% useful sweep travel)
+    // and mobile touch flicks (+23-30% useful travel) with zero empty height.
+    const openEnd = mobile ? 175 : 190;
 
-    const ethaArrive = mobile
-      ? Math.round(clamp(ethaFrame.y - h * .34, openEnd + 540, Math.max(openEnd + 560, ethaFrame.y - 120)))
-      : Math.round(clamp(ethaFrame.y - h * .24, openEnd + 520, Math.max(openEnd + 540, ethaFrame.y - 110)));
-    const ethaLeave = ethaArrive + (mobile ? 210 : 250);
+    const ethaArrive = sticky.etha
+      ? Math.round(sticky.etha.staticTop - sticky.etha.stickyTop + Math.max(180, (sticky.etha.trackBottom - sticky.etha.staticTop - sticky.etha.elHeight) * .62))
+      : Math.round(clamp(ethaFrame.y - h * .30, openEnd + 760, Math.max(openEnd + 800, ethaFrame.y - 110)));
+    const ethaLeave = sticky.etha
+      ? Math.round(Math.min(sticky.etha.trackBottom - sticky.etha.elHeight - sticky.etha.stickyTop + 40, ethaArrive + 210))
+      : ethaArrive + 190;
 
-    const amboArrive = mobile
-      ? Math.round(Math.max(ethaLeave + 460, amboDemo.y - h * .26))
-      : Math.round(Math.max(ethaLeave + 360, amboDemo.y - h * .22));
-    const amboLeave = amboArrive + (mobile ? 200 : 230);
+    const amboArrive = sticky.ambo
+      ? Math.round(Math.max(ethaLeave + 620, sticky.ambo.staticTop - sticky.ambo.stickyTop + Math.max(110, (sticky.ambo.trackBottom - sticky.ambo.staticTop - sticky.ambo.elHeight) * .56)))
+      : Math.round(Math.max(ethaLeave + 620, amboDemo.y - h * .24));
+    const amboLeave = sticky.ambo
+      ? Math.round(Math.min(sticky.ambo.trackBottom - sticky.ambo.elHeight - sticky.ambo.stickyTop + 40, amboArrive + 190))
+      : amboArrive + 185;
 
-    const minneArrive = mobile
-      ? Math.round(Math.max(amboLeave + 460, minneDemo.y - h * .28))
-      : Math.round(Math.max(amboLeave + 340, minneDemo.y - h * .24));
-    const minneLeave = minneArrive + (mobile ? 200 : 240);
+    const minneArrive = sticky.minne
+      ? Math.round(Math.max(amboLeave + 580, sticky.minne.staticTop - sticky.minne.stickyTop + Math.max(110, (sticky.minne.trackBottom - sticky.minne.staticTop - sticky.minne.elHeight) * .54)))
+      : Math.round(Math.max(amboLeave + 580, minneDemo.y - h * .26));
+    const minneLeave = sticky.minne
+      ? Math.round(Math.min(sticky.minne.trackBottom - sticky.minne.elHeight - sticky.minne.stickyTop + 40, minneArrive + 200))
+      : minneArrive + 190;
 
     const connEnd = Math.round(Math.max(minneLeave + 300, connection.y + Math.max(1, connection.h - h)));
 
     const comboArrive = Math.round(Math.max(connEnd + 240, summaryRect.y - h * .46));
-    const comboLeave = comboArrive + (mobile ? 260 : 240);
+    const comboLeave = comboArrive + (mobile ? 240 : 220);
 
     const docMax = Math.max(comboLeave + 260, document.documentElement.scrollHeight - h);
-    const closingArrive = Math.round(Math.min(docMax - 40, Math.max(comboLeave + 240, closingTop.y - h * .30)));
+    // Ensure the last petal finishes its closing turn while the full flower sits comfortably framed.
+    const closingArrive = Math.round(Math.min(docMax - (mobile ? 260 : 210), Math.max(comboLeave + 240, closingTop.y - h * .34)));
 
     const ethaDock = mobile
       ? { x: ethaFrame.x + 42, y: ethaFrame.y + 82, r: 28, rx: 0, ry: 0, s: .36, o: .93, front: false }
@@ -216,6 +258,7 @@ export async function mountPetalJourney() {
       mobile,
       w,
       h,
+      sticky,
       summaryRect,
       docks: { etha: ethaDock, ambo: amboDock, minne: minneDock },
       marks: {
@@ -363,7 +406,9 @@ export async function mountPetalJourney() {
       level = windows[service] ? .92 : 0;
     } else if (petals[petalIdx]?.pose) {
       const pose = petals[petalIdx].pose;
-      const dist = Math.hypot(pose.x - dock.x, pose.y - (dock.y - y));
+      const s = plan.sticky?.[service];
+      const liveDockY = s ? dock.y + (stickyDocY(y, s.staticTop, s.trackBottom, s.elHeight, s.stickyTop) - s.staticTop) : dock.y;
+      const dist = Math.hypot(pose.x - dock.x, pose.y - (liveDockY - y));
       const radius = plan.mobile ? 185 : 260;
       const prox = clamp(1 - dist / radius);
       const smoothProx = prox * prox * (3 - 2 * prox);
@@ -689,7 +734,7 @@ export async function mountPetalJourney() {
     settleEnergy = 0;
     currentEnergy = 0;
     snapNext = true;
-    schedule();
+    measure();
   });
 
   const resize = new ResizeObserver(() => measure());

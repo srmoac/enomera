@@ -47,6 +47,8 @@ function renderAmbo() {
     box.querySelectorAll('[data-day]').forEach(b => b.setAttribute('aria-pressed', String(state.days.includes(b.dataset.day))));
     const next = box.querySelector('[data-ambo="next"]');
     if (next) next.disabled = !state.days.length;
+    const hint = box.querySelector('.ambo-hint');
+    if (hint) hint.hidden = state.days.length > 0;
     return;
   }
   renderedAmboStep = state.amboStep;
@@ -55,7 +57,7 @@ function renderAmbo() {
   if (state.amboStep === 0) {
     box.innerHTML = `${glow}${signature}<h4 class="piece">Consulta com<br>Helena Duarte</h4><div class="profile glass piece"><div class="initials">HD</div><b>Helena Duarte</b><small>Psicóloga · adultos e adolescentes</small></div><p>Online · Presencial</p><p><b>50 min · R$ 180</b></p><p>Primeira consulta por solicitação.</p><button class="button" data-ambo="next">Solicitar primeira consulta</button>`;
   } else if (state.amboStep === 1) {
-    box.innerHTML = `${glow}${signature}<p class="eyebrow">PRIMEIRA CONSULTA · 01 / 03</p><h4>Como prefere<br>ser atendido?</h4><div class="choice-group" aria-label="Modalidade">${['Online', 'Presencial'].map(x => `<button data-mode="${x}" aria-pressed="${state.mode === x}">${x}</button>`).join('')}</div><b>Seus dias</b><div class="choice-group" aria-label="Dias">${['Seg', 'Ter', 'Qua', 'Qui', 'Sex'].map(x => `<button data-day="${x}" aria-pressed="${state.days.includes(x)}">${x}</button>`).join('')}</div><label for="period">Seu período</label><select id="period">${['Manhã', 'Tarde', 'Noite'].map(x => `<option ${state.period === x ? 'selected' : ''}>${x}</option>`).join('')}</select><p>Nenhum horário será reservado nesta etapa.</p><button class="button" data-ambo="next" ${state.days.length ? '' : 'disabled'}>Continuar</button><button class="back" data-ambo="back">Voltar</button>`;
+    box.innerHTML = `${glow}${signature}<p class="eyebrow">PRIMEIRA CONSULTA · 01 / 03</p><h4>Como prefere<br>ser atendido?</h4><div class="choice-group" aria-label="Modalidade">${['Online', 'Presencial'].map(x => `<button data-mode="${x}" aria-pressed="${state.mode === x}">${x}</button>`).join('')}</div><b>Seus dias</b><div class="choice-group" aria-label="Dias">${['Seg', 'Ter', 'Qua', 'Qui', 'Sex'].map(x => `<button data-day="${x}" aria-pressed="${state.days.includes(x)}">${x}</button>`).join('')}</div><label for="period">Seu período</label><select id="period">${['Manhã', 'Tarde', 'Noite'].map(x => `<option ${state.period === x ? 'selected' : ''}>${x}</option>`).join('')}</select><p>Nenhum horário será reservado nesta etapa.</p><p class="ambo-hint" role="status" ${state.days.length ? 'hidden' : ''}>Selecione ao menos um dia para continuar.</p><button class="button" data-ambo="next" ${state.days.length ? '' : 'disabled'}>Continuar</button><button class="back" data-ambo="back">Voltar</button>`;
   } else if (state.amboStep === 2) {
     box.innerHTML = `${glow}${signature}<p class="eyebrow">PRIMEIRA CONSULTA · 02 / 03</p><h4>Confira suas<br>preferências</h4><div class="profile glass"><b>Helena Duarte</b><p>${state.mode} · ${state.days.join(' e ')} · ${state.period}</p><p>50 min · R$ 180<br>Valor fictício do atendimento demonstrado.</p></div><p>Uma solicitação depende da confirmação do profissional.</p><button class="button" data-ambo="next">Concluir demonstração</button><button class="back" data-ambo="back">Editar preferências</button>`;
   } else {
@@ -128,9 +130,9 @@ function renderMini(rowOnly = false) {
   const rowsMarkup = `<div class="minne-list" role="group" aria-label="Atendimentos do dia">${miniAppointments.map(a => `<button class="minne-row" data-minne-row="${a.id}" aria-pressed="${a.id === state.miniPatient}"><span><b>${a.shortTime}</b> ${a.name}</span><span>${a.mode}</span></button>`).join('')}</div>`;
 
   if (state.mini === 'Meu dia') {
-    c.innerHTML = `<h4 class="piece">Meu dia</h4><p>Terça-feira, 24 de novembro · dados fictícios</p><div class="mini-cards"><div class="glass piece" id="minne-detail">${renderMiniDetailMarkup(item)}</div><div class="glass piece"><p>Solicitações</p><p>3 aguardando resposta</p><b>Marina Alves</b><p>Terças e quintas · tarde</p></div></div><h5>Atendimentos do dia</h5>${rowsMarkup}`;
+    c.innerHTML = `<h4 class="piece">Meu dia</h4><p>Terça-feira, 24 de novembro · dados fictícios</p><div class="mini-cards"><div class="glass piece" id="minne-detail" aria-live="polite">${renderMiniDetailMarkup(item)}</div><div class="glass piece"><p>Solicitações</p><p>3 aguardando resposta</p><b>Marina Alves</b><p>Terças e quintas · tarde</p></div></div><h5>Atendimentos do dia</h5>${rowsMarkup}`;
   } else if (state.mini === 'Agenda') {
-    c.innerHTML = `<h4>Agenda</h4><p>Terça-feira, 24 de novembro · dados fictícios</p><div class="mini-cards"><div class="glass" id="minne-detail">${renderMiniDetailMarkup(item)}</div><div class="glass"><p>Próximo horário livre</p><b>17h · disponível</b><p>Online ou presencial</p></div></div><h5>Selecionar consulta</h5>${rowsMarkup}`;
+    c.innerHTML = `<h4>Agenda</h4><p>Terça-feira, 24 de novembro · dados fictícios</p><div class="mini-cards"><div class="glass" id="minne-detail" aria-live="polite">${renderMiniDetailMarkup(item)}</div><div class="glass"><p>Próximo horário livre</p><b>17h · disponível</b><p>Online ou presencial</p></div></div><h5>Selecionar consulta</h5>${rowsMarkup}`;
   } else if (state.mini === 'Pacientes') {
     c.innerHTML = '<h4>Pacientes</h4><p>Dados fictícios · sem informações clínicas</p>' + miniAppointments.map(a => `<p><b>${a.name}</b> · ${a.mode} · ${a.shortTime}</p>`).join('');
   } else {

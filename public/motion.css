@@ -46,6 +46,36 @@
   margin-inline: -8px;
   transition: color 160ms var(--ease);
 }
+#nav-links > a[data-current] {
+  font-weight: 600;
+  color: var(--ink);
+}
+.ambo-hint {
+  color: #7D5112;
+  background: #F8EDD3;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  margin: 8px 0 10px;
+}
+
+/* Desktop local sticky stages: sustain framing while petals complete wider curves
+   without empty height or scroll hijacking. Removed completely under reduced motion. */
+@media (min-width: 701px) {
+  .story .product {
+    align-items: start;
+    padding: 40px 0;
+    margin-top: 64px;
+  }
+  .story #etha { min-height: 1120px; }
+  .story #ambo { min-height: 920px; }
+  .story #minne { min-height: 880px; }
+  .story .product > .product-copy,
+  .story .product > .demo-wrap {
+    position: sticky;
+    top: clamp(104px, 13.5svh, 148px);
+  }
+}
 
 .billing-toggle [aria-pressed=true],
 .choice-group:has([data-mode]) [aria-pressed=true],
@@ -317,8 +347,14 @@ dialog[open] { animation: dialog-enter 240ms var(--ease-spring); }
   }
 }
 
-/* Mobile menu drawer & closing flower breathing room. */
+/* Mobile menu drawer, calibrated vertical breathing rhythm & closing flower space. */
 @media (max-width: 700px) {
+  .story .product {
+    padding: 42px 0;
+    margin-top: 52px;
+    gap: 34px;
+  }
+  .story #etha { padding-top: 48px; }
   .closing-flower { display: none; }
   .closing-top { padding-bottom: 132px; }
   #nav-links { position: absolute; }
@@ -400,6 +436,21 @@ body.has-petal-journey { isolation: isolate; }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* Direct compact reading layout: remove choreography-only sticky stages & extra height. */
+  .story .product,
+  .story #etha,
+  .story #ambo,
+  .story #minne {
+    min-height: auto !important;
+    padding: 24px 0 !important;
+    margin-top: 32px !important;
+    gap: 24px !important;
+  }
+  .story .product > .product-copy,
+  .story .product > .demo-wrap {
+    position: static !important;
+    top: auto !important;
+  }
   .petal { transform: none !important; }
   .motion-lens { transition: none; }
   .pilot summary span { transition: none; }

@@ -32,6 +32,26 @@ export function lerp(a, b, t) {
   return a + (b - a) * t;
 }
 
+/**
+ * Pure mirror of CSS `position: sticky` vertical positioning so docked petals stay
+ * sub-pixel locked to sticky Liquid Glass panels at any scrollY without forced reflows.
+ */
+export function stickyDocY(scrollY, staticTop, trackBottom, elHeight, stickyTop) {
+  if (stickyTop == null) return staticTop;
+  const maxTop = Math.max(staticTop, trackBottom - elHeight);
+  return clamp(scrollY + stickyTop, staticTop, maxTop);
+}
+
+function shiftPoseY(pose, dy) {
+  return dy ? { ...pose, y: pose.y + dy } : pose;
+}
+
+function stickyShiftFor(plan, service, y) {
+  const s = plan?.sticky?.[service];
+  if (!s) return 0;
+  return stickyDocY(y, s.staticTop, s.trackBottom, s.elHeight, s.stickyTop) - s.staticTop;
+}
+
 export function blendPose(a, b, t, i = 0) {
   const u = smooth(t), arc = 4 * u * (1 - u), bend = [-28, 40, -35, 52, -46][i];
   const out = {
@@ -197,22 +217,19 @@ export function sampleFullJourney(scrollY, i, plan, selected = ['ambo', 'minne',
 
   // --- SCENE 2: ETHA (Lavanda — most contemplative, lingering arc in the LEFT THIRD!) ---
   if (y <= marks.ethaLeave) {
-    if (y >= marks.ethaArrive) return poses.ethaRest[i];
+    const ethaDy = stickyShiftFor(plan, 'etha', y);
+    const ethaEnd = shiftPoseY(poses.ethaRest[i], ethaDy);
+    if (y >= marks.ethaArrive) return ethaEnd;
     const u = clamp((y - marks.openEnd) / Math.max(1, marks.ethaArrive - marks.openEnd));
     const start = sampleOpeningPose(1, i, poses.hero[i], mobile);
-    const end = poses.ethaRest[i];
 
     if (i === 1) {
       const sMid1 = lerp(marks.openEnd, marks.ethaArrive, .36);
       const sMid2 = lerp(marks.openEnd, marks.ethaArrive, .66);
-      // Desktop: opens wide into the LEFT THIRD (x ~ 18-24% = 260-345px), slows & turns visibly there,
-      // then crosses center, recedes in depth, and glides smoothly behind Etha's Liquid Glass bezel.
-      // Mobile: sweeps cleanly from right across the breathing band to left (keeping full directional silhouette),
-      // turns in view, and docks beneath the top-left Etha glass bezel.
       const approach = mobile
-        ? { x: end.x + 18, y: end.y - 118, r: 18, rx: 4, ry: -6, s: end.s * 1.24, o: .98 }
-        : { x: end.x - 110, y: end.y - 138, r: 16, rx: 5, ry: -7, s: end.s * 1.28, o: .98 };
-      return sweepArc(start, end, u, {
+        ? { x: ethaEnd.x + 18, y: ethaEnd.y - 118, r: 18, rx: 4, ry: -6, s: ethaEnd.s * 1.24, o: .98 }
+        : { x: ethaEnd.x - 110, y: ethaEnd.y - 138, r: 16, rx: 5, ry: -7, s: ethaEnd.s * 1.28, o: .98 };
+      return sweepArc(start, ethaEnd, u, {
         c1: mobile
           ? { x: w * .34, y: sMid1 + h * .20 }
           : { x: w * .24, y: sMid1 + h * .40 },
@@ -226,29 +243,31 @@ export function sampleFullJourney(scrollY, i, plan, selected = ['ambo', 'minne',
         peakRot: mobile ? -22 : -30,
         peakRx: mobile ? 9 : 13,
         peakRy: mobile ? -16 : -21,
-        slowMid: .28, // slowest contemplative linger right in the left third!
+        slowMid: .28,
         driftAmp: mobile ? 14 : 28,
         dockEase: easeOutCubic
       });
     }
 
-    return blendPose(start, end, u, i);
+    return blendPose(start, ethaEnd, u, i);
   }
 
   // --- SCENE 3: AMBO (Celeste — long shallow horizontal current into left half & back to Modalidade) ---
   if (y <= marks.amboLeave) {
-    if (y >= marks.amboArrive) return poses.amboRest[i];
+    const ethaLeaveDy = stickyShiftFor(plan, 'etha', marks.ethaLeave);
+    const amboDy = stickyShiftFor(plan, 'ambo', y);
+    const amboEnd = shiftPoseY(poses.amboRest[i], amboDy);
+    if (y >= marks.amboArrive) return amboEnd;
     const u = clamp((y - marks.ethaLeave) / Math.max(1, marks.amboArrive - marks.ethaLeave));
-    const start = poses.ethaRest[i];
-    const end = poses.amboRest[i];
+    const start = shiftPoseY(poses.ethaRest[i], ethaLeaveDy);
 
     if (i === 2) {
       const sMid1 = lerp(marks.ethaLeave, marks.amboArrive, .36);
       const sMid2 = lerp(marks.ethaLeave, marks.amboArrive, .68);
       const approach = mobile
-        ? { x: end.x + 16, y: end.y - 110, r: -44, rx: 4, ry: 7, s: end.s * 1.24, o: .98 }
-        : { x: end.x - 190, y: end.y - 14, r: -46, rx: 5, ry: 9, s: end.s * 1.24, o: .98 };
-      return sweepArc(start, end, u, {
+        ? { x: amboEnd.x + 16, y: amboEnd.y - 110, r: -44, rx: 4, ry: 7, s: amboEnd.s * 1.24, o: .98 }
+        : { x: amboEnd.x - 190, y: amboEnd.y - 14, r: -46, rx: 5, ry: 9, s: amboEnd.s * 1.24, o: .98 };
+      return sweepArc(start, amboEnd, u, {
         c1: mobile
           ? { x: w * .18, y: sMid1 + h * .28 }
           : { x: w * .19, y: sMid1 + h * .52 },
@@ -268,24 +287,25 @@ export function sampleFullJourney(scrollY, i, plan, selected = ['ambo', 'minne',
       });
     }
 
-    return blendPose(start, end, u, i);
+    return blendPose(start, amboEnd, u, i);
   }
 
   // --- SCENE 4: MINNE (Mineral — open S-curve from above: left curve first, then right into agenda) ---
   if (y <= marks.minneLeave) {
-    if (y >= marks.minneArrive) return poses.minneRest[i];
+    const amboLeaveDy = stickyShiftFor(plan, 'ambo', marks.amboLeave);
+    const minneDy = stickyShiftFor(plan, 'minne', y);
+    const minneEnd = shiftPoseY(poses.minneRest[i], minneDy);
+    if (y >= marks.minneArrive) return minneEnd;
     const u = clamp((y - marks.amboLeave) / Math.max(1, marks.minneArrive - marks.amboLeave));
-    const start = poses.amboRest[i];
-    const end = poses.minneRest[i];
+    const start = shiftPoseY(poses.amboRest[i], amboLeaveDy);
 
     if (i === 0) {
       const sMid1 = lerp(marks.amboLeave, marks.minneArrive, .34);
       const sMid2 = lerp(marks.amboLeave, marks.minneArrive, .68);
       const approach = mobile
-        ? { x: end.x + 10, y: end.y - 122, r: 8, rx: 3, ry: -4, s: end.s * 1.20, o: .98 }
-        : { x: end.x - 16, y: end.y - 148, r: 9, rx: 4, ry: -5, s: end.s * 1.22, o: .98 };
-      return sweepArc(start, end, u, {
-        // First curve swings clearly into the LEFT region; second curve orients toward the agenda!
+        ? { x: minneEnd.x + 10, y: minneEnd.y - 122, r: 8, rx: 3, ry: -4, s: minneEnd.s * 1.20, o: .98 }
+        : { x: minneEnd.x - 16, y: minneEnd.y - 148, r: 9, rx: 4, ry: -5, s: minneEnd.s * 1.22, o: .98 };
+      return sweepArc(start, minneEnd, u, {
         c1: mobile
           ? { x: w * .18, y: sMid1 + h * .46 }
           : { x: w * .22, y: sMid1 + h * .54 },
@@ -301,17 +321,19 @@ export function sampleFullJourney(scrollY, i, plan, selected = ['ambo', 'minne',
         peakRy: mobile ? -12 : -15,
         slowMid: .20,
         driftAmp: mobile ? 10 : 18,
-        dockEase: easeOutQuart // steadier, more settled arrival for clinical clarity
+        dockEase: easeOutQuart
       });
     }
 
-    return blendPose(start, end, u, i);
+    return blendPose(start, minneEnd, u, i);
   }
 
   // --- SCENE 5A: CONEXÃO HORIZONTAL ---
   if (y <= marks.connEnd) {
+    const minneLeaveDy = stickyShiftFor(plan, 'minne', marks.minneLeave);
+    const minneStart = shiftPoseY(poses.minneRest[i], minneLeaveDy);
     const u = clamp((y - marks.minneLeave) / Math.max(1, marks.connEnd - marks.minneLeave));
-    if (u <= .33) return blendPose(poses.minneRest[i], poses.conn1[i], u / .33, i);
+    if (u <= .33) return blendPose(minneStart, poses.conn1[i], u / .33, i);
     if (u <= .67) return blendPose(poses.conn1[i], poses.conn2[i], (u - .33) / .34, i);
     return blendPose(poses.conn2[i], poses.conn3[i], (u - .67) / .33, i);
   }
