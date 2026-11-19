@@ -98,6 +98,7 @@ export async function mountEnomeraPlatform(rootEl) {
   }
 
   async function refreshSessionAndData() {
+    const hadToken = Boolean(getToken());
     const [catRes, meRes] = await Promise.all([apiFetch('/api/v1/catalog'), apiFetch('/api/v1/auth/me')]);
     if (catRes.ok) state.catalog = catRes.data;
     if (meRes.ok) {
@@ -123,7 +124,18 @@ export async function mountEnomeraPlatform(rootEl) {
     } else {
       state.me = null;
       state.summary = null;
-      if (['portal', 'profile', 'billing'].includes(state.tab)) state.tab = 'auth';
+      if (hadToken && meRes.status === 401) {
+        if (state.tab !== 'auth') state.returnAfterAuth = state.tab;
+        state.tab = 'auth';
+        state.authMode = 'login';
+        state.feedback = {
+          tone: 'warn',
+          text: 'Sua sessão expirou. Entre novamente para retomar exatamente de onde parou com sua seleção preservada.',
+        };
+      } else if (['portal', 'profile', 'billing'].includes(state.tab)) {
+        state.returnAfterAuth = state.tab;
+        state.tab = 'auth';
+      }
     }
     await refreshQuote(false);
     render();
@@ -812,6 +824,7 @@ export async function mountEnomeraPlatform(rootEl) {
       state.fieldError = null;
       state.feedback = { tone: 'ok', text: `Bem-vinda de volta, ${res.data.user.fullName}. Sua combinação foi mantida.` };
       state.tab = state.returnAfterAuth || 'portal';
+      state.returnAfterAuth = null;
       await refreshSessionAndData();
     });
 
@@ -1061,7 +1074,7 @@ export async function mountEnomeraPlatform(rootEl) {
     const doLogout = async (revokeAll) => {
       await apiFetch('/api/v1/auth/logout', { method: 'POST', body: { revokeAll } });
       setToken(''); saveLastOrder(null);
-      state.me = null; state.summary = null; state.lastOrder = null; state.tab = 'auth';
+      state.me = null; state.summary = null; state.lastOrder = null; state.tab = 'auth'; state.authMode = 'login'; state.returnAfterAuth = null;
       state.feedback = { tone: 'ok', text: revokeAll ? 'Todas as sessões foram revogadas no servidor.' : 'Você saiu da conta.' };
       render();
     };

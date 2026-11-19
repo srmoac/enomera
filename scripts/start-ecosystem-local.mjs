@@ -38,21 +38,32 @@ function serveDir(dirPath, port, label) {
   return srv;
 }
 
-const db = getDb();
-seedDatabase(db);
+const ENOMERA_PORT = Number(process.env.ENOMERA_PORT || 4319);
+const AMBO_PORT = Number(process.env.AMBO_PORT || 3001);
+const MINNE_PORT = Number(process.env.MINNE_PORT || 3002);
+const ETHA_PORT = Number(process.env.ETHA_PORT || 3003);
+const HELENA_PORT = Number(process.env.HELENA_PORT || 3004);
 
-createEnomeraServer(db).listen(4319, '127.0.0.1', () => {
-  console.log('[Enomera + Core API] http://127.0.0.1:4319  (Portal: http://127.0.0.1:4319/portal)');
+process.env.ENOMERA_AMBO_URL ||= `http://127.0.0.1:${AMBO_PORT}`;
+process.env.ENOMERA_MINNE_URL ||= `http://127.0.0.1:${MINNE_PORT}`;
+process.env.ENOMERA_ETHA_URL ||= `http://127.0.0.1:${ETHA_PORT}`;
+process.env.ENOMERA_HELENA_URL ||= `http://127.0.0.1:${HELENA_PORT}`;
+
+const db = await getDb();
+await seedDatabase(db);
+
+createEnomeraServer(db).listen(ENOMERA_PORT, '127.0.0.1', () => {
+  console.log(`[Enomera + Core API] http://127.0.0.1:${ENOMERA_PORT}  (Portal: http://127.0.0.1:${ENOMERA_PORT}/portal)`);
 });
-serveDir('C:/Users/mrsao/Documents/Enomera/ambo/out', 3001, 'Ambo');
-serveDir('C:/Users/mrsao/Documents/Enomera/minne/out', 3002, 'Minne');
-serveDir('C:/Users/mrsao/Documents/Enomera/etha/dist', 3003, 'Etha');
+serveDir('C:/Users/mrsao/Documents/Enomera/ambo/out', AMBO_PORT, 'Ambo');
+serveDir('C:/Users/mrsao/Documents/Enomera/minne/out', MINNE_PORT, 'Minne');
+serveDir('C:/Users/mrsao/Documents/Enomera/etha/dist', ETHA_PORT, 'Etha');
 
-const helena = spawn('node', ['node_modules/next/dist/bin/next', 'start', '-H', '127.0.0.1', '-p', '3004'], {
+const helena = spawn('node', ['node_modules/next/dist/bin/next', 'start', '-H', '127.0.0.1', '-p', String(HELENA_PORT)], {
   cwd: 'C:/Users/mrsao/Documents/Enomera/helena-duarte',
   stdio: 'inherit',
 });
-console.log('[Helena Duarte] http://127.0.0.1:3004');
+console.log(`[Helena Duarte] http://127.0.0.1:${HELENA_PORT}`);
 
 process.on('SIGINT', () => {
   helena.kill();

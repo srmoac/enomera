@@ -115,12 +115,12 @@ function normalizeColumnMap(rawObj, customMapping = null) {
   return { extracted, unrecognized };
 }
 
-function matchPatientAmbiguity(db, accountId, { patientIdHint = null, patientName = '', patientEmail = '' }) {
+async function matchPatientAmbiguity(db, accountId, { patientIdHint = null, patientName = '', patientEmail = '' }) {
   if (patientIdHint) {
-    const exact = db.prepare('SELECT id, full_name FROM operational_patients WHERE id = ? AND account_id = ?').get(patientIdHint, accountId);
+    const exact = await db.get('SELECT id, full_name FROM operational_patients WHERE id = ? AND account_id = ?', patientIdHint, accountId);
     if (exact) return { targetPatientId: exact.id, ambiguous: false, proposedPatient: null };
   }
-  const all = db.prepare('SELECT id, full_name, email, phone FROM operational_patients WHERE account_id = ?').all(accountId);
+  const all = await db.all('SELECT id, full_name, email, phone FROM operational_patients WHERE account_id = ?', accountId);
   const normEmail = (patientEmail || '').trim().toLowerCase();
   const normName = (patientName || '').trim().toLowerCase();
 
@@ -155,20 +155,22 @@ function matchPatientAmbiguity(db, accountId, { patientIdHint = null, patientNam
   };
 }
 
-function detectDuplicateNote(db, accountId, contentSha, sourceKey) {
+async function detectDuplicateNote(db, accountId, contentSha, sourceKey) {
   if (sourceKey) {
-    const byKey = db.prepare(`
-      SELECT id FROM clinical_notes
-      WHERE account_id = ? AND source_reference_key = ? AND status != 'reverted'
-    `).get(accountId, sourceKey);
+    const byKey = await db.get(
+      `SELECT id FROM clinical_notes
+       WHERE account_id = ? AND source_reference_key = ? AND status != 'reverted'`,
+      accountId, sourceKey
+    );
     if (byKey) return { duplicateNoteId: byKey.id, reason: `Chave de origem "${sourceKey}" já importada anteriormente.` };
   }
-  const byHash = db.prepare(`
-    SELECT cn.id FROM import_items ii
-    JOIN clinical_notes cn ON cn.id = ii.created_note_id
-    WHERE ii.account_id = ? AND ii.content_sha256 = ? AND ii.status = 'imported' AND cn.status != 'reverted'
-    LIMIT 1
-  `).get(accountId, contentSha);
+  const byHash = await db.get(
+    `SELECT cn.id FROM import_items ii
+     JOIN clinical_notes cn ON cn.id = ii.created_note_id
+     WHERE ii.account_id = ? AND ii.content_sha256 = ? AND ii.status = 'imported' AND cn.status != 'reverted'
+     LIMIT 1`,
+    accountId, contentSha
+  );
   if (byHash) return { duplicateNoteId: byHash.id, reason: 'Conteúdo idêntico (SHA-256) já importado em lote anterior.' };
   return null;
 }
@@ -288,8 +290,8 @@ export async function stageImportBatch(db, {
   const batchWarnings = [];
   const stagedItems = [];
 
-  const pushItem = (item) => {
-    const dup = detectDuplicateNote(db, accountId, item.contentSha, item.sourceKey);
+  const pushItem = async (item) => {
+    const dup = await detectDuplicateNote(db, accountId, item.contentSha, item.sourceKey);
     const warnings = [...(item.warnings || [])];
     let status = item.error ? 'failed' : 'staged';
     let resolutionAction = 'pending';
@@ -317,10 +319,10 @@ export async function stageImportBatch(db, {
     const text = String(pastedText || '').trim();
     if (!text) throw Object.assign(new Error('Cole o texto do registro para iniciar a preparação.'), { status: 400, code: 'EMPTY_TEXT' });
     const dt = parseFlexibleDate(occurredAtRaw);
-    const match = matchPatientAmbiguity(db, accountId, { patientIdHint: targetPatientId });
+    const match = await matchPatientAmbiguity(db, accountId, { patientIdHint: targetPatientId });
     const warnings = [dt.warning, match.warning].filter(Boolean);
     if (!declaredAuthor) warnings.push('Autoria informada na fonte ausente (registrada como desconhecida).');
-    pushItem({
+    await pushItem({
       fileId: null,
       originalFilename: 'texto-colado.txt',
       detectedFormat: 'text',
@@ -339,7 +341,7 @@ export async function stageImportBatch(db, {
   } else if (sourceKind === 'spreadsheet') {
     const file = files[0];
     if (!file) throw Object.assign(new Error('Envie um arquivo CSV ou XLSX.'), { status: 400, code: 'MISSING_FILE' });
-    const saved = savePrivateFile(db, { accountId, ownerUserId: userId, scope: 'minne_clinical', originalName: file.originalName, buffer: file.buffer });
+    const saved = await savePrivateFile(db, { accountId, ownerUserId: userId, scope: 'minne_clinical', originalName: file.originalName, buffer: file.buffer });
     let rows = [];
     if (saved.detectedFormat === 'csv') {
       const dec = decodeTextSmart(file.buffer);
@@ -384,7 +386,7 @@ export async function stageImportBatch(db, {
       const { extracted, unrecognized } = normalizeColumnMap(r.data, columnMapping);
       const text = extracted.content || '';
       const dt = parseFlexibleDate(extracted.occurredAt);
-      const match = matchPatientAmbiguity(db, accountId, {
+      const match = await matchPatientAmbiguity(db, accountId, {
         patientIdHint: targetPatientId,
         patientName: extracted.patientName,
         patientEmail: extracted.patientEmail,
@@ -392,7 +394,7 @@ export async function stageImportBatch(db, {
       const warnings = [dt.warning, match.warning].filter(Boolean);
       if (Object.keys(unrecognized).length > 0) warnings.push(`Campos não reconhecidos preservados: ${Object.keys(unrecognized).join(', ')}`);
       const rowError = !text && !extracted.patientName ? `Linha ${r.rowNumber}: faltam nome do paciente e conteúdo clínico.` : null;
-      pushItem({
+      await pushItem({
         fileId: saved.id,
         originalFilename: `${saved.originalName}#linha-${r.rowNumber}`,
         detectedFormat: saved.detectedFormat,
@@ -415,7 +417,7 @@ export async function stageImportBatch(db, {
     const file = files[0];
     const rawText = file ? decodeTextSmart(file.buffer).text : String(pastedText || '');
     let saved = null;
-    if (file) saved = savePrivateFile(db, { accountId, ownerUserId: userId, scope: 'minne_clinical', originalName: file.originalName, buffer: file.buffer });
+    if (file) saved = await savePrivateFile(db, { accountId, ownerUserId: userId, scope: 'minne_clinical', originalName: file.originalName, buffer: file.buffer });
     let parsed;
     try { parsed = JSON.parse(rawText); } catch {
       throw Object.assign(new Error('JSON inválido: verifique a sintaxe do arquivo exportado.'), { status: 400, code: 'INVALID_JSON' });
@@ -436,7 +438,7 @@ export async function stageImportBatch(db, {
       const rec = itemsList[i];
       const text = String(rec.content || rec.text || (Array.isArray(rec.blocks) ? rec.blocks.map((b) => b.text || '').join('\n') : '')).trim();
       const dt = parseFlexibleDate(rec.occurredAt || rec.date);
-      const match = matchPatientAmbiguity(db, accountId, {
+      const match = await matchPatientAmbiguity(db, accountId, {
         patientIdHint: targetPatientId,
         patientName: rec.patient?.fullName || rec.patientName || '',
         patientEmail: rec.patient?.email || rec.patientEmail || '',
@@ -447,7 +449,7 @@ export async function stageImportBatch(db, {
           unrecognized[k] = v;
         }
       }
-      pushItem({
+      await pushItem({
         fileId: saved?.id || null,
         originalFilename: `${saved?.originalName || 'export.json'}#${i + 1}`,
         detectedFormat: 'json',
@@ -470,7 +472,7 @@ export async function stageImportBatch(db, {
       let saved = null;
       const magic = detectFileMagic(file.buffer, file.originalName);
       if (magic.format === 'legacy_doc') {
-        pushItem({
+        await pushItem({
           fileId: null,
           originalFilename: file.originalName,
           detectedFormat: 'legacy_doc',
@@ -489,7 +491,7 @@ export async function stageImportBatch(db, {
         continue;
       }
       if (!magic.safe) {
-        pushItem({
+        await pushItem({
           fileId: null,
           originalFilename: file.originalName,
           detectedFormat: 'unsupported',
@@ -507,11 +509,11 @@ export async function stageImportBatch(db, {
         });
         continue;
       }
-      saved = savePrivateFile(db, { accountId, ownerUserId: userId, scope: 'minne_clinical', originalName: file.originalName, buffer: file.buffer });
+      saved = await savePrivateFile(db, { accountId, ownerUserId: userId, scope: 'minne_clinical', originalName: file.originalName, buffer: file.buffer });
       const ex = await extractSingleFile(file.buffer, file.originalName);
       const dt = parseFlexibleDate(occurredAtRaw);
-      const match = matchPatientAmbiguity(db, accountId, { patientIdHint: targetPatientId });
-      pushItem({
+      const match = await matchPatientAmbiguity(db, accountId, { patientIdHint: targetPatientId });
+      await pushItem({
         fileId: saved.id,
         originalFilename: saved.originalName,
         detectedFormat: ex.format,
@@ -577,7 +579,7 @@ export async function stageImportBatch(db, {
 
       const magic = detectFileMagic(buf, base);
       if (magic.format === 'zip') {
-        pushItem({
+        await pushItem({
           fileId: null, originalFilename: entry.name, detectedFormat: 'unsupported',
           contentSha: sha256Hex(buf), sourceKey: null, extractedText: '', extractedFields: {}, unrecognizedFields: {},
           occurredAt: null, declaredAuthor: null, targetPatientId: null, proposedPatient: null,
@@ -586,7 +588,7 @@ export async function stageImportBatch(db, {
         continue;
       }
       if (!magic.safe) {
-        pushItem({
+        await pushItem({
           fileId: null, originalFilename: entry.name, detectedFormat: magic.format,
           contentSha: sha256Hex(buf), sourceKey: null, extractedText: '', extractedFields: {}, unrecognizedFields: {},
           occurredAt: null, declaredAuthor: null, targetPatientId: null, proposedPatient: null,
@@ -595,15 +597,15 @@ export async function stageImportBatch(db, {
         });
         continue;
       }
-      const saved = savePrivateFile(db, { accountId, ownerUserId: userId, scope: 'minne_clinical', originalName: base, buffer: buf });
+      const saved = await savePrivateFile(db, { accountId, ownerUserId: userId, scope: 'minne_clinical', originalName: base, buffer: buf });
       const ex = await extractSingleFile(buf, base);
       const dt = parseFlexibleDate(meta.occurredAt || meta.date);
-      const match = matchPatientAmbiguity(db, accountId, {
+      const match = await matchPatientAmbiguity(db, accountId, {
         patientIdHint: targetPatientId,
         patientName: meta.patientName || folderPatientHint,
         patientEmail: meta.patientEmail || '',
       });
-      pushItem({
+      await pushItem({
         fileId: saved.id,
         originalFilename: entry.name,
         detectedFormat: ex.format,
@@ -624,37 +626,40 @@ export async function stageImportBatch(db, {
     throw Object.assign(new Error('Origem de importação inválida.'), { status: 400, code: 'INVALID_SOURCE_KIND' });
   }
 
-  runTransaction(db, () => {
-    db.prepare(`
-      INSERT INTO import_batches (id, account_id, created_by_user_id, source_kind, adapter_id, status, total_items, warnings_json, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, 'staging', ?, ?, ?, ?)
-    `).run(batchId, accountId, userId, sourceKind, adapterId, stagedItems.length, JSON.stringify(batchWarnings), now, now);
+  await runTransaction(db, async (tx) => {
+    await tx.run(
+      `INSERT INTO import_batches (id, account_id, created_by_user_id, source_kind, adapter_id, status, total_items, warnings_json, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 'staging', ?, ?, ?, ?)`,
+      batchId, accountId, userId, sourceKind, adapterId, stagedItems.length, JSON.stringify(batchWarnings), now, now
+    );
 
-    const ins = db.prepare(`
+    const insSql = `
       INSERT INTO import_items (
         id, batch_id, account_id, file_id, original_filename, detected_format, content_sha256, source_key,
         extracted_text, extracted_fields_json, unrecognized_fields_json, warnings_json, occurred_at, declared_author,
         target_patient_id, proposed_patient_json, resolution_action, duplicate_of_note_id, status, error_message, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
+    `;
     for (const it of stagedItems) {
-      ins.run(
+      await tx.run(
+        insSql,
         it.id, batchId, accountId, it.fileId, it.originalFilename, it.detectedFormat, it.contentSha, it.sourceKey,
         it.extractedText, JSON.stringify(it.extractedFields), JSON.stringify(it.unrecognizedFields), JSON.stringify(it.warnings),
         it.occurredAt, it.declaredAuthor, it.targetPatientId, it.proposedPatient ? JSON.stringify(it.proposedPatient) : null,
         it.resolutionAction, it.duplicateOfNoteId, it.status, it.error, now, now
       );
     }
-    writeAudit(db, { actorUserId: userId, actorType: 'professional', accountId, action: 'import.stage', resourceType: 'import_batch', resourceId: batchId, meta: { sourceKind, totalItems: stagedItems.length } });
+    await writeAudit(tx, { actorUserId: userId, actorType: 'professional', accountId, action: 'import.stage', resourceType: 'import_batch', resourceId: batchId, meta: { sourceKind, totalItems: stagedItems.length } });
   });
 
   return getImportBatchDetail(db, accountId, batchId);
 }
 
-export function getImportBatchDetail(db, accountId, batchId) {
-  const batch = db.prepare('SELECT * FROM import_batches WHERE id = ? AND account_id = ?').get(batchId, accountId);
+export async function getImportBatchDetail(db, accountId, batchId) {
+  const batch = await db.get('SELECT * FROM import_batches WHERE id = ? AND account_id = ?', batchId, accountId);
   if (!batch) return null;
-  const items = db.prepare('SELECT * FROM import_items WHERE batch_id = ? AND account_id = ? ORDER BY rowid ASC').all(batchId, accountId).map((it) => ({
+  const rows = await db.all('SELECT * FROM import_items WHERE batch_id = ? AND account_id = ? ORDER BY created_at ASC, id ASC', batchId, accountId);
+  const items = rows.map((it) => ({
     ...it,
     extractedFields: JSON.parse(it.extracted_fields_json || '{}'),
     unrecognizedFields: JSON.parse(it.unrecognized_fields_json || '{}'),
@@ -668,19 +673,19 @@ export function getImportBatchDetail(db, accountId, batchId) {
   };
 }
 
-export function resolveImportItem(db, { accountId, batchId, itemId, resolutionAction, targetPatientId = null, proposedPatient = null, occurredAt = undefined, declaredAuthor = undefined, extractedText = undefined }) {
-  const batch = db.prepare('SELECT * FROM import_batches WHERE id = ? AND account_id = ?').get(batchId, accountId);
+export async function resolveImportItem(db, { accountId, batchId, itemId, resolutionAction, targetPatientId = null, proposedPatient = null, occurredAt = undefined, declaredAuthor = undefined, extractedText = undefined }) {
+  const batch = await db.get('SELECT * FROM import_batches WHERE id = ? AND account_id = ?', batchId, accountId);
   if (!batch || !['staging', 'partial_failed'].includes(batch.status)) {
     throw Object.assign(new Error('Lote não pode ser alterado neste estado.'), { status: 409, code: 'BATCH_LOCKED' });
   }
-  const item = db.prepare('SELECT * FROM import_items WHERE id = ? AND batch_id = ? AND account_id = ?').get(itemId, batchId, accountId);
+  const item = await db.get('SELECT * FROM import_items WHERE id = ? AND batch_id = ? AND account_id = ?', itemId, batchId, accountId);
   if (!item) throw Object.assign(new Error('Item de importação não encontrado.'), { status: 404, code: 'ITEM_NOT_FOUND' });
 
   let nextStatus = item.status;
   if (resolutionAction === 'skip_duplicate') {
     nextStatus = 'staged';
   } else if (resolutionAction === 'attach_existing') {
-    const p = db.prepare('SELECT id FROM operational_patients WHERE id = ? AND account_id = ?').get(targetPatientId, accountId);
+    const p = await db.get('SELECT id FROM operational_patients WHERE id = ? AND account_id = ?', targetPatientId, accountId);
     if (!p) throw Object.assign(new Error('Paciente selecionado não encontrado.'), { status: 404, code: 'PATIENT_NOT_FOUND' });
     nextStatus = 'staged';
   } else if (resolutionAction === 'create_patient') {
@@ -688,8 +693,8 @@ export function resolveImportItem(db, { accountId, batchId, itemId, resolutionAc
     nextStatus = 'staged';
   }
 
-  db.prepare(`
-    UPDATE import_items SET
+  await db.run(
+    `UPDATE import_items SET
       resolution_action = ?,
       target_patient_id = ?,
       proposed_patient_json = ?,
@@ -699,8 +704,7 @@ export function resolveImportItem(db, { accountId, batchId, itemId, resolutionAc
       status = ?,
       error_message = NULL,
       updated_at = ?
-    WHERE id = ?
-  `).run(
+    WHERE id = ?`,
     resolutionAction,
     resolutionAction === 'attach_existing' ? targetPatientId : null,
     resolutionAction === 'create_patient' ? JSON.stringify(proposedPatient) : item.proposed_patient_json,
@@ -714,33 +718,38 @@ export function resolveImportItem(db, { accountId, batchId, itemId, resolutionAc
   return getImportBatchDetail(db, accountId, batchId);
 }
 
-export function commitImportBatch(db, { accountId, userId, userDisplayName, batchId, idempotencyKey = null, retryFailedOnly = false }) {
-  const batch = db.prepare('SELECT * FROM import_batches WHERE id = ? AND account_id = ?').get(batchId, accountId);
+export async function commitImportBatch(db, { accountId, userId, userDisplayName, batchId, idempotencyKey = null, retryFailedOnly = false }) {
+  const batch = await db.get('SELECT * FROM import_batches WHERE id = ? AND account_id = ?', batchId, accountId);
   if (!batch) throw Object.assign(new Error('Lote de importação não encontrado.'), { status: 404, code: 'BATCH_NOT_FOUND' });
   if (batch.status === 'cancelled' || batch.status === 'reverted') {
     throw Object.assign(new Error('Este lote foi cancelado ou revertido.'), { status: 409, code: 'BATCH_NOT_ACTIVE' });
   }
   if (batch.status === 'completed' || (idempotencyKey && batch.idempotency_key === idempotencyKey && !retryFailedOnly)) {
-    return { batch: getImportBatchDetail(db, accountId, batchId), idempotentReplay: true };
+    return { batch: await getImportBatchDetail(db, accountId, batchId), idempotentReplay: true };
   }
 
-  const items = db.prepare('SELECT * FROM import_items WHERE batch_id = ? AND account_id = ? ORDER BY rowid ASC').all(batchId, accountId);
   const now = nowIso();
-  db.prepare("UPDATE import_batches SET status = 'committing', idempotency_key = COALESCE(?, idempotency_key), updated_at = ? WHERE id = ?").run(idempotencyKey, now, batchId);
+  const claimed = await db.run(
+    "UPDATE import_batches SET status = 'committing', idempotency_key = COALESCE(?, idempotency_key), updated_at = ? WHERE id = ? AND status IN ('staging', 'partial_failed')",
+    idempotencyKey, now, batchId
+  );
+  if (!claimed || Number(claimed.changes || 0) !== 1) {
+    return { batch: await getImportBatchDetail(db, accountId, batchId), idempotentReplay: true };
+  }
+  const items = await db.all('SELECT * FROM import_items WHERE batch_id = ? AND account_id = ? ORDER BY created_at ASC, id ASC', batchId, accountId);
 
   let imported = batch.imported_count || 0;
   let skipped = batch.skipped_count || 0;
   let failed = 0;
 
-  // Per-item transaction for clear partial-failure traceability & safe retries
   for (const item of items) {
     if (item.status === 'imported' || item.status === 'skipped') continue;
     if (retryFailedOnly && !['failed', 'staged'].includes(item.status)) continue;
 
     try {
-      runTransaction(db, () => {
+      await runTransaction(db, async (tx) => {
         if (item.resolution_action === 'skip_duplicate') {
-          db.prepare("UPDATE import_items SET status = 'skipped', updated_at = ? WHERE id = ?").run(nowIso(), item.id);
+          await tx.run("UPDATE import_items SET status = 'skipped', updated_at = ? WHERE id = ?", nowIso(), item.id);
           skipped++;
           return;
         }
@@ -757,17 +766,17 @@ export function commitImportBatch(db, { accountId, userId, userDisplayName, batc
         if (item.resolution_action === 'create_patient') {
           const prop = item.proposed_patient_json ? JSON.parse(item.proposed_patient_json) : null;
           if (!prop?.fullName?.trim()) throw new Error('Dados do novo paciente incompletos.');
-          // Reuse patient already created within this same batch if exact name matches
-          const existingInAccount = db.prepare('SELECT id FROM operational_patients WHERE account_id = ? AND lower(full_name) = lower(?)').get(accountId, prop.fullName.trim());
+          const existingInAccount = await tx.get('SELECT id FROM operational_patients WHERE account_id = ? AND lower(full_name) = lower(?)', accountId, prop.fullName.trim());
           if (existingInAccount) {
             patientId = existingInAccount.id;
           } else {
             patientId = randomId('pat');
             createdPatientId = patientId;
-            db.prepare(`
-              INSERT INTO operational_patients (id, account_id, full_name, email, phone, preferred_contact, status, origin, created_at, updated_at)
-              VALUES (?, ?, ?, ?, ?, 'email', 'active', 'minne_import', ?, ?)
-            `).run(patientId, accountId, prop.fullName.trim(), prop.email || '', prop.phone || '', nowIso(), nowIso());
+            await tx.run(
+              `INSERT INTO operational_patients (id, account_id, full_name, email, phone, preferred_contact, status, origin, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, 'email', 'active', 'minne_import', ?, ?)`,
+              patientId, accountId, prop.fullName.trim(), prop.email || '', prop.phone || '', nowIso(), nowIso()
+            );
           }
         }
 
@@ -787,22 +796,20 @@ export function commitImportBatch(db, { accountId, userId, userDisplayName, batc
           },
         ];
 
-        db.prepare(`
-          INSERT INTO clinical_notes (
+        await tx.run(
+          `INSERT INTO clinical_notes (
             id, account_id, patient_id, appointment_id, record_origin, occurred_at, source_author_declared,
             source_system, source_reference_key, import_batch_id, import_item_id, imported_by_user_id, imported_at,
             attachment_file_ids_json, status, created_at, updated_at
-          ) VALUES (?, ?, ?, NULL, 'external_import', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'concluded', ?, ?)
-        `).run(
+          ) VALUES (?, ?, ?, NULL, 'external_import', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'concluded', ?, ?)`,
           noteId, accountId, patientId, item.occurred_at || null, item.declared_author || null,
           batch.source_kind, item.source_key || null, batchId, item.id, userId, ts,
           JSON.stringify(fileIds), ts, ts
         );
 
-        db.prepare(`
-          INSERT INTO clinical_note_versions (id, note_id, account_id, version_number, author_user_id, author_display_name, blocks_json, change_reason, created_at)
-          VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)
-        `).run(
+        await tx.run(
+          `INSERT INTO clinical_note_versions (id, note_id, account_id, version_number, author_user_id, author_display_name, blocks_json, change_reason, created_at)
+           VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)`,
           randomId('ver'), noteId, accountId, userId,
           `Importado por ${userDisplayName}${item.declared_author ? ` (autoria declarada na fonte: ${item.declared_author})` : ' (autoria na fonte: desconhecida)'}`,
           JSON.stringify(blocks),
@@ -810,64 +817,67 @@ export function commitImportBatch(db, { accountId, userId, userDisplayName, batc
           ts
         );
 
-        db.prepare(`
-          UPDATE import_items SET status = 'imported', created_note_id = ?, created_patient_id = ?, error_message = NULL, updated_at = ?
-          WHERE id = ?
-        `).run(noteId, createdPatientId, ts, item.id);
+        await tx.run(
+          `UPDATE import_items SET status = 'imported', created_note_id = ?, created_patient_id = ?, error_message = NULL, updated_at = ?
+           WHERE id = ?`,
+          noteId, createdPatientId, ts, item.id
+        );
         imported++;
       });
     } catch (err) {
       failed++;
-      db.prepare("UPDATE import_items SET status = 'failed', error_message = ?, updated_at = ? WHERE id = ?").run(err.message || 'Erro ao importar item.', nowIso(), item.id);
+      await db.run("UPDATE import_items SET status = 'failed', error_message = ?, updated_at = ? WHERE id = ?", err.message || 'Erro ao importar item.', nowIso(), item.id);
     }
   }
 
-  const finalStatus = failed > 0 ? 'partial_failed' : 'completed';
-  db.prepare(`
-    UPDATE import_batches SET status = ?, imported_count = ?, skipped_count = ?, failed_count = ?, committed_at = ?, updated_at = ?
-    WHERE id = ?
-  `).run(finalStatus, imported, skipped, failed, nowIso(), nowIso(), batchId);
+  const allStatuses = await db.all('SELECT status FROM import_items WHERE batch_id = ? AND account_id = ?', batchId, accountId);
+  const importedFinal = allStatuses.filter((x) => x.status === 'imported').length;
+  const skippedFinal = allStatuses.filter((x) => x.status === 'skipped').length;
+  const failedOrPendingFinal = allStatuses.filter((x) => !['imported', 'skipped', 'reverted'].includes(x.status)).length;
+  const finalStatus = failedOrPendingFinal > 0 ? 'partial_failed' : 'completed';
+  await db.run(
+    `UPDATE import_batches SET status = ?, imported_count = ?, skipped_count = ?, failed_count = ?, committed_at = ?, updated_at = ?
+     WHERE id = ?`,
+    finalStatus, importedFinal, skippedFinal, failedOrPendingFinal, nowIso(), nowIso(), batchId
+  );
 
-  writeAudit(db, { actorUserId: userId, actorType: 'professional', accountId, action: 'import.commit', resourceType: 'import_batch', resourceId: batchId, meta: { finalStatus, imported, skipped, failed } });
-  return { batch: getImportBatchDetail(db, accountId, batchId), idempotentReplay: false };
+  await writeAudit(db, { actorUserId: userId, actorType: 'professional', accountId, action: 'import.commit', resourceType: 'import_batch', resourceId: batchId, meta: { finalStatus, imported: importedFinal, skipped: skippedFinal, failed: failedOrPendingFinal } });
+  return { batch: await getImportBatchDetail(db, accountId, batchId), idempotentReplay: false };
 }
 
-export function cancelImportBatch(db, { accountId, userId, batchId }) {
-  const batch = db.prepare('SELECT * FROM import_batches WHERE id = ? AND account_id = ?').get(batchId, accountId);
+export async function cancelImportBatch(db, { accountId, userId, batchId }) {
+  const batch = await db.get('SELECT * FROM import_batches WHERE id = ? AND account_id = ?', batchId, accountId);
   if (!batch) throw Object.assign(new Error('Lote não encontrado.'), { status: 404, code: 'BATCH_NOT_FOUND' });
   if (batch.status !== 'staging') throw Object.assign(new Error('Somente lotes em preparação podem ser cancelados/descartados.'), { status: 409, code: 'BATCH_NOT_STAGING' });
-  db.prepare("UPDATE import_batches SET status = 'cancelled', updated_at = ? WHERE id = ?").run(nowIso(), batchId);
-  writeAudit(db, { actorUserId: userId, actorType: 'professional', accountId, action: 'import.cancel', resourceType: 'import_batch', resourceId: batchId });
+  await db.run("UPDATE import_batches SET status = 'cancelled', updated_at = ? WHERE id = ?", nowIso(), batchId);
+  await writeAudit(db, { actorUserId: userId, actorType: 'professional', accountId, action: 'import.cancel', resourceType: 'import_batch', resourceId: batchId });
   return getImportBatchDetail(db, accountId, batchId);
 }
 
-/**
- * Reverts ONLY items from this batch whose clinical notes have NOT been edited afterwards (version_count === 1).
- */
-export function revertImportBatch(db, { accountId, userId, batchId }) {
-  return runTransaction(db, () => {
-    const batch = db.prepare('SELECT * FROM import_batches WHERE id = ? AND account_id = ?').get(batchId, accountId);
+export async function revertImportBatch(db, { accountId, userId, batchId }) {
+  return runTransaction(db, async (tx) => {
+    const batch = await tx.get('SELECT * FROM import_batches WHERE id = ? AND account_id = ?', batchId, accountId);
     if (!batch) throw Object.assign(new Error('Lote não encontrado.'), { status: 404, code: 'BATCH_NOT_FOUND' });
     if (!['completed', 'partial_failed'].includes(batch.status)) {
       throw Object.assign(new Error('Apenas lotes concluídos podem ser revertidos.'), { status: 409, code: 'BATCH_NOT_REVERTIBLE' });
     }
-    const items = db.prepare("SELECT * FROM import_items WHERE batch_id = ? AND account_id = ? AND status = 'imported'").all(batchId, accountId);
+    const items = await tx.all("SELECT * FROM import_items WHERE batch_id = ? AND account_id = ? AND status = 'imported'", batchId, accountId);
     let revertedNotes = 0;
     let preservedEditedNotes = 0;
     const now = nowIso();
     for (const it of items) {
       if (!it.created_note_id) continue;
-      const verCount = db.prepare('SELECT COUNT(*) as c FROM clinical_note_versions WHERE note_id = ?').get(it.created_note_id).c;
-      if (verCount > 1) {
+      const verRow = await tx.get('SELECT COUNT(*) as c FROM clinical_note_versions WHERE note_id = ?', it.created_note_id);
+      if (Number(verRow.c) > 1) {
         preservedEditedNotes++;
         continue;
       }
-      db.prepare("UPDATE clinical_notes SET status = 'reverted', updated_at = ? WHERE id = ?").run(now, it.created_note_id);
-      db.prepare("UPDATE import_items SET status = 'reverted', updated_at = ? WHERE id = ?").run(now, it.id);
+      await tx.run("UPDATE clinical_notes SET status = 'reverted', updated_at = ? WHERE id = ?", now, it.created_note_id);
+      await tx.run("UPDATE import_items SET status = 'reverted', updated_at = ? WHERE id = ?", now, it.id);
       revertedNotes++;
     }
-    db.prepare("UPDATE import_batches SET status = 'reverted', reverted_at = ?, updated_at = ? WHERE id = ?").run(now, now, batchId);
-    writeAudit(db, { actorUserId: userId, actorType: 'professional', accountId, action: 'import.revert', resourceType: 'import_batch', resourceId: batchId, meta: { revertedNotes, preservedEditedNotes } });
-    return { batch: getImportBatchDetail(db, accountId, batchId), revertedNotes, preservedEditedNotes };
+    await tx.run("UPDATE import_batches SET status = 'reverted', reverted_at = ?, updated_at = ? WHERE id = ?", now, now, batchId);
+    await writeAudit(tx, { actorUserId: userId, actorType: 'professional', accountId, action: 'import.revert', resourceType: 'import_batch', resourceId: batchId, meta: { revertedNotes, preservedEditedNotes } });
+    return { batch: await getImportBatchDetail(tx, accountId, batchId), revertedNotes, preservedEditedNotes };
   });
 }

@@ -75,10 +75,16 @@ export async function sendTransactionalEmail(db, { recipient, subject, textBody,
     notice = `Destinatário ${recipient} fora da lista controlada de homologação (RESEND_TEST_ALLOWLIST). Código disponível apenas na caixa local.`;
   }
 
-  db.prepare(`
-    INSERT INTO dev_outbox_messages (id, channel, recipient, subject, body_preview, purpose, delivery_status, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, channel, recipient, subject, textBody, purpose, deliveryStatus, createdAt);
+  // Never store plaintext OTPs/tokens in dev_outbox_messages when real external Resend delivery succeeded
+  const storedPreview = deliveryStatus === 'sent_resend'
+    ? '[Enviado externamente via Resend — conteúdo oculto da caixa local por segurança]'
+    : textBody;
+
+  await db.run(
+    `INSERT INTO dev_outbox_messages (id, channel, recipient, subject, body_preview, purpose, delivery_status, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    id, channel, recipient, subject, storedPreview, purpose, deliveryStatus, createdAt
+  );
 
   return {
     id,

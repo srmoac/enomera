@@ -5,7 +5,7 @@ import path from 'node:path';
 import test from 'node:test';
 import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
-import { getDb, closeDb } from '../server/db.mjs';
+import { getDb, closeDb, toPostgresPlaceholders, getAppliedMigrations } from '../server/db.mjs';
 import { createEnomeraServer } from '../scripts/server.mjs';
 
 let server;
@@ -73,7 +73,7 @@ test.before(async () => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'enomera-test-'));
   process.env.ENOMERA_DB_PATH = path.join(tmpDir, 'test.sqlite');
   process.env.ENOMERA_STORAGE_DIR = path.join(tmpDir, 'private');
-  const db = getDb(process.env.ENOMERA_DB_PATH);
+  const db = await getDb(process.env.ENOMERA_DB_PATH);
   server = createEnomeraServer(db);
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const { port } = server.address();
@@ -82,7 +82,7 @@ test.before(async () => {
 
 test.after(async () => {
   await new Promise((resolve) => server.close(resolve));
-  closeDb();
+  await closeDb();
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
@@ -521,4 +521,157 @@ test('6. Etha service delivery, Marcos operator parity, draft vs published separ
   assert.equal(wl.status, 201);
   assert.equal(wl.data.chargedCents, 0);
   await api('/api/v1/etha/operator/capacity', { method: 'PATCH', token: marcosToken, body: { capacityLimit: 3 } });
+});
+
+test('8. Two independent real accounts: isolation, clinical file attachment 403, expired OTP 410, expired session 401, multi-tenant Etha publish & restart persistence', async () => {
+  // Postgres SQL placeholder translator preserves string literals containing '?'
+  assert.equal(
+    toPostgresPlaceholders("SELECT * FROM users WHERE email = ? AND note != 'why?' AND role = ?"),
+    "SELECT * FROM users WHERE email = $1 AND note != 'why?' AND role = $2"
+  );
+
+  // Versioned migrations applied
+  const health = await api('/api/v1/health');
+  assert.equal(health.status, 200);
+  assert.ok(health.data.integrations.database.appliedMigrations.includes('001_init'));
+  assert.ok(health.data.integrations.database.appliedMigrations.includes('002_real_users_and_indexes'));
+
+  // Create Account A & Account B independently
+  const accA = await api('/api/v1/auth/signup', {
+    method: 'POST',
+    body: { fullName: 'Dra. Beatriz Real', email: 'beatriz.real@exemplo.invalid', password: 'BeatrizReal!2026', crpOrCrm: 'CRP 06/301010' },
+  });
+  const accB = await api('/api/v1/auth/signup', {
+    method: 'POST',
+    body: { fullName: 'Dr. Lucas Isolado', email: 'lucas.isolado@exemplo.invalid', password: 'LucasReal!2026', crpOrCrm: 'CRM-SP 402020', specialty: 'Psiquiatria' },
+  });
+  assert.equal(accA.status, 201);
+  assert.equal(accB.status, 201);
+  const tokenA = accA.data.sessionToken;
+  const tokenB = accB.data.sessionToken;
+  const slugA = accA.data.account.slug;
+
+  // Test expired verification code returns 410 CODE_EXPIRED
+  const db = await getDb(process.env.ENOMERA_DB_PATH);
+  await db.run("UPDATE verification_tokens SET expires_at = '2020-01-01T00:00:00.000Z' WHERE target_contact = ?", 'beatriz.real@exemplo.invalid');
+  const outboxA = await api('/api/v1/dev/outbox?recipient=beatriz.real@exemplo.invalid');
+  const oldCode = extractSixDigitCode(outboxA);
+  const expiredVer = await api('/api/v1/auth/verify-email', { method: 'POST', token: tokenA, body: { email: 'beatriz.real@exemplo.invalid', code: oldCode } });
+  assert.equal(expiredVer.status, 410);
+  assert.equal(expiredVer.data.code, 'CODE_EXPIRED');
+
+  // Resend fresh code & verify
+  await api('/api/v1/auth/resend-verification', { method: 'POST', body: { email: 'beatriz.real@exemplo.invalid' } });
+  const freshCode = extractSixDigitCode(await api('/api/v1/dev/outbox?recipient=beatriz.real@exemplo.invalid'));
+  const okVer = await api('/api/v1/auth/verify-email', { method: 'POST', token: tokenA, body: { email: 'beatriz.real@exemplo.invalid', code: freshCode } });
+  assert.equal(okVer.status, 200);
+
+  // Activate Ambo + Minne + Etha on Account A and Minne on Account B (simulated checkout)
+  const ordA = await api('/api/v1/commercial/orders', {
+    method: 'POST', token: tokenA, headers: { 'X-Idempotency-Key': 'ord_a_full' },
+    body: { products: ['ambo', 'minne', 'etha'], ethaFormat: 'one_page', simulatedOutcome: 'approved' },
+  });
+  assert.equal(ordA.status, 201);
+  const ordB = await api('/api/v1/commercial/orders', {
+    method: 'POST', token: tokenB, headers: { 'X-Idempotency-Key': 'ord_b_minne' },
+    body: { products: ['minne'], simulatedOutcome: 'approved' },
+  });
+  assert.equal(ordB.status, 201);
+
+  // Account A creates patient, clinical note, and attaches a private PDF
+  const patA = await api('/api/v1/minne/patients', {
+    method: 'POST', token: tokenA,
+    body: { fullName: 'Paciente Sigiloso A', email: 'sigiloso.a@exemplo.invalid' },
+  });
+  assert.equal(patA.status, 201);
+  const draftA = await api('/api/v1/minne/notes/draft', {
+    method: 'POST', token: tokenA,
+    body: { patientId: patA.data.patient.id, blocks: [{ id: 'b1', type: 'paragraph', text: 'Evolução sigilosa da Dra. Beatriz.' }] },
+  });
+  assert.equal(draftA.status, 200);
+  const pdfBuf = makeSimplePdfBuffer('Laudo clinico privado da Dra Beatriz');
+  const attA = await api(`/api/v1/minne/notes/${draftA.data.noteId}/attachments`, {
+    method: 'POST', token: tokenA,
+    body: { originalName: 'laudo-privado.pdf', contentBase64: pdfBuf.toString('base64') },
+  });
+  assert.equal(attA.status, 201);
+  const fileIdA = attA.data.file.id;
+
+  // Account A can download its own private file (200)
+  const dlA = await api(`/api/v1/files/${fileIdA}`, { token: tokenA });
+  assert.equal(dlA.status, 200);
+
+  // Account B CANNOT read Account A's clinical notes or download Account A's private file!
+  const bReadNotesA = await api(`/api/v1/minne/patients/${patA.data.patient.id}/notes`, { token: tokenB });
+  assert.equal(bReadNotesA.status, 404);
+  const bDlFileA = await api(`/api/v1/files/${fileIdA}`, { token: tokenB });
+  assert.equal(bDlFileA.status, 403);
+  const bNoAuthFileA = await api(`/api/v1/files/${fileIdA}`);
+  assert.equal(bNoAuthFileA.status, 401);
+
+  // Account A publishes its own Etha site -> public endpoint reflects Dra. Beatriz (not Helena!)
+  const draftSiteA = await api('/api/v1/etha/project/editor', {
+    method: 'POST', token: tokenA,
+    body: { stage: 'draft', content: { displayName: 'Dra. Beatriz Real', crp: 'CRP 06/301010', headline: 'Escuta clínica dedicada em Campinas.' } },
+  });
+  assert.equal(draftSiteA.status, 201);
+  const pubSiteA = await api('/api/v1/etha/project/publish-staging', { method: 'POST', token: tokenA, body: { ctaMode: 'ambo' } });
+  assert.equal(pubSiteA.status, 200);
+  const liveSiteA = await api(`/api/v1/public/sites/${slugA}`);
+  assert.equal(liveSiteA.status, 200);
+  assert.equal(liveSiteA.data.displayName, 'Dra. Beatriz Real');
+  assert.equal(liveSiteA.data.amboProfileSlug, slugA);
+
+  // Expired session returns 401 cleanly
+  await db.run("UPDATE sessions SET expires_at = '2020-01-01T00:00:00.000Z' WHERE user_id = ?", accB.data.user.id);
+  const expMeB = await api('/api/v1/auth/me', { token: tokenB });
+  assert.equal(expMeB.status, 401);
+
+  // Security regression: third-party *.vercel.app origin must NEVER get CORS credentials
+  const evilCors = await api('/api/v1/health', { headers: { Origin: 'https://evil-attacker.vercel.app' } });
+  assert.equal(evilCors.headers.get('access-control-allow-origin'), null);
+
+  // Security regression: patient invitation using operator email MUST NOT escalate to operator!
+  const fakeOpPat = await api('/api/v1/minne/patients', {
+    method: 'POST', token: tokenA,
+    body: { fullName: 'Fake Operator', email: 'marcos@enomera-ops.exemplo.com.br' },
+  });
+  assert.equal(fakeOpPat.status, 201);
+  const fakeInv = await api('/api/v1/ambo/invitations', {
+    method: 'POST', token: tokenA,
+    body: { patientId: fakeOpPat.data.patient.id },
+  });
+  assert.equal(fakeInv.status, 201);
+  const fakeVer = await api('/api/v1/ambo/invitations/verify', {
+    method: 'POST',
+    body: { inviteToken: fakeInv.data.inviteToken },
+  });
+  assert.equal(fakeVer.status, 200);
+  const escOp = await api('/api/v1/etha/operator/dashboard', { token: fakeVer.data.sessionToken });
+  assert.equal(escOp.status, 403);
+
+  // Concurrency regression: simultaneous manual bookings on the exact same slot -> 1x 201 + 1x 409 (zero 500s!)
+  const wsA = await api('/api/v1/minne/workspace', { token: tokenA });
+  const targetSlot = wsA.data.availableSlots[0];
+  const [race1, race2] = await Promise.all([
+    api('/api/v1/minne/appointments', {
+      method: 'POST', token: tokenA, headers: { 'X-Idempotency-Key': 'race_slot_1' },
+      body: { patientId: patA.data.patient.id, startAt: targetSlot.startAt, endAt: targetSlot.endAt, modality: 'online' },
+    }),
+    api('/api/v1/minne/appointments', {
+      method: 'POST', token: tokenA, headers: { 'X-Idempotency-Key': 'race_slot_2' },
+      body: { patientId: fakeOpPat.data.patient.id, startAt: targetSlot.startAt, endAt: targetSlot.endAt, modality: 'online' },
+    }),
+  ]);
+  const statuses = [race1.status, race2.status].sort();
+  assert.deepEqual(statuses, [201, 409]);
+
+  // Full DB close & reopen ("server restart") preserves Account A, entitlements, patient, note, and published site!
+  await closeDb();
+  const reopenedDb = await getDb(process.env.ENOMERA_DB_PATH);
+  const migrations = await getAppliedMigrations(reopenedDb);
+  assert.equal(migrations.length, 2);
+  const persistedNote = await reopenedDb.get('SELECT id, attachment_file_ids_json FROM clinical_notes WHERE id = ?', draftA.data.noteId);
+  assert.ok(persistedNote);
+  assert.ok(JSON.parse(persistedNote.attachment_file_ids_json).includes(fileIdA));
 });
