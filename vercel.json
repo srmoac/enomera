@@ -1,6 +1,11 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "functions": {
+    "api/[...route].mjs": {
+      "includeFiles": "server/migrations/**"
+    }
+  },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/[...route].mjs" },
     { "source": "/portal", "destination": "/index.html" },

@@ -43,7 +43,7 @@ import {
 const COOKIE_NAME = 'enomera_sid';
 const MAX_BODY_BYTES = 35 * 1024 * 1024; // allows base64-encoded 25 MB ZIP
 
-const ENOMERA_VERCEL_HOST_RE = /^(enomera|lotus-app|ambo-enomera|compasso-app|minne-enomera|etha-enomera|clara-azevedo-site|helenaduartepsi|mrsaoc-portfolio)(-[a-z0-9-]+)?\.vercel\.app$/;
+const ENOMERA_VERCEL_HOST_RE = /^(enomera|lotus|lotus-app|ambo-enomera|compasso|compasso-app|minne-enomera|etha-enomera|clara-azevedo-site|helenaduartepsi|mrsaoc-portfolio)(-[a-z0-9-]+)?\.vercel\.app$/;
 
 function isAllowedOrigin(origin) {
   if (!origin) return false;
