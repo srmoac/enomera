@@ -1,0 +1,196 @@
+/* Enomera Real Platform (Portal, Conta, Checkout Simulado & Ciclo de Vida) — Direção A */
+.eno-shell {
+  min-height: 100dvh;
+  background: radial-gradient(circle at 12% 8%, rgba(199, 189, 244, 0.24), transparent 36%),
+              radial-gradient(circle at 88% 12%, rgba(164, 207, 246, 0.28), transparent 40%),
+              radial-gradient(circle at 52% 0%, rgba(166, 221, 216, 0.22), transparent 36%),
+              #F0F4FE;
+  color: #202D50;
+  font-family: 'Manrope', system-ui, sans-serif;
+  padding-bottom: 64px;
+}
+.eno-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px clamp(16px, 4vw, 48px);
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(18px);
+  border-bottom: 1px solid #D8E1F4;
+}
+.eno-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: #202D50;
+  text-decoration: none;
+}
+.eno-nav-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.eno-tab {
+  min-height: 44px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #516083;
+  font: 600 0.88rem/1 'Manrope', sans-serif;
+  cursor: pointer;
+  transition: background 180ms ease-out, color 180ms ease-out, border-color 180ms ease-out;
+}
+.eno-tab:hover { background: rgba(91, 112, 178, 0.08); color: #202D50; }
+.eno-tab[aria-current="page"] { background: #5B70B2; color: #FFFFFF; }
+.eno-tab:focus-visible, .eno-btn:focus-visible, .eno-input:focus-visible, .eno-select:focus-visible {
+  outline: 2px solid #42367D;
+  outline-offset: 2px;
+}
+.eno-container {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: clamp(20px, 3.5vw, 36px) clamp(16px, 4vw, 32px);
+  display: grid;
+  gap: 22px;
+}
+.eno-grid-2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.85fr);
+  gap: 22px;
+  align-items: start;
+}
+.eno-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 18px;
+}
+@media (max-width: 860px) {
+  .eno-grid-2 { grid-template-columns: 1fr; }
+}
+.eno-card {
+  background: #FFFFFF;
+  border: 1px solid #D8E1F4;
+  border-radius: 22px;
+  padding: clamp(18px, 3vw, 28px);
+  box-shadow: 0 10px 32px rgba(32, 45, 80, 0.05);
+  display: grid;
+  gap: 14px;
+}
+.eno-card-ambo { background: #ECF6FE; border-color: #A4CFF6; }
+.eno-card-minne { background: #EDF8F7; border-color: #A6DDD8; }
+.eno-card-etha { background: #F2EFFE; border-color: #C7BDF4; }
+.eno-card-warn { background: #FDF8EC; border-color: #E6C98E; }
+.eno-card-err { background: #FFF6F8; border-color: #E6B3C0; }
+.eno-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  background: #F0F4FE;
+  color: #5B70B2;
+}
+.eno-pill-ok { background: #DFF4E8; color: #1B653E; }
+.eno-pill-warn { background: #F8EDD3; color: #7D5112; }
+.eno-pill-err { background: #FBE8EE; color: #992F49; }
+.eno-pill-ambo { background: #ECF6FE; color: #235D94; }
+.eno-pill-minne { background: #EDF8F7; color: #1E625E; }
+.eno-pill-etha { background: #F2EFFE; color: #53459A; }
+.eno-h1 { margin: 0; font-size: clamp(1.5rem, 3vw, 2.05rem); line-height: 1.18; color: #202D50; }
+.eno-h2 { margin: 0; font-size: 1.22rem; line-height: 1.25; color: #202D50; }
+.eno-muted { margin: 0; color: #516083; font-size: 0.93rem; line-height: 1.5; }
+.eno-field { display: grid; gap: 6px; }
+.eno-field label { font-weight: 600; font-size: 0.86rem; color: #202D50; }
+.eno-input, .eno-select {
+  min-height: 46px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid #C5D1EC;
+  background: #FFFFFF;
+  color: #202D50;
+  font: 500 0.95rem/1.4 'Manrope', sans-serif;
+  width: 100%;
+  box-sizing: border-box;
+}
+.eno-btn-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.eno-btn {
+  min-height: 46px;
+  padding: 11px 20px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: #5B70B2;
+  color: #FFFFFF;
+  font: 600 0.92rem/1.1 'Manrope', sans-serif;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: transform 150ms ease-out, background 180ms ease-out;
+}
+.eno-btn:hover { transform: translateY(-1px); }
+.eno-btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+.eno-btn-sec { background: #FFFFFF; color: #202D50; border-color: #CAD4F8; }
+.eno-btn-ambo { background: #235D94; color: #FFFFFF; }
+.eno-btn-minne { background: #1E625E; color: #FFFFFF; }
+.eno-btn-etha { background: #53459A; color: #FFFFFF; }
+.eno-btn-danger { background: #992F49; color: #FFFFFF; }
+.eno-check-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1.5px solid #D8E1F4;
+  background: #FFFFFF;
+  cursor: pointer;
+  transition: border-color 180ms ease-out, background 180ms ease-out, transform 160ms ease-out;
+}
+.eno-check-card[data-selected="true"][data-prod="ambo"] { background: #ECF6FE; border-color: #235D94; }
+.eno-check-card[data-selected="true"][data-prod="minne"] { background: #EDF8F7; border-color: #1E625E; }
+.eno-check-card[data-selected="true"][data-prod="etha"] { background: #F2EFFE; border-color: #53459A; }
+.eno-status-banner {
+  padding: 14px 16px;
+  border-radius: 14px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.eno-outbox {
+  background: #F8EDD3;
+  border: 1px dashed #7D5112;
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-size: 0.85rem;
+  color: #4A310B;
+  display: grid;
+  gap: 6px;
+}
+.eno-list { display: grid; gap: 10px; }
+.eno-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid #E2E9F7;
+  background: #F9FBFF;
+}
+@media (prefers-reduced-motion: reduce) {
+  .eno-btn, .eno-tab, .eno-check-card { transition: none !important; }
+  .eno-btn:hover { transform: none !important; }
+}

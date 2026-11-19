@@ -1,4 +1,5 @@
 import { services, billingFor, serviceById } from './services.js';
+import { mountEnomeraPlatform } from './platform.js';
 
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -284,19 +285,24 @@ function syncServiceLinks() {
   }
 }
 
-const isPortal = location.pathname.replace(/\/$/, '') === '/portal';
+const cleanPath = location.pathname.replace(/\/$/, '') || '/';
+const isPortal = ['/portal', '/conta', '/checkout'].includes(cleanPath);
 if (isPortal) {
   $('.nav').hidden = true;
   $('#main').hidden = true;
   $('.skip').href = '#portal-content';
   $('#portal').hidden = false;
   document.title = 'Portal profissional | Enomera';
-  renderPortal();
+  mountEnomeraPlatform($('#portal'));
 } else {
   syncServiceLinks();
   renderAmbo();
   renderMini();
   renderCombination();
+  $('#combo-continue-cta')?.addEventListener('click', (e) => {
+    const sel = state.selected.length ? state.selected.join(',') : 'ambo,minne';
+    e.currentTarget.href = `/portal?etapa=planos&selecao=${encodeURIComponent(sel)}`;
+  });
 }
 
 $('.skip').addEventListener('click', () => {

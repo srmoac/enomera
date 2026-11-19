@@ -2,7 +2,10 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/[...route].mjs" },
     { "source": "/portal", "destination": "/index.html" },
-    { "source": "/portal/", "destination": "/index.html" }
+    { "source": "/portal/", "destination": "/index.html" },
+    { "source": "/conta", "destination": "/index.html" },
+    { "source": "/checkout", "destination": "/index.html" }
   ]
 }

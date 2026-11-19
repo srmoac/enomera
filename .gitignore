@@ -6,3 +6,6 @@ test-results/
 
 .vercel
 .env*
+
+server/data/
+server/storage/
