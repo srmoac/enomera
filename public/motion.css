@@ -270,7 +270,7 @@ body.has-petal-journey { isolation: isolate; }
 .has-petal-journey .portal-main { z-index: 2; }
 .has-petal-journey .portal-side { z-index: 3; }
 
-.petal-journey {
+.petal-slot {
   position: fixed;
   inset: 0;
   overflow: hidden;
@@ -280,6 +280,16 @@ body.has-petal-journey { isolation: isolate; }
   contain: strict;
 }
 .journey-petal {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  transform-origin: 0 0;
+  will-change: transform, opacity;
+}
+.journey-petal-plane {
   position: absolute;
   top: 0;
   left: 0;
@@ -297,10 +307,6 @@ body.has-petal-journey { isolation: isolate; }
   overflow: visible;
   pointer-events: none;
 }
-.journey-petal g {
-  transform-box: view-box;
-  transform-origin: 235px 335px;
-}
 
 @media (prefers-reduced-motion: reduce) {
   .petal { transform: none !important; }
@@ -311,7 +317,8 @@ body.has-petal-journey { isolation: isolate; }
   dialog, dialog[open] { animation: none; transform: none; }
   .ambo select::picker(select) { transform: none !important; transition: none; }
   .ambo select::picker-icon { transition: none; }
-  .journey-petal { will-change: auto; }
+  .journey-petal, .journey-petal-plane, .etha-dock-glow { will-change: auto; }
+  .etha-dock-pill { transition: none; }
 }
 
 @media (forced-colors: active) {
