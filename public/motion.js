@@ -13,7 +13,9 @@ function lens(group,selector){
   if(!marker){marker=document.createElement('span');marker.className='motion-lens';marker.setAttribute('aria-hidden','true');marker.style.transition='none';group.prepend(marker);}
   const g=group.getBoundingClientRect(),r=active.getBoundingClientRect();
   const x=r.left-g.left+group.scrollLeft,y=r.top-g.top+group.scrollTop;
-  marker.style.clipPath=`inset(${y}px ${Math.max(0,group.scrollWidth-x-r.width)}px ${Math.max(0,group.scrollHeight-y-r.height)}px ${x}px round ${(group.id==='nav-links'?'20px':getComputedStyle(active).borderRadius)})`;
+  marker.style.width=`${r.width}px`;marker.style.height=`${r.height}px`;
+  marker.style.borderRadius=group.id==='nav-links'?'20px':getComputedStyle(active).borderRadius;
+  marker.style.transform=`translate(${x}px,${y}px)`;
   if(entering)requestAnimationFrame(()=>requestAnimationFrame(()=>{if(marker.isConnected)marker.style.transition='';}));
 }
 function updateSiteIndicator(){const nav=document.querySelector('#nav-links');if(!nav||innerWidth<701)return;let id='produtos';for(const [sel,key] of [['#como-funciona','como-funciona'],['#combinacao','combinacao']])if(document.querySelector(sel)?.getBoundingClientRect().top<innerHeight*.45)id=key;const target=nav.querySelector(`a[href="/#${id}"]`);if(target){nav.querySelectorAll('a').forEach(a=>a.toggleAttribute('data-current',a===target));lens(nav,'[data-current]');}}

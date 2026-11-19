@@ -61,3 +61,28 @@ body.has-petal-journey{isolation:isolate}
  .ambo select:open::picker-icon{transform:rotate(180deg)}
 }
 @media(prefers-reduced-motion:reduce){.ambo select::picker(select){transform:none!important;transition:none}.ambo select::picker-icon{transition:none}}
+
+/* Restore the approved glass material without stretching its corners. */
+.motion-lens{inset:auto;left:0;top:0;clip-path:none;border:1px solid #ffffffdc;background:linear-gradient(135deg,#ffffff80,#ffffff2e 55%,#c3d6ee55);box-shadow:inset 0 1px 2px #fff,0 5px 16px #4061a61f;backdrop-filter:blur(14px) saturate(130%);transition:transform 220ms var(--ease)}
+.choice-group[aria-label=Modalidade]{background:#ffffff35;border:1px solid #ffffffb8;box-shadow:inset 0 1px 2px #fff8}
+.choice-group[aria-label=Modalidade]>.motion-lens{background:linear-gradient(135deg,#ffffff85,#A4CFF680);border-color:#ffffffdf}
+.mini-sidebar>.motion-lens{background:linear-gradient(135deg,#ffffff85,#A6DDD880)}
+#ambo .choice-group[aria-label=Modalidade] [aria-pressed=true]{background:transparent!important}
+.choice-group[aria-label=Dias] button{background:#ffffff4a;border:1px solid #ffffffda;box-shadow:inset 0 1px 1px #fff9,0 3px 10px #4061a60d}
+#ambo .choice-group[aria-label=Dias] [aria-pressed=true]{background:linear-gradient(135deg,#ffffff75,#A4CFF680)!important;border-color:#235D9470!important;box-shadow:inset 0 1px 2px #fff,0 4px 12px #235D9414}
+.back{border-radius:18px}
+.product .button{background:linear-gradient(135deg,#ffffff70,#A4CFF699);color:var(--action);border:1px solid #ffffffeb;box-shadow:inset 0 1px 2px #fff,0 7px 18px #235D941c;backdrop-filter:blur(14px)}
+.button{transition:transform 160ms var(--ease),box-shadow 160ms var(--ease),background-color 160ms var(--ease),color 160ms var(--ease)}
+.button:active{transform:scale(.985)!important;opacity:1;box-shadow:inset 0 1px 4px #202d5018}
+.active-products input{appearance:none;-webkit-appearance:none;display:grid;place-content:center;flex:none;width:22px;height:22px;margin:0;border:1px solid #ffffffed;border-radius:7px;background:#ffffff50;box-shadow:inset 0 1px 2px #fff,0 3px 8px #4061a61a;transition:background-color 140ms var(--ease),border-color 140ms var(--ease)}
+.active-products input:checked{background:#5b70b280;border-color:#5b70b2}
+.active-products input:after{content:'';width:9px;height:5px;border-left:2px solid white;border-bottom:2px solid white;transform:translateY(-1px) rotate(-45deg);opacity:0}
+.active-products input:checked:after{opacity:1}
+.active-products input:focus-visible{outline:2px solid #415fa8;outline-offset:3px}
+@media(hover:hover) and (pointer:fine){
+ .button:hover{transform:translateY(-1px);box-shadow:inset 0 1px 2px #fff9,0 10px 22px #4061a62b}
+ .product .button:hover{background:linear-gradient(135deg,#ffffffa6,#A4CFF6b3);color:var(--focus)}
+ .back:hover{background:#ffffff45;box-shadow:inset 0 1px 1px #ffffffa0}
+}
+@media(prefers-reduced-motion:reduce){.motion-lens{transition:none}.button:hover,.button:active{transform:none!important}}
+@media(forced-colors:active){.active-products input{appearance:auto}.active-products input:after{display:none}}
