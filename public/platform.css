@@ -114,6 +114,7 @@
   font-size: 1rem;
   letter-spacing: -0.02em;
   padding: 4px 8px 4px 4px;
+  min-height: 44px;
   border-radius: 999px;
   transition: transform var(--eno-dur-fast) var(--eno-ease-out), opacity var(--eno-dur-fast) var(--eno-ease-out);
 }
@@ -150,7 +151,7 @@
   font-size: 0.84rem;
   font-weight: 600;
   padding: 8px 15px;
-  min-height: 38px;
+  min-height: 44px;
   border-radius: 999px;
   cursor: pointer;
   display: inline-flex;
@@ -371,7 +372,7 @@
   border: 0;
   background: transparent;
   padding: 9px 12px;
-  min-height: 40px;
+  min-height: 44px;
   font: inherit;
   font-size: 0.84rem;
   font-weight: 600;
@@ -592,7 +593,8 @@
 
 .eno-pwd-toggle {
   position: absolute;
-  right: 6px;
+  z-index: 2;
+  right: 0;
   top: 50%;
   transform: translateY(-50%);
   appearance: none;
@@ -603,7 +605,7 @@
   font-size: 0.75rem;
   font-weight: 650;
   padding: 6px 10px;
-  min-height: 32px;
+  min-height: 44px;
   border-radius: 8px;
   cursor: pointer;
   transition: background-color var(--eno-dur-fast) var(--eno-ease-out);
@@ -777,7 +779,7 @@
 }
 
 .eno-btn-sm {
-  min-height: 36px;
+  min-height: 44px;
   padding: 6px 13px;
   font-size: 0.8rem;
 }

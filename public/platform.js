@@ -2,21 +2,28 @@ const TOKEN_KEY = 'enomera_session_token_v1';
 const DRAFT_COMBO_KEY = 'enomera_pending_combo_v1';
 const LAST_ORDER_KEY = 'enomera_last_order_v1';
 
-function resolveSiblingOrigin(override, localPort, prodPrefix) {
+// Preview: o projeto Vercel real de cada produto (nomes de projeto != nomes de marca).
+// Produção: domínio público oficial. Sempre sobrescrevível por window.__ENOMERA_*_URL.
+function resolveSiblingOrigin(override, localPort, previewProject, prodOrigin) {
   if (override) return override;
   if (location.hostname === '127.0.0.1' || location.hostname === 'localhost') {
     return `http://127.0.0.1:${localPort}`;
   }
   const m = location.hostname.match(/^enomera(-git-.+\.vercel\.app)$/);
-  if (m) return `https://${prodPrefix}${m[1]}`;
-  return `https://${prodPrefix}.vercel.app`;
+  if (m) {
+    if (previewProject === 'clara-azevedo-site' && m[1].startsWith('-git-feat-enomera-platform-v1-')) {
+      return 'https://clara-azevedo-site-git-feat-enomera-99e58e-marcosvmgs-projects.vercel.app';
+    }
+    return `https://${previewProject}${m[1]}`;
+  }
+  return prodOrigin;
 }
 
 const APP_ORIGINS = {
-  ambo: resolveSiblingOrigin(window.__ENOMERA_AMBO_URL, 3001, 'ambo-enomera'),
-  minne: resolveSiblingOrigin(window.__ENOMERA_MINNE_URL, 3002, 'minne-enomera'),
-  etha: resolveSiblingOrigin(window.__ENOMERA_ETHA_URL, 3003, 'etha-enomera'),
-  helena: resolveSiblingOrigin(window.__ENOMERA_HELENA_URL, 3004, 'helenaduartepsi'),
+  ambo: resolveSiblingOrigin(window.__ENOMERA_AMBO_URL, 3001, 'lotus-app', 'https://ambo-enomera.vercel.app'),
+  minne: resolveSiblingOrigin(window.__ENOMERA_MINNE_URL, 3002, 'compasso-app', 'https://compasso-app-seven.vercel.app'),
+  etha: resolveSiblingOrigin(window.__ENOMERA_ETHA_URL, 3003, 'etha-enomera', 'https://etha-enomera.vercel.app'),
+  helena: resolveSiblingOrigin(window.__ENOMERA_HELENA_URL, 3004, 'clara-azevedo-site', 'https://helenaduartepsi.vercel.app'),
 };
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1268,7 +1275,7 @@ export async function mountEnomeraPlatform(rootEl) {
       state.checkoutIdempotencyKey = `chk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       render(); // resposta imediata ao clique antes da cotação retornar
       await refreshQuote(true);
-      render();
+      if (state.tab === 'plans') render(); // nunca re-renderizar sobre outra tela após a cotação tardia
     }));
 
     rootEl.querySelector('#eno-etha-fmt')?.addEventListener('change', async (e) => {
@@ -1276,7 +1283,7 @@ export async function mountEnomeraPlatform(rootEl) {
       saveCombo(state.combo);
       state.checkoutIdempotencyKey = `chk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       await refreshQuote(true);
-      render();
+      if (state.tab === 'plans') render();
     });
 
     rootEl.querySelector('#eno-start-trial')?.addEventListener('click', async () => {
