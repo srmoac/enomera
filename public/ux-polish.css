@@ -173,3 +173,6 @@ button.eno-pc:active { transform: scale(.985); }
   .choice-group button[aria-pressed="true"], .billing-toggle button[aria-pressed="true"] { animation: enoPressPop 320ms cubic-bezier(.34, 1.56, .64, 1); }
 }
 @keyframes enoPressPop { 0% { transform: scale(.94); } 100% { transform: none; } }
+
+/* Números que trocam não pulam de largura. */
+.eno-pc-price, .eno-sum-lines dd, .eno-sum-total, #billing-summary { font-variant-numeric: tabular-nums; }

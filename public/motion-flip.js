@@ -234,10 +234,10 @@ export function motionPlay(root, snap, { route = false } = {}) {
         const g = ghost(prev.html, { left: prev.rect.left, top: prev.rect.top - scrollDy, width: prev.rect.width, height: prev.rect.height }, prev.radius);
         if (g) {
           Object.assign(g.style, { background: 'transparent', boxShadow: 'none', border: '0', whiteSpace: 'nowrap' });
-          g.animate([{ opacity: 1, transform: 'none', filter: 'blur(0)' }, { opacity: 0, transform: 'translateY(-60%)', filter: 'blur(2px)' }], { duration: 170, easing: EASE_OUT, fill: 'forwards' }).finished.then(() => g.remove(), () => g.remove());
+          g.animate([{ opacity: 1, transform: 'none', filter: 'blur(0)' }, { opacity: 0, transform: 'translateY(-6px)', filter: 'blur(2px)' }], { duration: 170, easing: EASE_OUT, fill: 'forwards' }).finished.then(() => g.remove(), () => g.remove());
         }
         el.animate([
-          { opacity: 0, transform: 'translateY(60%)', filter: 'blur(2px)' },
+          { opacity: 0, transform: 'translateY(6px)', filter: 'blur(2px)' },
           { opacity: 1, transform: 'none', filter: 'blur(0)' },
         ], { duration: 280, easing: EASE_OUT, delay: 70, fill: 'backwards' });
       } else {
