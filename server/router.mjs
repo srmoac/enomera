@@ -67,6 +67,31 @@ function isAllowedOrigin(origin) {
   return false;
 }
 
+// Aviso ao paciente quando a solicitação é confirmada. O envio é à parte da confirmação:
+// se o e-mail falhar, a consulta continua confirmada e a resposta diz que o aviso não saiu.
+async function notifyPatientOfConfirmation(db, account, out) {
+  const recipient = String(out?.request?.patient_email || '').trim();
+  if (!recipient || out?.idempotentReplay || !out?.appointment) return { sent: false, recipient: recipient || null, reason: recipient ? 'already_notified' : 'no_email' };
+  const tz = account.timezone || 'America/Sao_Paulo';
+  const when = new Date(out.appointment.start_at).toLocaleString('pt-BR', { timeZone: tz, weekday: 'long', day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit' });
+  const modality = out.appointment.modality === 'presencial' ? 'presencial' : 'online';
+  const amboBase = String(process.env.ENOMERA_AMBO_URL || '').replace(/\/+$/, '');
+  const link = amboBase ? `${amboBase}/?pro=${encodeURIComponent(account.slug)}` : '';
+  const escHtml = (v) => String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  try {
+    const delivery = await sendTransactionalEmail(db, {
+      recipient,
+      subject: `Consulta confirmada com ${account.display_name} · Ambo`,
+      textBody: `${account.display_name} confirmou sua consulta ${modality}: ${when}.${link ? ` Acompanhe ou peça remarcação em ${link}` : ''}`,
+      htmlBody: `<p><b>${escHtml(account.display_name)}</b> confirmou sua consulta ${modality}.</p><p><b>${escHtml(when)}</b></p>${link ? `<p><a href="${escHtml(link)}">Acompanhar ou pedir remarcação no Ambo</a></p>` : ''}`,
+      purpose: 'ambo_request_confirmed',
+    });
+    return { sent: Boolean(delivery.sentExternally), recipient, reason: delivery.sentExternally ? null : delivery.deliveryStatus };
+  } catch (err) {
+    return { sent: false, recipient, reason: err.code || 'delivery_failed' };
+  }
+}
+
 // A própria origem do deployment é sempre aceita (alias de branch, URL do deployment ou domínio atribuído).
 function isRequestOriginAllowed(req) {
   const origin = req.headers.origin;
@@ -211,6 +236,9 @@ async function requireProfessional(db, auth, { product = null, write = false, cl
   }
   if (clinical && !auth.membership.can_access_clinical) {
     throw Object.assign(new Error('Seu vínculo nesta conta não autoriza acesso ao conteúdo clínico.'), { status: 403, code: 'FORBIDDEN_CLINICAL' });
+  }
+  if (product && !auth.user.email_verified_at) {
+    throw Object.assign(new Error('Confirme seu e-mail para usar os serviços desta conta.'), { status: 403, code: 'EMAIL_VERIFICATION_REQUIRED' });
   }
   if (product) {
     const ents = await getAccountEntitlements(db, auth.account.id);
@@ -866,6 +894,7 @@ export async function handleApiRequest(req, res, customDb = null) {
     // ── ENOMERA COMMERCIAL, TRIAL, PILOT, SIMULATED CHECKOUT & PORTAL ──
     if (method === 'POST' && pathname === '/api/v1/commercial/trial/start') {
       await requireProfessional(db, auth);
+      if (!auth.user.email_verified_at) throw Object.assign(new Error('Confirme seu e-mail antes de iniciar o teste.'), { status: 403, code: 'EMAIL_VERIFICATION_REQUIRED' });
       const body = await readJsonBody(req);
       const products = (Array.isArray(body.products) ? body.products : ['ambo', 'minne']).filter((p) => ['ambo', 'minne'].includes(p));
       if (products.length === 0) throw Object.assign(new Error('Selecione Ambo e/ou Minne para o teste de 7 dias.'), { status: 400, code: 'INVALID_TRIAL_PRODUCTS' });
@@ -1589,6 +1618,7 @@ export async function handleApiRequest(req, res, customDb = null) {
         sourceProduct: 'ambo',
         simulateDelayedSync: Boolean(body.simulateDelayedSync),
       });
+      out.patientNotification = await notifyPatientOfConfirmation(db, auth.account, out);
       return json(res, out.idempotentReplay ? 200 : 201, out);
     }
 
@@ -1694,6 +1724,7 @@ export async function handleApiRequest(req, res, customDb = null) {
         sourceProduct: 'minne',
         simulateDelayedSync: Boolean(body.simulateDelayedSync),
       });
+      out.patientNotification = await notifyPatientOfConfirmation(db, auth.account, out);
       return json(res, out.idempotentReplay ? 200 : 201, out);
     }
 
