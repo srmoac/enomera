@@ -1472,15 +1472,24 @@ export async function handleApiRequest(req, res, customDb = null) {
         VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?)
       `, id, auth.account.id, pat.id, sha256Hex(rawToken), body.channel || 'email', targetContact, expiresAt, nowIso()));
 
+      const amboBase = String(process.env.ENOMERA_AMBO_URL || '').replace(/\/+$/, '');
+      const inviteUrl = amboBase ? `${amboBase}/?pro=${encodeURIComponent(auth.account.slug)}&convite=${encodeURIComponent(rawToken)}` : null;
+      const escHtml = (v) => String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      const expiresLabel = new Date(expiresAt).toLocaleDateString('pt-BR', { timeZone: auth.account.timezone || 'America/Sao_Paulo' });
+      const proName = auth.account.display_name;
       const delivery = await sendTransactionalEmail(db, {
         channel: body.channel || 'email',
         recipient: targetContact,
-        subject: `Convite para agendar com ${auth.account.display_name} · Ambo`,
-        textBody: `Use seu convite de uso único para escolher um horário com ${auth.account.display_name} (expira em ${expiresAt}): ${rawToken}`,
-        htmlBody: `<p>Use seu convite de uso único para escolher um horário com <b>${auth.account.display_name}</b> (expira em ${expiresAt}):</p><p><code>${rawToken}</code></p>`,
+        subject: `Convite para agendar com ${proName} · Ambo`,
+        textBody: inviteUrl
+          ? `${proName} convidou você para escolher um horário. Abra o link (uso único, válido até ${expiresLabel}): ${inviteUrl}`
+          : `Use seu convite de uso único para escolher um horário com ${proName} (válido até ${expiresLabel}): ${rawToken}`,
+        htmlBody: inviteUrl
+          ? `<p><b>${escHtml(proName)}</b> convidou você para escolher um horário.</p><p><a href="${escHtml(inviteUrl)}">Escolher horário no Ambo</a></p><p>O convite é de uso único e vale até ${expiresLabel}.</p>`
+          : `<p>Use seu convite de uso único para escolher um horário com <b>${escHtml(proName)}</b> (válido até ${expiresLabel}):</p><p><code>${rawToken}</code></p>`,
         purpose: 'ambo_invitation',
       });
-      return json(res, 201, { invitationId: id, inviteToken: rawToken, expiresAt, delivery });
+      return json(res, 201, { invitationId: id, inviteToken: rawToken, inviteUrl, expiresAt, delivery });
     }
 
     if (method === 'POST' && pathname === '/api/v1/ambo/invitations/verify') {
