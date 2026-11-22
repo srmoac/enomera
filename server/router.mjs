@@ -271,6 +271,7 @@ async function buildPublicSiteDto(db, account) {
     amboActive,
     amboProfileSlug: amboActive ? account.slug : null,
     customContactUrl: ctaMode === 'custom' ? (proj?.custom_contact_url || published?.content?.customContactUrl || '') : null,
+    contactUrl: proj?.custom_contact_url || published?.content?.customContactUrl || null,
     authorship: 'Site por Etha',
     versionNumber: published?.versionNumber || null,
     publishedAt: published?.publishedAt || null,
