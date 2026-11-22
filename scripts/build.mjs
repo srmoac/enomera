@@ -1,8 +1,10 @@
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { buildLegalPages } from './legal-pages.mjs';
 
 await rm('dist', { recursive: true, force: true });
 await mkdir('dist', { recursive: true });
 await cp('public', 'dist', { recursive: true });
+await buildLegalPages('dist');
 
 // Inject preview/environment ecosystem URLs into dist/index.html when configured in Vercel Preview/Prod env
 const envMap = {
