@@ -909,7 +909,7 @@ export async function handleApiRequest(req, res, customDb = null) {
       const recipient = url.searchParams.get('recipient');
       if (!recipient) throw Object.assign(new Error('Informe recipient para consultar a caixa de homologação.'), { status: 400, code: 'RECIPIENT_REQUIRED' });
       const rows = await db.all(
-        "SELECT id, channel, recipient, subject, body_preview, purpose, delivery_status, created_at FROM dev_outbox_messages WHERE lower(recipient) = lower(?) AND delivery_status != 'sent_resend' ORDER BY created_at DESC LIMIT 10",
+        "SELECT id, channel, recipient, subject, body_preview, purpose, delivery_status, created_at FROM dev_outbox_messages WHERE lower(recipient) = lower(?) AND delivery_status NOT IN ('sent_resend', 'sent_smtp') ORDER BY created_at DESC LIMIT 10",
         recipient
       );
       return json(res, 200, {
