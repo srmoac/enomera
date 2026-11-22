@@ -148,3 +148,6 @@
   .pn-bar .lbl { grid-column: 1 / -1; white-space: normal; }
   .pn-bar .track { grid-column: 1; }
 }
+
+#pn-teste[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
+@media (max-width: 520px) { .pn-tools { width: 100%; justify-content: space-between; } #pn-teste { padding: 0 10px; } }

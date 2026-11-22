@@ -79,6 +79,17 @@ test('Piloto: convite único, consentimento, eventos ligados à pessoa e painel 
     assert.equal(ni.status, 201); assert.match(ni.data.link, /\/convite\/[A-Za-z0-9_-]{20,}$/);
     assert.equal((await call(`/api/v1/pilot/invites/${ni.data.link.split('/').pop()}`)).data.state, 'open');
 
+    // Conta de teste do administrador: entra só com ?teste=1.
+    const S = 'tokenDeTesteDoMarcosTeste';
+    await db.run("INSERT INTO pilot_invites (id, kind, label, token_hash, created_at) VALUES ('inv_s', 'self_test', 'Teste do Marcos', ?, ?)", sha256Hex(S), now);
+    const self = await call(`/api/v1/pilot/invites/${S}/accept`, { fullName: 'Marcos Teste', email: 'marcos.teste@exemplo.invalid', password: 'senha-ficticia-3', consent: true });
+    assert.equal(self.status, 201); assert.equal(self.data.next, '/checkout');
+    await call('/api/v1/pilot/events', { d: 'dSelfTeste01', p: 'enomera', s: 'sSelf001', e: [ev('time', { n: 5000 })] }, self.data.sessionToken);
+    const ov2 = await call('/api/v1/pilot/admin/overview?dias=7', null, login.data.sessionToken);
+    assert.equal(ov2.data.totals.joined, 1); assert.equal(ov2.data.totals.activeMs, 42000);
+    const ov3 = await call('/api/v1/pilot/admin/overview?dias=7&teste=1', null, login.data.sessionToken);
+    assert.equal(ov3.data.participants.length, 2); assert.ok(ov3.data.participants.find((x) => x.selfTest));
+
     // Retirar consentimento apaga os eventos.
     await call('/api/v1/pilot/withdraw', {}, acc.data.sessionToken);
     assert.equal(Number((await db.get('SELECT COUNT(*) AS c FROM pilot_events WHERE participant_id = ?', p.id)).c), 0);

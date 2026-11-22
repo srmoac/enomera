@@ -686,7 +686,7 @@ test('8. Two independent real accounts: isolation, clinical file attachment 403,
   await closeDb();
   const reopenedDb = await getDb(process.env.ENOMERA_DB_PATH);
   const migrations = await getAppliedMigrations(reopenedDb);
-  assert.equal(migrations.length, 4);
+  assert.equal(migrations.length, 5);
   const persistedNote = await reopenedDb.get('SELECT id, attachment_file_ids_json FROM clinical_notes WHERE id = ?', draftA.data.noteId);
   assert.ok(persistedNote);
   assert.ok(JSON.parse(persistedNote.attachment_file_ids_json).includes(fileIdA));

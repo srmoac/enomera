@@ -3,7 +3,7 @@
   'use strict';
   var TOKEN_KEY = 'enomera_session_token_v1';
   var main = document.getElementById('pn');
-  var state = { dias: 14, data: null, sort: { key: 'activeMs', dir: -1 }, heat: { product: '', screen: '', participant: '', form: '' }, newLink: null };
+  var state = { dias: 14, teste: false, data: null, sort: { key: 'activeMs', dir: -1 }, heat: { product: '', screen: '', participant: '', form: '' }, newLink: null };
   var PRODUCTS = { enomera: 'Enomera', ambo: 'Ambo', minne: 'Minne', etha: 'Etha', site: 'Site da profissional' };
   var reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   try { localStorage.setItem('eno_uso_off', '1'); } catch (e) {}
@@ -68,7 +68,7 @@
     if (loading) return; loading = true;
     if (first || !state.data) main.innerHTML = '<div class="pn-kpis">' + '<div class="pn-skel"></div>'.repeat(6) + '</div><div class="pn-skel tall"></div><div class="pn-skel tall"></div>';
     var btn = document.getElementById('pn-refresh'); btn.setAttribute('aria-busy', 'true');
-    api('/api/v1/pilot/admin/overview?dias=' + state.dias).then(function (r) {
+    api('/api/v1/pilot/admin/overview?dias=' + state.dias + (state.teste ? '&teste=1' : '')).then(function (r) {
       loading = false; btn.removeAttribute('aria-busy');
       if (r.status === 401) return loginView();
       if (r.status === 403) return loginView('Esta sessão não é a do administrador do piloto. Entre com o acesso de administrador.');
@@ -124,7 +124,7 @@
   }
 
   function personCard(p) {
-    var status = !p.sessionCount ? '<span class="pn-chip mute">Ainda não usou</span>' : p.returned ? '<span class="pn-chip ok">Voltou ' + p.daysActive + ' dias</span>' : '<span class="pn-chip">1 dia de uso</span>';
+    var status = p.selfTest ? '<span class="pn-chip mute">Seu teste</span>' : !p.sessionCount ? '<span class="pn-chip mute">Ainda não usou</span>' : p.returned ? '<span class="pn-chip ok">Voltou ' + p.daysActive + ' dias</span>' : '<span class="pn-chip">1 dia de uso</span>';
     var prods = Object.keys(p.products).sort(function (a, b) { return p.products[b].activeMs - p.products[a].activeMs; });
     var maxP = prods.length ? p.products[prods[0]].activeMs : 0;
     var used = p.features.filter(function (f) { return f.used; }).length;
@@ -187,7 +187,7 @@
     return (state.newLink ? '<div class="pn-newlink"><b>Link criado para ' + esc(state.newLink.label) + '</b><code>' + esc(state.newLink.link) + '</code><div><button type="button" class="pl-btn is-quiet" data-copy="' + esc(state.newLink.link) + '">Copiar link</button></div><p class="small muted">Ele aparece só agora. Funciona uma única vez.</p></div>' : '') +
       '<div class="pn-invites">' + d.invites.map(function (i) {
         var l = labels[i.state] || [i.state, 'mute'];
-        return '<div class="pn-invite"><div><b>' + esc(i.label) + '</b> <span class="small muted">' + (i.kind === 'admin' ? 'administrador' : 'convidado') + ' · criado ' + esc(ago(i.createdAt)) + (i.usedAt ? ' · usado ' + esc(ago(i.usedAt)) : '') + '</span></div>' +
+        return '<div class="pn-invite"><div><b>' + esc(i.label) + '</b> <span class="small muted">' + (i.kind === 'admin' ? 'administrador' : i.kind === 'self_test' ? 'seu teste, fora dos totais' : 'convidado') + ' · criado ' + esc(ago(i.createdAt)) + (i.usedAt ? ' · usado ' + esc(ago(i.usedAt)) : '') + '</span></div>' +
           '<div style="display:flex;gap:8px;align-items:center"><span class="pn-chip ' + l[1] + '">' + l[0] + '</span>' + (i.state === 'open' && i.kind !== 'admin' ? '<button type="button" class="pl-btn is-ghost" data-revoke="' + esc(i.id) + '">Cancelar</button>' : '') + '</div></div>';
       }).join('') + '</div>' +
       '<form class="pn-form-inline" id="pn-new-invite" novalidate><div class="pl-field"><label for="ni-label">Novo convite para</label><input id="ni-label" maxlength="60" placeholder="Ex.: Convidado 3 · psicóloga de Recife" aria-describedby="ni-err"><p class="pl-err" id="ni-err"></p></div><button class="pl-btn" type="submit">Criar link</button></form>';
@@ -197,7 +197,7 @@
     var d = state.data; var t = d.totals;
     var noUse = t.active === 0;
     var html =
-      '<section class="pn-section" id="resumo"><div class="pn-head"><div><h1>Uso real do piloto</h1><p>O que as pessoas convidadas fazem de fato nos produtos, nos últimos ' + d.days + ' dias. Seu próprio uso não entra.</p></div><span class="pn-updated">Atualizado ' + esc(when(d.generatedAt)) + '</span></div>' +
+      '<section class="pn-section" id="resumo"><div class="pn-head"><div><h1>Uso real do piloto</h1><p>O que as pessoas convidadas fazem de fato nos produtos, nos últimos ' + d.days + ' dias. ' + (d.includeSelfTest ? 'Inclui sua conta de teste.' : 'Sua conta de teste e seu acesso de administrador não entram.') + '</p></div><span class="pn-updated">Atualizado ' + esc(when(d.generatedAt)) + '</span></div>' +
       '<div class="pn-kpis pl-stagger">' + kpi('entraram', t.joined + '/' + t.invited) + kpi('usaram no período', t.active) + kpi('voltaram outro dia', t.returned) + kpi('tempo ativo', dur(t.activeMs)) + kpi('sessões', t.sessions) + kpi('erros', t.errors) + '</div>' +
       (noUse ? '<div class="pn-empty">' + (t.joined ? 'As contas já existem, mas ainda não há uso registrado no período.' : 'Ninguém aceitou o convite ainda. Envie os links da seção Convites.') + ' Os números aparecem aqui assim que a primeira pessoa usar.</div>' : insights(d)) + '</section>' +
 
@@ -240,7 +240,7 @@
   function drawHeat() {
     var holder = document.getElementById('h-canvas'); if (!holder) return;
     var h = state.heat; var my = ++heatReq;
-    var q = '?produto=' + encodeURIComponent(h.product) + '&tela=' + encodeURIComponent(h.screen) + (h.participant ? '&participante=' + encodeURIComponent(h.participant) : '') + (h.form ? '&formato=' + h.form : '');
+    var q = '?produto=' + encodeURIComponent(h.product) + '&tela=' + encodeURIComponent(h.screen) + (h.participant ? '&participante=' + encodeURIComponent(h.participant) : '') + (h.form ? '&formato=' + h.form : '') + (state.teste ? '&teste=1' : '');
     api('/api/v1/pilot/admin/heatmap' + q).then(function (r) {
       if (my !== heatReq || !r.ok) return;
       var d = r.d; var wrapW = Math.min(holder.clientWidth || 360, d.ratio > 1.2 ? 340 : 9999);
@@ -349,6 +349,7 @@
     var b;
     if ((b = t.closest('[data-dias]'))) { document.querySelectorAll('[data-dias]').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); placeLens(); state.dias = Number(b.getAttribute('data-dias')); load(); return; }
     if ((b = t.closest('#pn-refresh'))) { load(); return; }
+    if ((b = t.closest('#pn-teste'))) { state.teste = !state.teste; b.setAttribute('aria-pressed', String(state.teste)); load(); return; }
     if ((b = t.closest('[data-person]'))) { openPerson(b.getAttribute('data-person')); return; }
     if ((b = t.closest('[data-close]'))) { closeDrawer(); return; }
     if ((b = t.closest('[data-sort]'))) {
@@ -380,7 +381,7 @@
       btn.removeAttribute('aria-busy');
       if (!r.ok) { document.getElementById('ni-err').textContent = r.d.error || 'Não foi possível criar.'; return; }
       state.newLink = r.d;
-      api('/api/v1/pilot/admin/overview?dias=' + state.dias).then(function (o) { if (o.ok) { state.data = o.d; document.getElementById('pn-invites-card').innerHTML = invitesBlock(o.d); } });
+      api('/api/v1/pilot/admin/overview?dias=' + state.dias + (state.teste ? '&teste=1' : '')).then(function (o) { if (o.ok) { state.data = o.d; document.getElementById('pn-invites-card').innerHTML = invitesBlock(o.d); } });
     });
   });
 

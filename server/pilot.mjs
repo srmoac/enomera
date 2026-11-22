@@ -14,6 +14,18 @@ const INITIAL_INVITES = [
   { id: 'inv_piloto_t2', kind: 'tester', label: 'Convidado 2', hash: 'c31931f62ee85d4e25348674303d4cde4630ad49573d523abe5a2db39ddc34cf' },
   { id: 'inv_piloto_admin', kind: 'admin', label: 'Administrador (Marcos)', hash: '725845043e4479e84ae5a91196733962a4120225549dc8f5c7afe640dc5a79f6' },
 ];
+// Conta de convidado para o próprio Marcos testar: entra no painel separada e fora dos totais (22/11/2026 23:10 UTC).
+export const SELF_TEST_INVITES = [
+  { id: 'inv_piloto_marcos_teste', kind: 'self_test', label: 'Teste do Marcos', hash: 'b99862e845ecfd6f8da2c40dcfce7ce9d6919c3dbeec0e5a46d04561c4c33e5d' },
+];
+
+export async function applyPilotSelfTestMigration(tx) {
+  const now = nowIso();
+  for (const inv of SELF_TEST_INVITES) {
+    await tx.run('INSERT INTO pilot_invites (id, kind, label, token_hash, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING',
+      inv.id, inv.kind, inv.label, inv.hash, now);
+  }
+}
 
 export async function applyPilotMigration(tx) {
   await tx.exec(`CREATE TABLE IF NOT EXISTS pilot_invites (
@@ -269,9 +281,9 @@ function featureHits(ev) {
 
 function parseMeta(s) { try { return JSON.parse(s || '{}'); } catch { return {}; } }
 
-export async function buildPilotOverview(db, { days = 14 } = {}) {
+export async function buildPilotOverview(db, { days = 14, includeSelfTest = false } = {}) {
   const since = new Date(Date.now() - days * 864e5).toISOString();
-  const participants = await db.all(`SELECT pp.*, u.full_name, u.email FROM pilot_participants pp JOIN users u ON u.id = pp.user_id WHERE pp.kind = 'tester' ORDER BY pp.created_at ASC`);
+  const participants = await db.all(`SELECT pp.*, u.full_name, u.email FROM pilot_participants pp JOIN users u ON u.id = pp.user_id WHERE pp.kind IN (${includeSelfTest ? "'tester', 'self_test'" : "'tester'"}) ORDER BY pp.created_at ASC`);
   const invites = await db.all('SELECT id, kind, label, created_at, used_at, revoked_at, expires_at FROM pilot_invites ORDER BY created_at ASC');
   const events = await db.all(`SELECT e.participant_id, e.product, e.session_key, e.type, e.screen, e.target, e.x, e.y, e.n, e.meta_json, e.form, e.occurred_at, d.browser, d.os
     FROM pilot_events e LEFT JOIN pilot_devices d ON d.id = e.device_id
@@ -279,7 +291,7 @@ export async function buildPilotOverview(db, { days = 14 } = {}) {
   const unlinked = await db.get('SELECT COUNT(*) AS c FROM pilot_events WHERE participant_id IS NULL');
 
   const byP = new Map(participants.map((p) => [p.id, {
-    id: p.id, label: p.label, name: p.full_name, email: p.email, joinedAt: p.created_at, withdrawnAt: p.withdrawn_at,
+    id: p.id, label: p.label, name: p.full_name, email: p.email, joinedAt: p.created_at, withdrawnAt: p.withdrawn_at, selfTest: p.kind === 'self_test',
     activeMs: 0, sessions: new Map(), days: new Map(), products: {}, screens: new Map(), elements: new Map(), errors: 0, apiFailures: 0,
     rage: 0, dead: 0, features: new Set(), firstSeen: null, lastSeen: null, devices: new Set(),
   }]));
@@ -353,7 +365,7 @@ export async function buildPilotOverview(db, { days = 14 } = {}) {
     const dayList = [...P.days.keys()].sort();
     const last = sessions[sessions.length - 1];
     outParticipants.push({
-      id: P.id, label: P.label, name: P.name, email: P.email, joinedAt: P.joinedAt, withdrawnAt: P.withdrawnAt,
+      id: P.id, label: P.label, name: P.name, email: P.email, joinedAt: P.joinedAt, withdrawnAt: P.withdrawnAt, selfTest: P.selfTest,
       firstSeen: P.firstSeen, lastSeen: P.lastSeen, activeMs: P.activeMs, sessionCount: sessions.length,
       avgSessionMs: sessions.length ? Math.round(P.activeMs / sessions.length) : 0,
       daysActive: dayList.length, returned: dayList.length >= 2, days: Object.fromEntries(P.days),
@@ -375,7 +387,7 @@ export async function buildPilotOverview(db, { days = 14 } = {}) {
   })).sort((a, b) => b.activeMs - a.activeMs);
   const elementList = [...elements.values()].map((e) => ({ product: e.product, target: e.target, clicks: e.clicks, users: e.users.size, screens: [...e.screens].slice(0, 3), rage: e.rage, dead: e.dead })).sort((a, b) => b.clicks - a.clicks);
   return {
-    generatedAt: nowIso(), days, since,
+    generatedAt: nowIso(), days, since, includeSelfTest,
     totals: {
       invited: invites.filter((i) => i.kind === 'tester').length,
       joined: participants.length,
@@ -399,12 +411,13 @@ export async function buildPilotOverview(db, { days = 14 } = {}) {
   };
 }
 
-export async function buildHeatmap(db, { product, screen, participantId = null, form = null, days = 30 }) {
+export async function buildHeatmap(db, { product, screen, participantId = null, form = null, days = 30, includeSelfTest = false }) {
   const since = new Date(Date.now() - days * 864e5).toISOString();
   const params = [product, screen, since];
   let sql = "SELECT x, y, target, form, meta_json FROM pilot_events WHERE type = 'click' AND participant_id IS NOT NULL AND product = ? AND screen = ? AND occurred_at >= ?";
   if (participantId) { sql += ' AND participant_id = ?'; params.push(participantId); }
   if (form) { sql += ' AND form = ?'; params.push(form); }
+  if (!includeSelfTest) sql += " AND participant_id NOT IN (SELECT id FROM pilot_participants WHERE kind = 'self_test')";
   const rows = await db.all(`${sql} LIMIT 5000`, ...params);
   const ratios = [];
   const pts = rows.filter((r) => r.x != null && r.y != null).map((r) => { const m = parseMeta(r.meta_json); if (m.vw > 0 && m.dh > 0) ratios.push(m.dh / m.vw); return [r.x, r.y, m.rage ? 1 : 0, m.dead ? 1 : 0, r.form]; });
@@ -455,12 +468,12 @@ export async function handlePilotRoutes({ db, req, res, method, pathname, url, a
     requirePilotAdmin(auth);
     if (method === 'GET' && pathname === '/api/v1/pilot/admin/overview') {
       const days = Math.min(90, Math.max(1, Number(url.searchParams.get('dias') || 14)));
-      json(res, 200, await buildPilotOverview(db, { days })); return true;
+      json(res, 200, await buildPilotOverview(db, { days, includeSelfTest: url.searchParams.get('teste') === '1' })); return true;
     }
     if (method === 'GET' && pathname === '/api/v1/pilot/admin/heatmap') {
       json(res, 200, await buildHeatmap(db, {
         product: String(url.searchParams.get('produto') || ''), screen: String(url.searchParams.get('tela') || ''),
-        participantId: url.searchParams.get('participante') || null, form: url.searchParams.get('formato') || null,
+        participantId: url.searchParams.get('participante') || null, form: url.searchParams.get('formato') || null, includeSelfTest: url.searchParams.get('teste') === '1',
       })); return true;
     }
     const tl = pathname.match(/^\/api\/v1\/pilot\/admin\/participants\/([A-Za-z0-9_-]+)\/timeline$/);
