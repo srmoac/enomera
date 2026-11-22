@@ -31,7 +31,8 @@ test('Contas de homologação: só com senha no ambiente, verificadas e com os s
     assert.deepEqual(await rows('acc_homolog_paulo'), ['etha']);
     assert.deepEqual(await rows('acc_homolog_beatriz'), ['ambo', 'minne']);
     assert.equal((await login('paulo.ribeiro@homolog.enomera.invalid', 'senha-errada-qualquer')).status, 401);
-    assert.equal((await db.get("SELECT COUNT(*) AS c FROM users WHERE id LIKE 'usr_homolog_%'")).c, 3);
+    assert.equal((await db.get("SELECT COUNT(*) AS c FROM users WHERE id LIKE 'usr_homolog_%'")).c, 4);
+    assert.deepEqual(await rows('acc_homolog_renata'), []);
   } finally {
     await new Promise((resolve) => server.close(resolve));
     await closeDb?.();

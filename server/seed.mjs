@@ -10,6 +10,9 @@ const HOMOLOG_ACCOUNTS = [
     bio: 'Psicólogo clínico. Atendimento de adultos e casais.' },
   { key: 'beatriz', email: 'beatriz.lima@homolog.enomera.invalid', name: 'Beatriz Lima', slug: 'beatriz-lima', crp: 'CRP 06/000003', city: 'Recife, PE', products: ['minne', 'ambo'],
     bio: 'Psicóloga clínica. Atendimento de adolescentes e adultos.' },
+  // Sem serviços: serve para percorrer a contratação do zero.
+  { key: 'renata', email: 'renata.alves@homolog.enomera.invalid', name: 'Renata Alves', slug: 'renata-alves', crp: 'CRP 06/000004', city: 'Belo Horizonte, MG', products: [],
+    bio: 'Psicóloga clínica.' },
 ];
 let homologSeedDone = false;
 
