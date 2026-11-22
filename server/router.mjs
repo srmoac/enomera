@@ -909,7 +909,7 @@ export async function handleApiRequest(req, res, customDb = null) {
 
     // Dev/Homologation Outbox inspection (ONLY when SMTP is unconfigured — honest inspection for verification flows!)
     if (method === 'GET' && pathname === '/api/v1/dev/outbox') {
-      const realMailerOn = Boolean(process.env.SMTP_URL || (process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL));
+      const realMailerOn = Boolean(process.env.SMTP_URL || process.env.SMTP_PASSWORD || (process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL));
       if (isRemoteInfraRequired() || process.env.ENOMERA_ENABLE_DEV_OUTBOX === 'false' || (realMailerOn && process.env.ENOMERA_ENABLE_DEV_OUTBOX !== 'true')) {
         throw Object.assign(new Error('Caixa local de homologação indisponível quando o envio real de e-mail ou o modo de infraestrutura remota está ativo.'), { status: 403, code: 'OUTBOX_DISABLED' });
       }

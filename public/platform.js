@@ -109,6 +109,9 @@ async function apiFetch(path, { method = 'GET', body = null, headers = {} } = {}
 
 export async function mountEnomeraPlatform(rootEl) {
   const state = {
+    billingStatus: null,
+    billingPrices: null,
+    sub: { cycle: 'monthly', doc: '', busy: false, error: '' },
     tab: 'portal', // portal | auth | plans | profile | billing | pilot
     authMode: 'login', // login | signup | verify | recovery
     me: null,
@@ -241,6 +244,12 @@ export async function mountEnomeraPlatform(rootEl) {
           apiFetch('/api/v1/professional/profile'),
         ]);
         if (sumRes.ok) state.summary = sumRes.data;
+        const [billRes, priceRes] = await Promise.all([
+          apiFetch('/api/v1/billing/status'),
+          state.billingPrices ? Promise.resolve(null) : apiFetch('/api/v1/billing/prices'),
+        ]);
+        if (billRes?.ok) state.billingStatus = billRes.data;
+        if (priceRes?.ok) state.billingPrices = priceRes.data.prices || [];
         if (ordRes.ok) {
           state.orders = ordRes.data.orders || [];
           // Recover pending order after page reload automatically!
@@ -422,8 +431,8 @@ export async function mountEnomeraPlatform(rootEl) {
   function renderTopbar() {
     const authed = Boolean(state.me);
     const tabs = authed
-      ? [['portal', 'Portal'], ['profile', 'Perfil e agenda'], ['plans', 'Outros serviços'], ['billing', 'Cobrança'], ['pilot', 'Piloto (2 sem.)']]
-      : [['auth', 'Entrar'], ['plans', 'Serviços e preços'], ['pilot', 'Piloto (2 sem.)']];
+      ? [['portal', 'Portal'], ['profile', 'Perfil e agenda'], ['plans', 'Outros serviços'], ['billing', 'Cobrança'], ['pilot', 'Piloto']]
+      : [['auth', 'Entrar'], ['plans', 'Serviços e preços'], ['pilot', 'Piloto']];
     return `
       <header class="eno-topbar">
         <a class="eno-brand" href="/"><img src="/assets/brand.svg" width="32" height="27" alt="">enomera</a>
@@ -603,8 +612,8 @@ export async function mountEnomeraPlatform(rootEl) {
         </div>
 
         <aside class="eno-card">
-          <span class="eno-pill">HISTÓRICO DE PEDIDOS SIMULADOS</span>
-          <h2 class="eno-h2">Comprovantes demonstrativos</h2>
+          ${renderSubscribeCard()}
+          ${state.orders.length ? `<h2 class="eno-h2 eno-sub-history">Pedidos anteriores</h2>
           <div class="eno-list">
             ${state.orders.length ? state.orders.map((o) => `
               <div class="eno-row">
@@ -614,10 +623,78 @@ export async function mountEnomeraPlatform(rootEl) {
                 </div>
                 ${o.status !== 'approved' ? `<button type="button" class="eno-btn eno-btn-sec" data-retry-order="${esc(o.id)}" ${state.busyAction === 'retryOrder' ? 'disabled' : ''}>Retomar</button>` : ''}
               </div>
-            `).join('') : '<p class="eno-muted">Nenhum pedido registrado ainda.</p>'}
-          </div>
+            `).join('') : ''}
+          </div>` : ''}
         </aside>
       </section>
+    `;
+  }
+
+  function subscribeProducts() {
+    const ents = state.me?.entitlements || {};
+    const chosen = ['ambo', 'etha', 'minne'].filter((p) => ents[p] && ['trial', 'active', 'cancelled_grace'].includes(ents[p].status));
+    return chosen.length ? chosen : (state.combo?.products?.length ? ['ambo', 'etha', 'minne'].filter((p) => state.combo.products.includes(p)) : []);
+  }
+
+  function subscribePrice(products, cycle) {
+    const key = products.join('+');
+    const row = (state.billingPrices || []).find((r) => r.products.join('+') === key);
+    if (!row) return null;
+    return cycle === 'annual' ? row.annualCents : row.monthlyCents;
+  }
+
+  function formatDoc(v) {
+    const d = String(v || '').replace(/\D+/g, '').slice(0, 14);
+    if (d.length <= 11) return d.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+    return d.replace(/^(\d{2})(\d)/, '$1.$2').replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3').replace(/\.(\d{3})(\d)/, '.$1/$2').replace(/(\d{4})(\d{1,2})$/, '$1-$2');
+  }
+
+  const SUB_STATUS = { trial: '30 dias grátis', active: 'Em dia', overdue: 'Pagamento pendente', cancelled: 'Cancelada' };
+
+  function renderSubscribeCard() {
+    const st = state.billingStatus;
+    const sub = st?.subscription;
+    const fmtDate = (d) => (d ? new Date(`${d}T12:00:00`).toLocaleDateString('pt-BR') : '');
+    if (sub) {
+      return `
+        <span class="eno-pill">ASSINATURA</span>
+        <h2 class="eno-h2">${esc(sub.products.map((p) => PRODUCT_NAMES[p] || p).join(' + '))} · ${sub.cycle === 'annual' ? 'Anual' : 'Mensal'}</h2>
+        <div class="eno-list">
+          <div class="eno-row"><span>Situação</span><b>${esc(SUB_STATUS[sub.status] || sub.status)}</b></div>
+          <div class="eno-row"><span>Valor</span><b>${brl(sub.valueCents)}${sub.cycle === 'annual' ? '/ano' : '/mês'}</b></div>
+          ${sub.nextDueDate ? `<div class="eno-row"><span>${sub.status === 'trial' ? 'Primeira cobrança' : 'Próximo vencimento'}</span><b>${esc(fmtDate(sub.nextDueDate))}</b></div>` : ''}
+        </div>
+        ${sub.invoiceUrl ? `<div class="eno-btn-row"><a class="eno-btn" href="${esc(sub.invoiceUrl)}" target="_blank" rel="noopener">${sub.status === 'overdue' ? 'Pagar agora' : 'Ver fatura'} ↗</a></div>` : ''}
+        ${sub.sandbox ? '<p class="eno-muted">Ambiente de teste: nenhum valor é cobrado de verdade.</p>' : ''}
+      `;
+    }
+    const products = subscribeProducts();
+    if (!products.length) {
+      return `<span class="eno-pill">ASSINATURA</span><h2 class="eno-h2">Nenhum serviço ativo</h2><p class="eno-muted">Escolha seus serviços em <button type="button" class="eno-link" data-tab="plans">Outros serviços</button> para assinar.</p>`;
+    }
+    const cycle = state.sub.cycle;
+    const cents = subscribePrice(products, cycle);
+    const label = products.map((p) => PRODUCT_NAMES[p] || p).join(' + ');
+    const head = `<span class="eno-pill">ASSINATURA</span><h2 class="eno-h2">${esc(label)}</h2>`;
+    if (!st?.configured) {
+      return `${head}<p class="eno-muted">Durante o piloto, nada é cobrado. O pagamento por Pix, boleto ou cartão abre no lançamento.</p>`;
+    }
+    return `
+      ${head}
+      <form id="eno-sub-form" class="eno-sub-form" novalidate>
+        <div class="eno-flow-seg" role="radiogroup" aria-label="Periodicidade">
+          <button type="button" role="radio" data-sub-cycle="monthly" aria-checked="${cycle === 'monthly'}">Mensal</button>
+          <button type="button" role="radio" data-sub-cycle="annual" aria-checked="${cycle === 'annual'}">Anual</button>
+        </div>
+        <p class="eno-sub-price"><b>${cents != null ? brl(cents) : '—'}</b> ${cycle === 'annual' ? 'por ano (10 meses)' : 'por mês'}</p>
+        <div class="eno-field">
+          <label for="eno-sub-doc">CPF ou CNPJ para a fatura</label>
+          <input id="eno-sub-doc" class="eno-input" inputmode="numeric" autocomplete="off" placeholder="000.000.000-00" value="${esc(formatDoc(state.sub.doc))}" aria-invalid="${state.sub.error ? 'true' : 'false'}" ${state.sub.error ? 'aria-describedby="eno-sub-err"' : ''}>
+          ${state.sub.error ? `<span class="eno-field-err" id="eno-sub-err">${esc(state.sub.error)}</span>` : ''}
+        </div>
+        <button type="submit" class="eno-btn" ${state.sub.busy ? 'disabled' : ''}>${state.sub.busy ? 'Preparando…' : 'Assinar'}</button>
+        <p class="eno-muted">A primeira cobrança só acontece depois dos 30 dias grátis. Você paga por Pix, boleto ou cartão na página segura do Asaas.${st.mode === 'sandbox' ? ' Ambiente de teste: nada é cobrado de verdade.' : ''}</p>
+      </form>
     `;
   }
 
@@ -1398,6 +1475,40 @@ export async function mountEnomeraPlatform(rootEl) {
       const res = await apiFetch(`/api/v1/commercial/entitlements/${b.dataset.entProd}/${b.dataset.entAction}`, { method: 'POST', body: {} });
       if (res.ok) { state.feedback = { tone: 'warn', text: res.data.note }; await refreshSessionAndData(); }
     }));
+
+    rootEl.querySelectorAll('[data-sub-cycle]').forEach((b) => b.addEventListener('click', () => {
+      state.sub.cycle = b.dataset.subCycle === 'annual' ? 'annual' : 'monthly';
+      render();
+    }));
+    const subDoc = rootEl.querySelector('#eno-sub-doc');
+    subDoc?.addEventListener('input', () => {
+      state.sub.doc = subDoc.value.replace(/\D+/g, '').slice(0, 14);
+      subDoc.value = formatDoc(state.sub.doc);
+    });
+    rootEl.querySelector('#eno-sub-form')?.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      if (state.sub.busy) return;
+      const digits = state.sub.doc;
+      if (digits.length !== 11 && digits.length !== 14) {
+        state.sub.error = 'Digite os 11 números do CPF ou os 14 do CNPJ.';
+        render();
+        rootEl.querySelector('#eno-sub-doc')?.focus();
+        return;
+      }
+      state.sub.error = '';
+      state.sub.busy = true;
+      render();
+      const res = await apiFetch('/api/v1/billing/checkout', { method: 'POST', body: { products: subscribeProducts(), cycle: state.sub.cycle, cpfCnpj: digits } });
+      state.sub.busy = false;
+      if (!res.ok) {
+        state.sub.error = res.data.error || 'Não foi possível preparar a assinatura. Tente de novo.';
+        render();
+        return;
+      }
+      state.billingStatus = { ...(state.billingStatus || {}), subscription: res.data.subscription };
+      state.feedback = { tone: 'ok', text: 'Assinatura criada. A primeira cobrança só acontece depois dos 30 dias grátis.' };
+      render();
+    });
 
     rootEl.querySelector('#eno-export-account')?.addEventListener('click', async () => {
       const res = await apiFetch('/api/v1/account/export');

@@ -1202,3 +1202,12 @@ body:has(.eno-flow-shell) .journey-petal { display: none !important; }
 .eno-flow-login .eno-flow-main { max-width: 480px; }
 /* Portal: os cartões dos serviços ativos ocupam a largura toda, sem coluna vazia. */
 .eno-grid-3.eno-grid-fit { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+
+/* Assinatura no portal (Asaas) */
+.eno-sub-form { display: grid; gap: 14px; margin-top: 12px; --flow-ink: #1F2A4A; --flow-accent: #5B70B3; }
+.eno-sub-form .eno-flow-seg { justify-self: start; min-width: 240px; }
+.eno-sub-price { margin: 0; font-size: 1.05rem; }
+.eno-sub-price b { font-size: 1.5rem; font-variant-numeric: tabular-nums; }
+.eno-sub-form .eno-btn { justify-self: start; min-width: 160px; }
+.eno-sub-history { margin-top: 28px; }
+@media (max-width: 640px) { .eno-sub-form .eno-btn { justify-self: stretch; } }

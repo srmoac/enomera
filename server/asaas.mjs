@@ -73,15 +73,20 @@ let fetchImpl = (...args) => fetch(...args);
 export function __setAsaasFetchForTests(f) { fetchImpl = f || ((...args) => fetch(...args)); webhookEnsured = false; }
 
 async function asaasRequest(cfg, method, path, body) {
-  const resp = await fetchImpl(`${cfg.baseUrl}${path}`, {
-    method,
-    headers: {
-      access_token: cfg.key,
-      'Content-Type': 'application/json',
-      'User-Agent': 'enomera-core',
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  let resp;
+  try {
+    resp = await fetchImpl(`${cfg.baseUrl}${path}`, {
+      method,
+      headers: {
+        access_token: cfg.key,
+        'Content-Type': 'application/json',
+        'User-Agent': 'enomera-core',
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    throw Object.assign(new Error('Não foi possível falar com o Asaas agora. Tente de novo em alguns minutos.'), { status: 502, code: 'ASAAS_UNREACHABLE' });
+  }
   const json = await resp.json().catch(() => ({}));
   if (!resp.ok) {
     const desc = json?.errors?.[0]?.description || `HTTP ${resp.status}`;
