@@ -62,7 +62,7 @@ function getToken() { try { return sessionStorage.getItem(TOKEN_KEY) || ''; } ca
 function setToken(t) { try { if (t) sessionStorage.setItem(TOKEN_KEY, t); else sessionStorage.removeItem(TOKEN_KEY); } catch {} }
 function loadCombo() {
   try { const raw = sessionStorage.getItem(DRAFT_COMBO_KEY); if (raw) return JSON.parse(raw); } catch {}
-  return { products: ['ambo', 'minne', 'etha'], ethaFormat: 'one_page', viewMode: 'monthly' }; // primeira visita: plano recomendado (Completo)
+  return { products: ['ambo', 'minne', 'etha'], ethaFormat: 'one_page', ethaService: 'essencial', viewMode: 'monthly' }; // primeira visita: plano recomendado (Completo)
 }
 function saveCombo(combo) { try { sessionStorage.setItem(DRAFT_COMBO_KEY, JSON.stringify(combo)); } catch {} }
 function loadActivation() { try { const r = sessionStorage.getItem(ACTIVATION_KEY); return r ? JSON.parse(r) : null; } catch { return null; } }
@@ -290,6 +290,7 @@ export async function mountEnomeraPlatform(rootEl) {
       products: state.combo.products,
       billing: state.combo.viewMode === 'permanent' ? 'permanent' : 'monthly',
       ethaFormat: state.combo.ethaFormat,
+      ethaService: state.combo.ethaService === 'sob_medida' ? 'sob_medida' : 'essencial',
     };
   }
 
@@ -307,6 +308,7 @@ export async function mountEnomeraPlatform(rootEl) {
       state.combo.products = sel.products;
       state.combo.viewMode = sel.billing === 'permanent' ? 'permanent' : 'monthly';
       if (sel.ethaFormat) state.combo.ethaFormat = sel.ethaFormat;
+      if (sel.ethaService) state.combo.ethaService = sel.ethaService;
       saveCombo(state.combo);
     }
   }
@@ -1296,6 +1298,15 @@ export async function mountEnomeraPlatform(rootEl) {
       await refreshQuote(true);
       if (state.tab === 'plans') render();
     }));
+    rootEl.querySelectorAll('button[data-etha-service]').forEach((btn) => btn.addEventListener('click', async () => {
+      if (state.combo.ethaService === btn.dataset.ethaService) return;
+      state.combo.ethaService = btn.dataset.ethaService;
+      state.checkoutIdempotencyKey = `chk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      persistSelectionSoon();
+      render();
+      await refreshQuote(true);
+      if (state.tab === 'plans') render();
+    }));
     rootEl.querySelector('#eno-custom-toggle')?.addEventListener('click', () => { state.customOpen = !state.customOpen; render(); });
     rootEl.querySelectorAll('[data-flow-continue]').forEach((b) => b.addEventListener('click', () => rootEl.querySelector('#eno-flow-continue')?.click()));
 
@@ -1417,6 +1428,7 @@ export async function mountEnomeraPlatform(rootEl) {
         state.combo.products = res.data.selection.products;
         state.combo.viewMode = res.data.selection.billing === 'permanent' ? 'permanent' : 'monthly';
         if (res.data.selection.ethaFormat) state.combo.ethaFormat = res.data.selection.ethaFormat;
+        if (res.data.selection.ethaService) state.combo.ethaService = res.data.selection.ethaService;
         saveCombo(state.combo);
       }
       const goReview = state.returnAfterAuth === 'review' && state.combo.products.length;

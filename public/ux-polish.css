@@ -251,3 +251,23 @@ html:has(#portal:not([hidden])) body { overflow-anchor: none; }
   .eno-plan-badge { position: absolute; top: -11px; left: 18px; font-size: .64rem; padding: 4px 8px; box-shadow: 0 6px 14px rgba(60,84,150,.2); }
   .eno-plan.is-recommended { margin-top: 8px; }
 }
+
+/* Etha em dois níveis (22/11): escolha Essencial × Sob medida e linha de implantação no resumo */
+.eno-etha-svc { margin-top: 18px; padding: 16px 18px; border-radius: 20px; background: rgba(255,255,255,.42); border: 1px solid rgba(255,255,255,.85); }
+.eno-etha-svc-title { margin: 0 0 10px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.eno-etha-svc-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.eno-etha-opt { appearance: none; text-align: left; font: inherit; color: var(--flow-ink); cursor: pointer; padding: 14px 16px; border-radius: 16px; display: flex; flex-direction: column; gap: 6px;
+  background: rgba(255,255,255,.6); border: 1.5px solid rgba(255,255,255,.92); box-shadow: 0 8px 20px rgba(60,84,150,.06); }
+.eno-etha-opt.is-selected { background: var(--flow-selected); border-color: var(--flow-accent); }
+.eno-etha-opt.is-selected .eno-plan-radio { background: var(--flow-accent); border-color: var(--flow-accent); }
+.eno-etha-opt-head { display: flex; align-items: center; gap: 8px; }
+.eno-etha-opt-head b { font-weight: 600; font-size: 1.05rem; }
+.eno-etha-opt-price { margin-left: auto; font-size: .82rem; font-weight: 600; color: #2F6B5A; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.eno-etha-opt-detail { font-size: .85rem; color: var(--flow-ink-2); line-height: 1.4; }
+.eno-sum-setup { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; margin-top: 10px; padding-top: 10px; border-top: 1px dashed rgba(91,112,179,.3); }
+.eno-sum-setup span { display: flex; flex-direction: column; gap: 2px; }
+.eno-sum-setup b { font-weight: 600; font-size: .92rem; }
+.eno-sum-setup small { font-size: .78rem; color: var(--flow-muted); }
+.eno-sum-setup strong { font-variant-numeric: tabular-nums; white-space: nowrap; }
+@media (hover: hover) and (pointer: fine) { .eno-etha-opt:not(.is-selected):hover { border-color: rgba(91,112,179,.6); } }
+@media (max-width: 860px) { .eno-etha-svc-list { grid-template-columns: 1fr; } .eno-etha-svc { padding: 14px; } }

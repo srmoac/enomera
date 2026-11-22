@@ -625,7 +625,7 @@ export async function handleApiRequest(req, res, customDb = null) {
         password: z.string().min(8),
         crpOrCrm: z.string().optional().default(''),
         specialty: z.enum(['Psicologia', 'Psiquiatria']).optional().default('Psicologia'),
-        selection: z.object({ products: z.array(z.enum(['ambo', 'minne', 'etha'])).min(1), ethaFormat: z.enum(['one_page', 'multi_page']).optional() }).optional(),
+        selection: z.object({ products: z.array(z.enum(['ambo', 'minne', 'etha'])).min(1), ethaFormat: z.enum(['one_page', 'multi_page']).optional(), ethaService: z.enum(['essencial', 'sob_medida']).optional() }).optional(),
       });
       const data = schema.parse(await readJsonBody(req));
       const normEmail = data.email.trim().toLowerCase();
@@ -977,11 +977,11 @@ export async function handleApiRequest(req, res, customDb = null) {
         return json(res, 200, { order: existing, summary: JSON.parse(existing.summary_json), attempts, entitlements: await getAccountEntitlements(db, auth.account.id), idempotentReplay: true });
       }
 
-      const quote = calculateSimulatedQuote({ products: body.products, ethaFormat: body.ethaFormat, mode: 'monthly' });
+      const quote = calculateSimulatedQuote({ products: body.products, ethaFormat: body.ethaFormat, ethaService: body.ethaService, mode: 'monthly' });
       // Percurso aprovado (22 nov): a ativação informa a periodicidade e não cobra nada hoje.
       const isContractFlow = body.billing === 'monthly' || body.billing === 'permanent';
       if (isContractFlow) {
-        const contract = buildContractSummary({ products: body.products, ethaFormat: body.ethaFormat, billing: body.billing });
+        const contract = buildContractSummary({ products: body.products, ethaFormat: body.ethaFormat, ethaService: body.ethaService, billing: body.billing });
         quote.billing = contract.billing;
         quote.contract = contract;
         quote.dueTodayCents = 0;

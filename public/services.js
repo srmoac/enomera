@@ -81,6 +81,6 @@ export function billingFor(ids, mode) {
     .filter(s => ids.includes(s.id))
     .map(s => ({
       id: s.id,
-      text: `${brl(MONTHLY[s.id] * (annual ? 10 : 1))}${annual ? '/ano' : '/mês'} · ${s.id === 'etha' ? 'site exclusivo, hospedagem e painel' : 'hospedagem, atualizações e suporte incluídos'}`
+      text: `${brl(MONTHLY[s.id] * (annual ? 10 : 1))}${annual ? '/ano' : '/mês'} · ${s.id === 'etha' ? 'site, hospedagem e painel (Sob medida: + R$ 790 de implantação, até 3x)' : 'hospedagem, atualizações e suporte incluídos'}`
     }));
 }

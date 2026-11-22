@@ -21,8 +21,29 @@ export const PLANS = [
   { id: 'consultorio', name: 'Consultório', products: ['ambo', 'minne'], monthly: 79, separate: 98, for: 'Agenda e prontuário no mesmo lugar.',
     items: ['Tudo do Agenda', 'Prontuários e evolução clínica (Minne)', 'Agenda do dia ligada aos pedidos'] },
   { id: 'completo', name: 'Completo', products: ['ambo', 'minne', 'etha'], monthly: 99, separate: 147, recommended: true, for: 'Site, agenda e prontuário: a prática inteira.',
-    items: ['Tudo do Consultório', 'Site profissional exclusivo (Etha)', 'Hospedagem e painel para editar'] },
+    items: ['Tudo do Consultório', 'Site profissional (Etha)', 'Hospedagem e painel para editar'] },
 ];
+
+// Etha em dois níveis (22/11): Essencial sem taxa; Sob medida com implantação única.
+export const ETHA_SERVICES = [
+  { id: 'essencial', name: 'Essencial', price: 'Incluído', detail: 'Você preenche o briefing guiado e o site sai de um modelo pronto, no seu tom.' },
+  { id: 'sob_medida', name: 'Sob medida', price: '+ R$ 790 único', detail: 'A equipe monta o site com você: textos, fotos e páginas. Até 3x, cobrado só quando você aprovar o site.' },
+];
+
+function renderEthaService(service) {
+  const cur = service === 'sob_medida' ? 'sob_medida' : 'essencial';
+  return `
+    <div class="eno-etha-svc" data-m-key="etha-svc" role="radiogroup" aria-labelledby="eno-etha-svc-title">
+      <p class="eno-etha-svc-title" id="eno-etha-svc-title"><i class="eno-plan-dot eno-plan-dot-etha" aria-hidden="true"></i> Como você quer o seu site?</p>
+      <div class="eno-etha-svc-list">
+        ${ETHA_SERVICES.map((o) => `
+          <button type="button" role="radio" aria-checked="${cur === o.id}" class="eno-etha-opt${cur === o.id ? ' is-selected' : ''}" data-etha-service="${o.id}" data-m-key="etha-opt-${o.id}" data-m-state="${cur === o.id ? 'on' : 'off'}">
+            <span class="eno-etha-opt-head"><span class="eno-plan-radio m-pop" aria-hidden="true">${cur === o.id ? '✓' : ''}</span><b>${o.name}</b><span class="eno-etha-opt-price">${o.price}</span></span>
+            <span class="eno-etha-opt-detail">${o.detail}</span>
+          </button>`).join('')}
+      </div>
+    </div>`;
+}
 const brl = (n) => `R$ ${Number(n).toLocaleString('pt-BR', { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 })}`;
 export function planFor(products = []) {
   const key = ORDER.filter((p) => products.includes(p)).join('+');
@@ -148,6 +169,7 @@ export function renderSummary(contract, { billing, withToggle = false, cta = '',
         <span data-m-key="sum-total-label" data-m-num>${esc(contract.totalLabel)}</span>
         <strong data-m-key="sum-total-value" data-m-num>${esc(contract.total)}</strong>
       </div>
+      ${contract.setup ? `<div class="eno-sum-setup" data-m-key="sum-setup"><span><b>+ ${esc(contract.setup.label)}</b><small>${esc(contract.setup.note)}</small></span><strong data-m-key="sum-setup-amt" data-m-num>${esc(contract.setup.amount)}</strong></div>` : ''}
       <p class="eno-sum-today">Cobrado hoje: ${esc(contract.chargedToday)} · <span class="eno-hide-sm">${esc(contract.chargedTodayNote)}</span><span class="eno-show-sm">sem cartão</span></p>
     </div>
     ${cta}
@@ -184,7 +206,7 @@ export function renderChoice({ combo, contract, signedIn, returnedFromReview, cu
     <p class="eno-flow-reassure" data-m-key="reassure">Sem cartão agora · nenhuma cobrança hoje · cancele quando quiser</p>`;
   const mobileBar = combo.products.length && contract ? `
     <div class="eno-plan-bar eno-show-sm" data-m-key="plan-bar">
-      <span><b data-m-key="bar-name" data-m-num>${esc(plan ? plan.name : comboLabel(combo.products))}</b><small data-m-key="bar-total" data-m-num>${esc(contract.total)}</small></span>
+      <span><b data-m-key="bar-name" data-m-num>${esc(plan ? plan.name : comboLabel(combo.products))}</b><small data-m-key="bar-total" data-m-num>${esc(contract.total)}${contract.setup ? ' + R$ 790 único' : ''}</small></span>
       <button type="button" class="eno-btn" data-flow-continue>${returnedFromReview ? 'Voltar à revisão' : 'Começar grátis'}</button>
     </div>` : '';
   return `
@@ -203,6 +225,7 @@ export function renderChoice({ combo, contract, signedIn, returnedFromReview, cu
         <div class="eno-plan-list" role="radiogroup" aria-label="Planos">
           ${PLANS.map((pl) => renderPlanCard(pl, { selected: plan?.id === pl.id, billing })).join('')}
         </div>
+        ${sel('etha') ? renderEthaService(combo.ethaService) : ''}
         <div class="eno-custom${customOpen ? ' is-open' : ''}" data-m-key="custom">
           <button type="button" class="eno-custom-toggle" id="eno-custom-toggle" aria-expanded="${customOpen}" aria-controls="eno-custom-list">
             ${plan ? 'Prefere montar do seu jeito?' : 'Montando do seu jeito'} <span aria-hidden="true">${customOpen ? '−' : '+'}</span>

@@ -48,6 +48,12 @@ export const COMMERCIAL_CATALOG = {
       includes: 'Site exclusivo com briefing guiado, redação para aprovação, publicação, hospedagem e painel de edição.',
     },
   },
+  // Etha em dois níveis (aprovado por Marcos em 22/11 22:08 UTC): Essencial (modelo, sem taxa)
+  // e Sob medida (montado pela equipe, implantação única de R$ 790 em até 3x, cobrada na aprovação do site).
+  ethaServices: {
+    essencial: { id: 'essencial', name: 'Etha Essencial', setupCents: 0, description: 'Você preenche o briefing e o site sai de um modelo pronto.' },
+    sob_medida: { id: 'sob_medida', name: 'Etha Sob medida', setupCents: 79000, installments: 3, description: 'A equipe monta o site com você, do briefing à publicação.' },
+  },
   bundle: {
     id: 'combos',
     rule: 'Combos: Ambo + Minne R$ 79, Ambo + Etha R$ 69, Etha + Minne R$ 89 e os três por R$ 99 por mês. Anual = 10 mensalidades.',
@@ -77,7 +83,23 @@ const NAMES = { ambo: 'Ambo', minne: 'Minne', etha: 'Etha' };
  * Cálculo autoritativo no servidor. O cliente manda só os produtos; o servidor calcula tudo.
  * Cobrado hoje é sempre R$ 0 (sem cobrança real).
  */
-export function calculateSimulatedQuote({ products = [], ethaFormat = null, mode = 'monthly' }) {
+export function normalizeEthaService(v) { return v === 'sob_medida' ? 'sob_medida' : 'essencial'; }
+
+/** Implantação única da Etha Sob medida (fora da mensalidade; cobrada só na aprovação do site). */
+export function ethaSetup(products = [], ethaService) {
+  if (!products.includes('etha') || normalizeEthaService(ethaService) !== 'sob_medida') return null;
+  const svc = COMMERCIAL_CATALOG.ethaServices.sob_medida;
+  const per = Math.round(svc.setupCents / svc.installments);
+  return {
+    label: 'Implantação Etha Sob medida',
+    amountCents: svc.setupCents,
+    amount: formatBrl(svc.setupCents),
+    installments: svc.installments,
+    note: `Pagamento único, em até ${svc.installments}x de ${formatBrl(per)}. Cobrado só quando você aprovar o site.`,
+  };
+}
+
+export function calculateSimulatedQuote({ products = [], ethaFormat = null, ethaService = null, mode = 'monthly' }) {
   const unique = new Set(products.filter((p) => ['ambo', 'minne', 'etha'].includes(p)));
   if (unique.size === 0) throw new Error('EMPTY_SELECTION');
   const selected = [...unique];
@@ -86,7 +108,7 @@ export function calculateSimulatedQuote({ products = [], ethaFormat = null, mode
   const days = COMMERCIAL_CATALOG.trialDays;
   const lines = ORDERED.filter((p) => unique.has(p)).map((p) => ({
     product: p,
-    ...(p === 'etha' ? { format: ethaFormat === 'multi_page' ? 'multi_page' : 'one_page' } : {}),
+    ...(p === 'etha' ? { format: ethaFormat === 'multi_page' ? 'multi_page' : 'one_page', service: normalizeEthaService(ethaService) } : {}),
     label: mode === 'trial' ? `${NAMES[p]} · ${days} dias grátis` : `${NAMES[p]} · Assinatura mensal`,
     dueTodayCents: mode === 'trial' ? 0 : COMMERCIAL_CATALOG.products[p].monthlyCents,
     recurringMonthlyCents: COMMERCIAL_CATALOG.products[p].monthlyCents,
@@ -123,6 +145,8 @@ export function calculateSimulatedQuote({ products = [], ethaFormat = null, mode
     isSimulationOnly: true,
     selectedProducts: selected,
     ethaFormat: hasEtha ? (ethaFormat === 'multi_page' ? 'multi_page' : 'one_page') : null,
+    ethaService: hasEtha ? normalizeEthaService(ethaService) : null,
+    setup: ethaSetup(selected, ethaService),
     lines,
     referenceDueTodayCents: monthlyCents,
     dueTodayCents: 0,
@@ -155,7 +179,8 @@ export function normalizeSelection(input = {}) {
   const products = CONTRACT_ORDER.filter((p) => raw.includes(p));
   const billing = input.billing === 'permanent' ? 'permanent' : 'monthly';
   const ethaFormat = input.ethaFormat === 'multi_page' ? 'multi_page' : 'one_page';
-  return { products, billing, ethaFormat };
+  const ethaService = normalizeEthaService(input.ethaService);
+  return { products, billing, ethaFormat, ethaService };
 }
 
 export function selectionLabel(products = []) {
@@ -172,13 +197,14 @@ export function selectionLabel(products = []) {
 export function buildContractSummary(input = {}) {
   const sel = normalizeSelection(input);
   if (!sel.products.length) throw new Error('EMPTY_SELECTION');
-  const { products, billing, ethaFormat } = sel;
+  const { products, billing, ethaFormat, ethaService } = sel;
   const annual = billing === 'permanent';
   const mult = annual ? ANNUAL_MONTHS : 1;
   const catalog = COMMERCIAL_CATALOG.products;
   const lines = CONTRACT_ORDER.filter((p) => products.includes(p)).map((p) => {
     const cents = catalog[p].monthlyCents * mult;
-    return { product: p, label: PRODUCT_LABELS[p], amountCents: cents, amount: formatBrl(cents) };
+    const label = p === 'etha' ? COMMERCIAL_CATALOG.ethaServices[ethaService].name : PRODUCT_LABELS[p];
+    return { product: p, label, amountCents: cents, amount: formatBrl(cents) };
   });
   const { monthlyCents, savingsCents } = comboPricing(products);
   const discount = savingsCents > 0
@@ -196,6 +222,8 @@ export function buildContractSummary(input = {}) {
     products,
     billing,
     ethaFormat: products.includes('etha') ? ethaFormat : null,
+    ethaService: products.includes('etha') ? ethaService : null,
+    setup: ethaSetup(products, ethaService),
     label: selectionLabel(products),
     billingLabel: annual ? 'Anual' : 'Mensal',
     lines,
