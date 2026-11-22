@@ -21,11 +21,6 @@ export function approvedTopbar(s) {
     <div class="eno-btn-row"><button type="button" class="eno-account-link" data-tab="${s.me ? 'portal' : 'auth'}">${s.me ? escape(s.me.user.fullName) : 'Minha conta'}</button>${s.me ? '<button type="button" class="eno-btn eno-btn-sec eno-btn-sm" id="eno-logout">Sair</button>' : ''}</div></header>`;
 }
 
-export function approvedStepper(s) {
-  if (!['plans','auth'].includes(s.tab)) return '';
-  const step = s.tab === 'plans' ? s.checkoutStage === 'review' ? 3 : 0 : s.authMode === 'verify' ? 2 : 1;
-  return `<nav class="eno-approved-steps" aria-label="Etapas da contratação">${['Escolha','Conta','Verificação','Revisão'].map((label,i) => `<span ${i === step ? 'aria-current="step"' : ''}>${label}</span>${i < 3 ? '<span aria-hidden="true">→</span>' : ''}`).join('')}</nav>`;
-}
 
 export function approvedAuth(s, { password, outbox }) {
   const mode = s.authMode;
@@ -80,7 +75,7 @@ export function approvedPlans(s) {
 }
 
 export function approvedPortal(s) {
-  if (!s.summary) return '<p role="status">Carregando seu portal…</p>';
+  if (!s.summary) return '<div class="eno-skeleton" role="status" aria-busy="true"><span class="eno-sr-only">Carregando seu portal…</span><div class="eno-skeleton-card" aria-hidden="true"><span class="eno-skeleton-line is-title"></span><span class="eno-skeleton-line"></span><span class="eno-skeleton-line is-short"></span></div></div>';
   const e = s.summary.entitlements || {};
   const active = Object.keys(names).filter(p => e[p]?.canReadExport);
   const available = Object.keys(names).filter(p => !e[p]?.canReadExport);

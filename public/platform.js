@@ -48,6 +48,8 @@ const STATUS_LABELS = {
 const statusLabel = (status) => STATUS_LABELS[status] || 'Em andamento';
 const BILLING_LABELS = { monthly: 'Mensal', subscription: 'Mensal', permanent: 'Licença permanente', license: 'Licença permanente', trial: 'Teste de 7 dias' };
 const SYNC_LABELS = {};
+const loadingSkeleton = (label, cards = 3) => `<div class="eno-skeleton" role="status" aria-busy="true"><span class="eno-sr-only">${label}</span>${Array.from({ length: cards }, () => '<div class="eno-skeleton-card" aria-hidden="true"><span class="eno-skeleton-line is-title"></span><span class="eno-skeleton-line"></span><span class="eno-skeleton-line is-short"></span></div>').join('')}</div>`;
+
 const fmtDateTime = (iso) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? String(iso ?? '') : d.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); };
 const brl = (cents) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((cents || 0) / 100);
 
@@ -456,7 +458,7 @@ export async function mountEnomeraPlatform(rootEl) {
 
   function renderPortalView() {
     const s = state.summary;
-    if (!s) return '<div class="eno-card"><p class="eno-muted">Carregando seu portal...</p></div>';
+    if (!s) return loadingSkeleton('Carregando seu portal…', 3);
     const e = s.entitlements || {};
     const activeCount = ['ambo', 'minne', 'etha'].filter((p) => e[p]?.canReadExport).length;
     const activeProducts = ['ambo', 'minne', 'etha'].filter((p) => e[p]);
@@ -537,7 +539,7 @@ export async function mountEnomeraPlatform(rootEl) {
 
   function renderProfileView() {
     const p = state.profileData?.profile;
-    if (!p) return '<div class="eno-card"><p class="eno-muted">Carregando perfil...</p></div>';
+    if (!p) return loadingSkeleton('Carregando seu perfil…', 2);
     return `
       <section class="eno-grid-2 eno-panel-enter">
         <form id="eno-profile-form" class="eno-card">
@@ -657,6 +659,19 @@ export async function mountEnomeraPlatform(rootEl) {
     });
   }
 
+  function announceStep(text) {
+    let live = document.getElementById('eno-step-live');
+    if (!live) {
+      live = document.createElement('div');
+      live.id = 'eno-step-live';
+      live.className = 'eno-sr-only';
+      live.setAttribute('aria-live', 'polite');
+      document.body.appendChild(live);
+    }
+    live.textContent = '';
+    requestAnimationFrame(() => { live.textContent = text; });
+  }
+
   function render() {
     const active = document.activeElement;
     const focusKey = active?.id
@@ -697,6 +712,22 @@ export async function mountEnomeraPlatform(rootEl) {
           : renderChoice({ combo: state.combo, contract, signedIn: Boolean(state.me), returnedFromReview: state.returnedFromReview && Boolean(state.me) });
       rootEl.innerHTML = `<div class="eno-shell eno-flow-shell"><header class="eno-flow-top"><a class="eno-brand" href="/"><img src="/assets/brand.svg" width="32" height="27" alt="">enomera</a>${state.me ? `<button type="button" class="eno-link" data-tab="portal">Ir ao portal</button>` : '<a class="eno-link" href="/">Voltar ao site</a>'}</header><main class="eno-container" id="portal-content" tabindex="-1">${renderInfraAlert()}${state.feedback && state.feedback.tone === 'err' ? renderFeedback() : ''}${flowView}</main></div>`;
       bindEvents();
+      // Troca de etapa: foco no título da etapa nova e anúncio "Etapa N de 4".
+      const stepKey = `${state.tab}:${state.tab === 'auth' ? state.authMode : ''}`;
+      const stepChanged = motionTracker.prevFlowStep && motionTracker.prevFlowStep !== stepKey;
+      motionTracker.prevFlowStep = stepKey;
+      if (stepChanged) {
+        const [num, label] = state.tab === 'plans' ? [1, 'Escolha'] : state.tab === 'auth' ? [2, 'Conta'] : [3, 'Checkout'];
+        announceStep(`Etapa ${num} de 4: ${label}`);
+        const title = rootEl.querySelector('.eno-flow-title');
+        if (title) {
+          title.setAttribute('tabindex', '-1');
+          title.focus({ preventScroll: true });
+          const top = title.getBoundingClientRect().top;
+          if (top < 0 || top > window.innerHeight) title.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+          return;
+        }
+      }
       if (focusKey) {
         const target = focusKey.by === 'id'
           ? rootEl.querySelector(`#${CSS.escape(focusKey.val)}`)
@@ -705,6 +736,7 @@ export async function mountEnomeraPlatform(rootEl) {
       }
       return;
     }
+    motionTracker.prevFlowStep = null;
 
     const view = state.tab === 'profile' ? renderProfileView()
       : state.tab === 'billing' ? renderBillingView()
@@ -1195,8 +1227,7 @@ export async function mountEnomeraPlatform(rootEl) {
       }
       state.returnedFromReview = false;
       syncHistory(state.tab, state.authMode);
-      render();
-      rootEl.querySelector(state.tab === 'auth' ? '#eno-email' : 'h1')?.focus?.();
+      render(); // render() leva o foco ao título da etapa e anuncia "Etapa N de 4".
     });
 
     rootEl.querySelectorAll('[data-flow-go="choice"]').forEach((b) => b.addEventListener('click', () => {

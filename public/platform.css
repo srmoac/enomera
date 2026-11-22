@@ -4,11 +4,12 @@
    ========================================================================== */
 
 :root {
-  --eno-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-  --eno-ease-pill: cubic-bezier(0.23, 1, 0.32, 1);
-  --eno-dur-fast: 140ms;
-  --eno-dur-base: 180ms;
-  --eno-dur-panel: 220ms;
+  /* Apontam para os tokens do padrão único (public/motion-tokens.css). */
+  --eno-ease-out: cubic-bezier(.23, 1, .32, 1);
+  --eno-ease-pill: var(--eno-ease-out);
+  --eno-dur-fast: var(--eno-t-fast, 160ms);
+  --eno-dur-base: var(--eno-t-base, 220ms);
+  --eno-dur-panel: var(--eno-t-base, 220ms);
 
   --eno-bg-base: #F6F8FC;
   --eno-ink-900: #111A2C;
@@ -890,7 +891,7 @@
   border: 1px solid currentColor;
   border-right-color: transparent;
   display: inline-block;
-  animation: enoSpin 640ms linear infinite;
+  animation: enoSpin 800ms linear infinite;
 }
 
 @keyframes enoSpin {
@@ -951,20 +952,7 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .eno-panel-enter,
-  .eno-delta-pulse,
-  .eno-seg-indicator,
-  .eno-btn,
-  .eno-card,
-  .eno-check-card,
-  .eno-otp-digit,
-  .eno-tab,
-  .eno-mobile-bar {
-    animation: none !important;
-    transition: none !important;
-  }
-}
+/* Movimento reduzido: ver ux-standard.css (regra única para o portal e o fluxo). */
 
 /* ==========================================================================
    Percurso de contratação aprovado no Figma (22 nov 2026 · seção 76:696)
@@ -993,7 +981,8 @@
 
 .eno-link {
   appearance: none; background: none; border: 0; padding: 0; font: inherit; cursor: pointer;
-  color: var(--flow-accent); font-weight: 600; text-decoration: none; min-height: 24px;
+  color: var(--flow-accent); font-weight: 600; text-decoration: none; min-height: var(--eno-hit, 44px);
+  display: inline-flex; align-items: center;
 }
 .eno-link:hover { text-decoration: underline; text-underline-offset: 3px; }
 .eno-link:disabled { color: var(--flow-muted); cursor: default; text-decoration: none; }
@@ -1078,7 +1067,7 @@ button.eno-pc:active { transform: scale(0.99); }
   background: rgba(255,255,255,0.72); border: 1px solid rgba(196, 208, 240, 0.9);
 }
 .eno-flow-seg button {
-  appearance: none; border: 0; border-radius: 999px; min-height: 40px; padding: 8px 10px; font: inherit; font-size: 0.92rem; font-weight: 600;
+  appearance: none; border: 0; border-radius: 999px; min-height: var(--eno-hit, 44px); padding: 8px 10px; font: inherit; font-size: 0.92rem; font-weight: 600;
   background: transparent; color: var(--flow-ink); cursor: pointer;
   transition: background-color 220ms var(--eno-ease-out), color 220ms var(--eno-ease-out);
 }
@@ -1097,7 +1086,7 @@ button.eno-pc:active { transform: scale(0.99); }
 .eno-sum-today { margin: 4px 0 0; padding: 12px 14px; border-radius: 999px; background: var(--flow-chip); text-align: center; font-size: 0.9rem; font-weight: 700; color: var(--flow-ink); }
 
 .eno-flow-cta {
-  width: 100%; min-height: 56px; border-radius: 999px; font-size: 1.05rem; font-weight: 600;
+  width: 100%; min-height: var(--eno-btn-lg, 52px); border-radius: 999px; font-size: 15px; font-weight: 600;
   background: var(--flow-accent); border-color: var(--flow-accent); color: #fff;
 }
 .eno-flow-cta:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--flow-accent-deep); }
@@ -1172,9 +1161,6 @@ button.eno-pc:active { transform: scale(0.99); }
   .eno-flow-shell { padding-left: 16px; padding-right: 16px; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .eno-flow-shell *, .eno-flow-shell *::before, .eno-flow-shell *::after { transition: none !important; animation: none !important; }
-}
 
 /* As pétalas da jornada do site ficam no site; no percurso de contratação a flor é a do resumo. */
 body:has(.eno-flow-shell) .journey-petal { display: none !important; }

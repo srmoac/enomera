@@ -1,0 +1,80 @@
+/*
+ * Enomera · tokens de motion e interação (padrão único, 22/11/2026)
+ * Fonte: /mnt/project-files/padrao-ux-motion/padrao-ux-motion.md
+ *
+ * Arquivo aditivo: só declara variáveis e duas classes utilitárias.
+ * Carregar ANTES das folhas do produto. Não altera nenhum componente por si.
+ * Os produtos passam a apontar seus tokens locais para estes, por exemplo:
+ *   --page-time: var(--eno-t-step);   (Ambo)
+ *   --duration-route: var(--eno-t-route); (Minne)
+ * O motion das pétalas da home (motion.css, petals.js, petal-model.js de 2b6facb) NÃO usa estes tokens e não deve ser alterado.
+ */
+:root {
+  /* Durações: quanto maior a área que se move, maior a duração. Nada de UI passa de 420 ms. */
+  --eno-t-press: 120ms;   /* pressão de botão, toque em chip */
+  --eno-t-fast: 160ms;    /* hover, cor, foco, rótulo, troca de ícone */
+  --eno-t-base: 220ms;    /* seleção, menu, popover, entrada de diálogo, aviso inline */
+  --eno-t-step: 320ms;    /* troca de etapa, painel, detalhe que abre ao lado */
+  --eno-t-route: 420ms;   /* troca de tela inteira, lente grande, folha (sheet) no celular */
+  --eno-t-exit-ratio: .65;/* saída = 65% da entrada (ex.: etapa sai em ~200 ms) */
+  --eno-t-step-out: 200ms;
+  --eno-t-stagger: 40ms;  /* defasagem entre itens de lista; no máximo 6 itens defasados */
+  --eno-t-loader-delay: 300ms; /* só mostrar carregamento depois disso */
+  --eno-t-loader-min: 500ms;   /* uma vez visível, fica ao menos isso */
+
+  /* Curvas: três, e só três. */
+  --eno-ease-out: cubic-bezier(.23, 1, .32, 1);   /* padrão: tudo que entra, muda de estado ou responde */
+  --eno-ease-move: cubic-bezier(.32, .72, 0, 1);  /* algo que já está na tela e muda de lugar: lente, gaveta, sheet */
+  --eno-ease-linear: linear;                      /* só spinner, barra de progresso e motion ligado à rolagem */
+
+  /* Deslocamentos */
+  --eno-shift-step: 24px;  /* entrada de etapa (avanço: da direita; volta: da esquerda) */
+  --eno-shift-small: 8px;  /* aviso, toast, item de lista */
+  --eno-press-scale: .98;
+
+  /* Toque e foco */
+  --eno-hit: 44px;          /* alvo mínimo, inclusive links de texto */
+  --eno-btn-lg: 52px;       /* CTA de etapa, botão de formulário */
+  --eno-btn-md: 44px;       /* ação em painel, lista, barra */
+  --eno-gap-hit: 8px;       /* distância mínima entre alvos vizinhos */
+  --eno-focus-width: 2px;
+  --eno-focus-offset: 3px;
+  --eno-focus-halo: 0 0 0 5px rgb(255 255 255 / .72); /* só sobre vidro ou foto */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    /* Mantém feedback de estado curto (cor, opacidade); deslocamentos somem. */
+    --eno-t-base: 120ms;
+    --eno-t-step: 120ms;
+    --eno-t-route: 120ms;
+    --eno-t-step-out: 80ms;
+    --eno-t-stagger: 0ms;
+    --eno-shift-step: 0px;
+    --eno-shift-small: 0px;
+    --eno-press-scale: 1;
+  }
+}
+
+/* Utilitário 1: alvo de toque mínimo para links e botões de texto ("Alterar", "Voltar ao site").
+   Não usar em elemento .lg (o vidro ocupa ::before e ::after): nesse caso use padding e min-height. */
+.eno-hit {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--eno-hit);
+}
+.eno-hit::after {
+  content: "";
+  position: absolute;
+  inset: 50% auto auto 50%;
+  width: max(100%, var(--eno-hit));
+  height: max(100%, var(--eno-hit));
+  transform: translate(-50%, -50%);
+}
+
+/* Utilitário 2: entrada de etapa, igual em todos os produtos. Aplicar ao contêiner da etapa nova. */
+@keyframes eno-step-in-forward { from { opacity: 0; transform: translateX(var(--eno-shift-step)); } }
+@keyframes eno-step-in-back { from { opacity: 0; transform: translateX(calc(var(--eno-shift-step) * -1)); } }
+.eno-step-enter { animation: eno-step-in-forward var(--eno-t-step) var(--eno-ease-out) both; }
+.eno-step-enter[data-direction="back"] { animation-name: eno-step-in-back; }
