@@ -8,10 +8,10 @@
   position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%;
   margin: 0; padding: 0; border: 0; outline: none; background: transparent;
   color: transparent; caret-color: transparent; -webkit-text-fill-color: transparent;
-  font-size: 16px; letter-spacing: 0; text-indent: -9999px; /* sem texto real visível; as casas mostram */
+  font-size: 16px; letter-spacing: 0; /* texto real transparente; as casas mostram os dígitos */
   cursor: text; -webkit-tap-highlight-color: transparent; touch-action: manipulation;
 }
-.eno-otp-field .eno-otp-input::selection { background: transparent; }
+.eno-otp-field .eno-otp-input::selection { background: transparent; color: transparent; -webkit-text-fill-color: transparent; }
 .eno-otp-field .eno-otp-digit {
   display: flex; align-items: center; justify-content: center; position: relative;
   min-width: 0; user-select: none; font-variant-numeric: tabular-nums;
