@@ -1094,8 +1094,8 @@ export async function handleApiRequest(req, res, customDb = null) {
         ok: true,
         entitlements: await getAccountEntitlements(db, auth.account.id),
         note: action === 'cancel'
-          ? `Serviço ${product} colocado em modo somente leitura/exportação. Os demais serviços permanecem ativos e nenhum dado foi apagado.`
-          : `Serviço ${product} reativado com sucesso.`,
+          ? `${({ ambo: 'Ambo', minne: 'Minne', etha: 'Etha' })[product] || product} ficou só para leitura e exportação. Os outros serviços continuam ativos e nenhum dado foi apagado.`
+          : `${({ ambo: 'Ambo', minne: 'Minne', etha: 'Etha' })[product] || product} reativado.`,
       });
     }
 

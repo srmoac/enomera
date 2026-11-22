@@ -168,14 +168,16 @@ export function renderChoice({ combo, contract, signedIn, returnedFromReview }) 
   `;
 }
 
-export function renderAccount({ mode, email, contract, codeDigits, codeError, cooldown, busy, devCode, deliveryNote, fieldError }) {
+export function renderAccount({ mode, email, contract, codeDigits, codeError, cooldown, busy, devCode, deliveryNote, fieldError, login = false }) {
   const isCode = mode === 'code';
+  // Entrada simples ("Entrar" do site): sem etapas nem resumo de compra.
+  const flowLogin = login;
   const mm = Math.floor(cooldown / 60);
   const ss = String(cooldown % 60).padStart(2, '0');
   return `
-    <section class="eno-flow eno-flow-account" data-flow-step="${isCode ? 'code' : 'account'}">
+    <section class="eno-flow eno-flow-account${flowLogin ? ' eno-flow-login' : ''}" data-flow-step="${isCode ? 'code' : 'account'}">
       <div class="eno-flow-main">
-        ${renderFlowStepper('account')}
+        ${flowLogin ? '' : renderFlowStepper('account')}
         ${isCode ? `
           <h1 class="eno-flow-title">Digite o código<br> enviado ao seu e-mail.</h1>
           <p class="eno-flow-lead">Enviado para <b>${esc(email)}</b></p>
@@ -187,7 +189,7 @@ export function renderAccount({ mode, email, contract, codeDigits, codeError, co
             ${!codeError ? `<p class="eno-flow-note">${cooldown > 0
               ? `Reenviar código em ${mm}:${ss} · <button type="button" class="eno-link" id="eno-change-email">Trocar e-mail</button>`
               : `<button type="button" class="eno-link" id="eno-resend-code">Reenviar código</button> · <button type="button" class="eno-link" id="eno-change-email">Trocar e-mail</button>`}</p>` : ''}
-            <button type="submit" class="eno-btn eno-flow-cta" ${busy ? 'disabled' : ''}>${busy ? '<span class="eno-spinner" aria-hidden="true"></span> Verificando…' : 'Verificar e continuar'}</button>
+            <button type="submit" class="eno-btn eno-flow-cta" ${busy ? 'disabled' : ''}>${busy ? '<span class="eno-spinner" aria-hidden="true"></span> Verificando…' : flowLogin ? 'Entrar no portal' : 'Verificar e continuar'}</button>
             ${codeError
               ? `<p class="eno-flow-note"><button type="button" class="eno-link" id="eno-resend-code" ${cooldown > 0 ? 'disabled' : ''}>${cooldown > 0 ? `Reenviar código em ${mm}:${ss}` : 'Reenviar código'}</button></p>`
               : '<p class="eno-flow-note">Colar o código também funciona</p>'}
@@ -195,24 +197,27 @@ export function renderAccount({ mode, email, contract, codeDigits, codeError, co
             ${deliveryNote ? `<p class="eno-flow-dev">${esc(deliveryNote)}</p>` : ''}
           </form>
         ` : `
-          <h1 class="eno-flow-title">Verifique sua conta<br> para continuar.</h1>
-          <p class="eno-flow-lead">Enviaremos um código de 6 dígitos. Sua combinação fica guardada<span class="eno-hide-sm"> enquanto você confirma</span>.</p>
+          ${flowLogin
+            ? `<h1 class="eno-flow-title">Entrar na Enomera</h1>
+          <p class="eno-flow-lead">Use o e-mail da sua conta Enomera. Enviamos um código de 6 dígitos.</p>`
+            : `<h1 class="eno-flow-title">Verifique sua conta<br> para continuar.</h1>
+          <p class="eno-flow-lead">Enviaremos um código de 6 dígitos. Sua combinação fica guardada<span class="eno-hide-sm"> enquanto você confirma</span>.</p>`}
           <form id="eno-email-form" class="eno-flow-card eno-glass" novalidate>
             <label for="eno-email" class="eno-flow-label">E-mail profissional</label>
             <input id="eno-email" name="email" type="email" autocomplete="email" class="eno-input" required value="${esc(email)}" placeholder="voce@consultorio.com.br" aria-invalid="${fieldError ? 'true' : 'false'}" aria-describedby="eno-email-hint${fieldError ? ' eno-email-err' : ''}">
             ${fieldError ? `<p class="eno-flow-err" id="eno-email-err" role="alert">${esc(fieldError)}</p>` : ''}
-            <p class="eno-flow-note" id="eno-email-hint">Quem já tem conta recebe o código no mesmo e-mail. Sem senha.</p>
+            <p class="eno-flow-note" id="eno-email-hint">${flowLogin ? 'Ainda não tem conta? <a class="eno-link" href="/checkout">Escolher serviços</a>' : 'Quem já tem conta recebe o código no mesmo e-mail. Sem senha.'}</p>
             <button type="submit" class="eno-btn eno-flow-cta" ${busy ? 'disabled' : ''}>${busy ? '<span class="eno-spinner" aria-hidden="true"></span> Enviando…' : 'Enviar código'}</button>
           </form>
         `}
-        <div class="eno-show-sm">${renderCompactSummary(contract)}</div>
+        ${flowLogin ? '' : `<div class="eno-show-sm">${renderCompactSummary(contract)}</div>`}
       </div>
-      <aside class="eno-flow-side eno-hide-sm">
+      ${flowLogin ? `<aside class="eno-flow-side eno-hide-sm">${flower()}</aside>` : `<aside class="eno-flow-side eno-hide-sm">
         ${flower()}
         ${renderSummary(contract, { billing: contract?.billing })}
         <button type="button" class="eno-link eno-flow-change" data-flow-go="choice">Alterar combinação</button>
       </aside>
-      ${footerNotes()}
+      ${footerNotes()}`}
     </section>
   `;
 }

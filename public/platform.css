@@ -1164,3 +1164,41 @@ button.eno-pc:active { transform: scale(0.99); }
 
 /* As pétalas da jornada do site ficam no site; no percurso de contratação a flor é a do resumo. */
 body:has(.eno-flow-shell) .journey-petal { display: none !important; }
+
+/* Carregamento da página inteira: esqueleto com a forma do portal (padrão único §5). */
+.eno-skeleton-page { display: grid; gap: 16px; padding-top: 32px; animation: enoSkelIn 160ms var(--eno-ease-out, ease-out) 300ms both; }
+.eno-skel { border-radius: 18px; background: linear-gradient(90deg, rgb(91 112 178 / .08), rgb(91 112 178 / .16), rgb(91 112 178 / .08)); background-size: 200% 100%; animation: enoSkelShine 1.4s linear infinite; }
+.eno-skel-title { height: 40px; width: min(420px, 80%); }
+.eno-skel-line { height: 16px; width: min(560px, 90%); border-radius: 8px; }
+.eno-skel-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.eno-skel-card { height: 168px; border-radius: 24px; }
+.eno-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@keyframes enoSkelShine { to { background-position: -200% 0; } }
+@keyframes enoSkelIn { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .eno-skel { animation: none; } .eno-skeleton-page { animation: none; } }
+
+/* Auditoria visual 22/11 · um só primário no portal Enomera (#5B70B2, padrão único §6).
+   Botões que abrem outro produto não trocam de cor: o produto aparece no cartão e no ↗. */
+.eno-btn,
+.eno-btn-ambo,
+.eno-btn-minne,
+.eno-btn-etha {
+  background: #5B70B2;
+  color: #FFFFFF;
+  border-color: transparent;
+  box-shadow: 0 8px 20px rgba(91, 112, 178, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+.eno-btn:hover:not(:disabled),
+.eno-btn-ambo:hover:not(:disabled),
+.eno-btn-minne:hover:not(:disabled),
+.eno-btn-etha:hover:not(:disabled) { background: #4D61A0; }
+.eno-btn.eno-btn-sec { background: rgba(235, 241, 253, 0.94); color: #1E335C; border-color: rgba(182, 200, 236, 0.88); box-shadow: none; }
+.eno-btn.eno-btn-sec:hover:not(:disabled) { background: rgba(223, 233, 251, 0.98); }
+/* Destrutivo: contorno vermelho do sistema, nunca sólido. */
+.eno-btn.eno-btn-danger { background: rgba(255, 255, 255, 0.9); color: #B3261E; border: 1px solid #B3261E; box-shadow: none; }
+.eno-btn.eno-btn-danger:hover:not(:disabled) { background: #FFF5F4; }
+.eno-btn:focus-visible { outline: 2px solid #5B70B2; outline-offset: 3px; }
+/* Entrada simples: coluna única, sem resumo de compra. */
+.eno-flow-login .eno-flow-main { max-width: 480px; }
+/* Portal: os cartões dos serviços ativos ocupam a largura toda, sem coluna vazia. */
+.eno-grid-3.eno-grid-fit { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }

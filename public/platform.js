@@ -330,7 +330,8 @@ export async function mountEnomeraPlatform(rootEl) {
     const res = await apiFetch('/api/v1/auth/email-code/request', { method: 'POST', body: { email } });
     state.busyAction = null;
     if (res.infraError) state.infraError = res.infraError;
-    if (!res.ok && res.data.code !== 'CODE_REQUEST_TOO_SOON') {
+    const tooSoon = !res.ok && ['CODE_REQUEST_TOO_SOON', 'RESEND_RATE_LIMITED'].includes(res.data?.code);
+    if (!res.ok && !tooSoon) {
       if (state.authMode === 'code') state.codeError = res.data.error || 'Não foi possível reenviar agora.';
       else state.fieldError = { field: 'email', text: res.data.error || 'Não foi possível enviar o código agora.' };
       render();
@@ -338,14 +339,14 @@ export async function mountEnomeraPlatform(rootEl) {
     }
     state.lastDelivery = res.data.delivery || null;
     state.devCode = '';
-    if (!state.lastDelivery?.sentExternally) {
+    if (!tooSoon && !state.lastDelivery?.sentExternally) {
       await loadOutbox(email);
       const m = /\b(\d{6})\b/.exec(String(state.outboxMessages[0]?.body_preview || ''));
       state.devCode = m ? m[1] : '';
     }
     state.authMode = 'code';
     state.otpDigits = ['', '', '', '', '', ''];
-    startResendCooldown(res.data.resendAfterSec || 60);
+    startResendCooldown(tooSoon ? 30 : (res.data.resendAfterSec || 60));
     syncHistory(state.tab, state.authMode);
     render();
     rootEl.querySelector('#otp-0')?.focus();
@@ -492,7 +493,7 @@ export async function mountEnomeraPlatform(rootEl) {
       return `
         <article class="eno-card ${ent?.canReadExport ? `eno-card-${prod}` : ''}">
           ${pill}
-          <h2 class="eno-h2">${prod}</h2>
+          <h2 class="eno-h2">${name}</h2>
           <p class="eno-muted">${body}</p>
           <div class="eno-btn-row">
             ${ent?.canReadExport ? actions : `<button type="button" class="eno-btn eno-btn-sec" data-tab="plans">${owned ? 'Reativar' : offer}</button>`}
@@ -524,7 +525,7 @@ export async function mountEnomeraPlatform(rootEl) {
           ` : ''}
         </div>
 
-        <div class="eno-grid-3">
+        <div class="eno-grid-3 eno-grid-fit">
           ${activeProducts.map((prod) => productCard(prod, true)).join('')}
         </div>
         ${otherProducts.length ? `
@@ -580,22 +581,22 @@ export async function mountEnomeraPlatform(rootEl) {
           <div class="eno-list">
             ${['ambo', 'minne', 'etha'].map((prod) => {
               const ent = ents[prod];
-              if (!ent) return `<div class="eno-row"><b>${prod.toUpperCase()}</b><span class="eno-muted">Não contratado</span></div>`;
+              if (!ent) return `<div class="eno-row"><b>${PRODUCT_NAMES[prod]}</b><span class="eno-muted">Não contratado</span></div>`;
               return `
                 <div class="eno-row">
                   <div>
-                    <b>${prod.toUpperCase()}</b> · <span class="eno-pill ${ent.canWrite ? 'eno-pill-ok' : 'eno-pill-warn'}">${esc(statusLabel(ent.status))}</span>
+                    <b>${PRODUCT_NAMES[prod]}</b> · <span class="eno-pill ${ent.canWrite ? 'eno-pill-ok' : 'eno-pill-warn'}">${esc(statusLabel(ent.status))}</span>
                     <div class="eno-muted">${ent.trialEndsAt ? `Teste até ${esc(ent.trialEndsAt.slice(0, 10))}` : `Ciclo: ${esc(BILLING_LABELS[ent.billingMode] || 'Mensal')}`}</div>
                   </div>
                   ${ent.canWrite
-                    ? `<button type="button" class="eno-btn eno-btn-sec" data-ent-action="cancel" data-ent-prod="${prod}">Cancelar só ${prod}</button>`
-                    : `<button type="button" class="eno-btn" data-ent-action="reactivate" data-ent-prod="${prod}">Reativar ${prod}</button>`}
+                    ? `<button type="button" class="eno-btn eno-btn-sec" data-ent-action="cancel" data-ent-prod="${prod}">Cancelar só ${PRODUCT_NAMES[prod]}</button>`
+                    : `<button type="button" class="eno-btn" data-ent-action="reactivate" data-ent-prod="${prod}">Reativar ${PRODUCT_NAMES[prod]}</button>`}
                 </div>
               `;
             }).join('')}
           </div>
           <div class="eno-btn-row">
-            <button type="button" class="eno-btn eno-btn-minne" id="eno-export-account">Exportar meus dados</button>
+            <button type="button" class="eno-btn eno-btn-sec" id="eno-export-account">Exportar meus dados</button>
             <button type="button" class="eno-btn eno-btn-danger" id="eno-logout-all">Encerrar todas as sessões</button>
           </div>
         </div>
@@ -607,7 +608,7 @@ export async function mountEnomeraPlatform(rootEl) {
             ${state.orders.length ? state.orders.map((o) => `
               <div class="eno-row">
                 <div>
-                  <b>${esc(o.receipt_code)}</b> · ${esc(o.items.join(' + ').toUpperCase())}
+                  <b>${esc(o.receipt_code)}</b> · ${esc(o.items.map((x) => PRODUCT_NAMES[x] || x).join(' + '))}
                   <div class="eno-muted">Hoje: ${brl(o.due_today_cents)} · Recorrente: ${brl(o.recurring_monthly_cents)}/mês · Situação: <b>${esc(statusLabel(o.status))}</b></div>
                 </div>
                 ${o.status !== 'approved' ? `<button type="button" class="eno-btn eno-btn-sec" data-retry-order="${esc(o.id)}" ${state.busyAction === 'retryOrder' ? 'disabled' : ''}>Retomar</button>` : ''}
@@ -629,7 +630,7 @@ export async function mountEnomeraPlatform(rootEl) {
           <div class="eno-field"><label for="pl-name">Nome completo</label><input id="pl-name" name="fullName" class="eno-input" required value="${esc(state.me?.user?.fullName || '')}"></div>
           <div class="eno-field"><label for="pl-email">E-mail</label><input id="pl-email" name="email" type="email" class="eno-input" required value="${esc(state.me?.user?.email || '')}"></div>
           <div class="eno-field"><div class="eno-label-row"><label for="pl-notes">O que deseja avaliar?</label><span class="eno-opt-tag">(opcional)</span></div><input id="pl-notes" name="notes" class="eno-input" placeholder="Ex.: agendamento no Ambo e prontuário no Minne"></div>
-          <button type="submit" class="eno-btn eno-btn-etha">Registrar interesse no piloto (sem cobrança)</button>
+          <button type="submit" class="eno-btn">Registrar interesse no piloto (sem cobrança)</button>
         </form>
       </section>
     `;
@@ -706,6 +707,7 @@ export async function mountEnomeraPlatform(rootEl) {
           devCode: state.devCode,
           deliveryNote: '',
           fieldError: state.fieldError?.field === 'email' ? state.fieldError.text : '',
+          login: !['review', 'plans'].includes(state.returnAfterAuth) && !location.pathname.startsWith('/conta'),
         })
         : state.tab === 'review'
           ? renderReview({ combo: state.combo, contract, me: state.me, activating: state.activating })
@@ -1436,5 +1438,13 @@ export async function mountEnomeraPlatform(rootEl) {
     rootEl.querySelector('#eno-logout-all')?.addEventListener('click', () => doLogout(true));
   }
 
+  // Nunca tela branca: sem sessão, a entrada aparece na hora; com sessão, esqueleto do portal enquanto os dados chegam.
+  if (!getToken() && ['portal', 'profile', 'billing', 'pilot'].includes(state.tab)) {
+    state.returnAfterAuth = state.tab;
+    state.tab = 'auth';
+    render();
+  } else {
+    rootEl.innerHTML = `<div class="eno-shell" aria-busy="true"><header class="eno-flow-top"><a class="eno-brand" href="/"><img src="/assets/brand.svg" width="32" height="27" alt="">enomera</a></header><main class="eno-container eno-skeleton-page" id="portal-content" tabindex="-1"><span class="eno-visually-hidden" role="status">Carregando…</span><div class="eno-skel eno-skel-title"></div><div class="eno-skel eno-skel-line"></div><div class="eno-skel-grid"><div class="eno-skel eno-skel-card"></div><div class="eno-skel eno-skel-card"></div><div class="eno-skel eno-skel-card"></div></div></main></div>`;
+  }
   await refreshSessionAndData();
 }
