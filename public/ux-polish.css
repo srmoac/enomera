@@ -128,3 +128,11 @@ dialog, [role="dialog"], .eno-flow-side, .eno-sheet { overscroll-behavior: conta
 ::view-transition-new(root) { animation: none; }
 @keyframes enoPageOut { to { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { ::view-transition-old(root) { animation: none; } }
+
+/* Celular: "Entrar" fica visível na barra, discreto, ao lado do menu (quem já é cliente não abre o ☰). */
+.nav-login-mobile { display: none; }
+@media (max-width: 700px) {
+  .nav-login-mobile { display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; margin-left: auto; margin-right: 6px; border-radius: 22px; font-size: 15px; font-weight: 600; color: var(--action, #3B5BA5); text-decoration: none; }
+  .nav-login-mobile:active { background: rgb(255 255 255 / .5); }
+  #nav-links .nav-login-in-menu { display: none; }
+}
