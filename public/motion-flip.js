@@ -103,7 +103,16 @@ function trackedParent(el, root) {
 function collect(root) {
   const cache = new Map();
   const list = [];
-  root.querySelectorAll(TRACK).forEach((el) => { if (!el.matches(SKIP)) list.push({ el, key: keyOf(el, root, cache) }); });
+  const used = new Map();
+  root.querySelectorAll(TRACK).forEach((el) => {
+    if (el.matches(SKIP)) return;
+    let key = keyOf(el, root, cache);
+    // Mesma chave duas vezes (ex.: resumo do celular e do computador): numeramos.
+    const n = used.get(key) || 0;
+    used.set(key, n + 1);
+    if (n) { key = `${key}#${n}`; cache.set(el, key); }
+    list.push({ el, key });
+  });
   return { list, cache };
 }
 const PAD = 160;
@@ -168,16 +177,19 @@ export function motionPlay(root, snap, { route = false } = {}) {
   // (barra, abas, seletores) anima.
   const routeBox = route ? root.querySelector('[data-route-in]') : null;
 
+  // Mede tudo antes de animar: uma animação no pai mudaria a medida dos filhos.
+  const rects = new Map(list.map(({ el }) => [el, el.getBoundingClientRect()]));
   list.forEach(({ el, key }) => {
     if (routeBox && routeBox.contains(el)) return;
     const prev = snap.items.get(key);
-    const r = el.getBoundingClientRect();
+    const r = rects.get(el);
+    if (!r.width && !r.height) return; // escondido (display: none)
     const p = trackedParent(el, root);
     const parentKey = p ? cache.get(p) : null;
     if (route && !prev) return;
     if (!prev) {
       if (!onScreen(r)) return;
-      if (parentKey && !snap.items.has(parentKey) && onScreen(p.getBoundingClientRect())) return; // o pai também é novo e já entra
+      if (parentKey && !snap.items.has(parentKey) && onScreen(rects.get(p) || p.getBoundingClientRect())) return; // o pai também é novo e já entra
       el.animate([
         { opacity: 0, transform: 'translateY(6px) scale(.985)', filter: 'blur(3px)' },
         { opacity: 1, transform: 'none', filter: 'blur(0)' },
