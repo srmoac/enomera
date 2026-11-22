@@ -62,7 +62,7 @@ export function getAsaasStatus() {
     provider: 'asaas',
     mode: cfg.mode,
     configured: cfg.configured,
-    webhookTokenConfigured: Boolean(process.env.ASAAS_WEBHOOK_TOKEN),
+    webhookTokenConfigured: Boolean(getWebhookToken()),
     realPayments: cfg.mode === 'production',
     trialDays: PILOT_TRIAL_DAYS,
   };
@@ -90,11 +90,22 @@ async function asaasRequest(cfg, method, path, body) {
   return json;
 }
 
+/**
+ * Token do webhook: ASAAS_WEBHOOK_TOKEN, ou derivado da chave do Asaas (HMAC),
+ * para não exigir mais uma variável. Nunca é exibido nem registrado em log.
+ */
+export function getWebhookToken() {
+  if (process.env.ASAAS_WEBHOOK_TOKEN) return process.env.ASAAS_WEBHOOK_TOKEN;
+  const key = (process.env.ASAAS_API_KEY || '').trim();
+  if (!key) return '';
+  return crypto.createHmac('sha256', key).update('enomera-asaas-webhook-v1').digest('hex');
+}
+
 let webhookEnsured = false;
 /** Registra o webhook no Asaas uma vez (URL do Core + token secreto), sem expor o token. */
 async function ensureWebhook(cfg) {
   if (webhookEnsured) return;
-  const token = process.env.ASAAS_WEBHOOK_TOKEN || '';
+  const token = getWebhookToken();
   const base = (process.env.ENOMERA_CORE_URL || process.env.ENOMERA_PUBLIC_URL || '').replace(/\/$/, '');
   if (!token || !base) return;
   const url = `${base}/api/v1/billing/asaas/webhook`;
@@ -269,7 +280,7 @@ function safeEqual(a, b) {
  * Assinatura removida/inativada → cancelled (serviço passa a somente leitura).
  */
 export async function handleAsaasWebhook(db, headers, payload) {
-  const expected = process.env.ASAAS_WEBHOOK_TOKEN || '';
+  const expected = getWebhookToken();
   if (!expected) throw Object.assign(new Error('Webhook sem token configurado.'), { status: 503, code: 'WEBHOOK_TOKEN_MISSING' });
   if (!safeEqual(headers['asaas-access-token'], expected)) {
     throw Object.assign(new Error('Token do webhook inválido.'), { status: 401, code: 'WEBHOOK_UNAUTHORIZED' });

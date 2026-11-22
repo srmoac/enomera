@@ -96,3 +96,20 @@ test('checkout cria assinatura com 30 dias grátis; webhook ativa e é idempoten
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+test('token do webhook derivado da chave quando não há variável própria', async () => {
+  const { getWebhookToken } = await import('../server/asaas.mjs');
+  const prev = { k: process.env.ASAAS_API_KEY, t: process.env.ASAAS_WEBHOOK_TOKEN };
+  try {
+    delete process.env.ASAAS_WEBHOOK_TOKEN;
+    process.env.ASAAS_API_KEY = '$aact_hmlg_abc';
+    const a = getWebhookToken();
+    assert.match(a, /^[0-9a-f]{64}$/);
+    assert.equal(getWebhookToken(), a);
+    process.env.ASAAS_API_KEY = '$aact_hmlg_def';
+    assert.notEqual(getWebhookToken(), a);
+  } finally {
+    if (prev.k === undefined) delete process.env.ASAAS_API_KEY; else process.env.ASAAS_API_KEY = prev.k;
+    if (prev.t !== undefined) process.env.ASAAS_WEBHOOK_TOKEN = prev.t;
+  }
+});
