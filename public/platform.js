@@ -1,6 +1,7 @@
 import { motionSnapshot, motionPlay } from './motion-flip.js';
 import {
   comboLabel,
+  PLANS,
   namesWithE,
   renderAccount,
   renderActivationBanner,
@@ -61,7 +62,7 @@ function getToken() { try { return sessionStorage.getItem(TOKEN_KEY) || ''; } ca
 function setToken(t) { try { if (t) sessionStorage.setItem(TOKEN_KEY, t); else sessionStorage.removeItem(TOKEN_KEY); } catch {} }
 function loadCombo() {
   try { const raw = sessionStorage.getItem(DRAFT_COMBO_KEY); if (raw) return JSON.parse(raw); } catch {}
-  return { products: ['ambo', 'minne'], ethaFormat: 'one_page', viewMode: 'monthly' };
+  return { products: ['ambo', 'minne', 'etha'], ethaFormat: 'one_page', viewMode: 'monthly' }; // primeira visita: plano recomendado (Completo)
 }
 function saveCombo(combo) { try { sessionStorage.setItem(DRAFT_COMBO_KEY, JSON.stringify(combo)); } catch {} }
 function loadActivation() { try { const r = sessionStorage.getItem(ACTIVATION_KEY); return r ? JSON.parse(r) : null; } catch { return null; } }
@@ -829,7 +830,7 @@ export async function mountEnomeraPlatform(rootEl) {
         })
         : state.tab === 'review'
           ? renderReview({ combo: state.combo, contract, me: state.me, activating: state.activating })
-          : renderChoice({ combo: state.combo, contract, signedIn: Boolean(state.me), returnedFromReview: state.returnedFromReview && Boolean(state.me) });
+          : renderChoice({ combo: state.combo, contract, signedIn: Boolean(state.me), returnedFromReview: state.returnedFromReview && Boolean(state.me), customOpen: Boolean(state.customOpen) });
       queueMicrotask(markRoute);
       rootEl.innerHTML = `<div class="eno-shell eno-flow-shell"><header class="eno-flow-top"><a class="eno-brand" href="/"><img src="/assets/brand.svg" width="32" height="27" alt="">enomera</a>${state.me ? `<button type="button" class="eno-link" data-tab="portal">Ir ao portal</button>` : '<a class="eno-link" href="/">Voltar ao site</a>'}</header><main class="eno-container" id="portal-content" tabindex="-1">${renderInfraAlert()}${state.feedback && state.feedback.tone === 'err' ? renderFeedback() : ''}${flowView}</main></div>`;
       bindEvents();
@@ -1284,6 +1285,19 @@ export async function mountEnomeraPlatform(rootEl) {
       await loadOutbox(state.pendingEmail);
       state.tab = 'auth'; state.authMode = 'verify'; syncHistory(state.tab, state.authMode); render();
     });
+
+    rootEl.querySelectorAll('button[data-plan]').forEach((btn) => btn.addEventListener('click', async () => {
+      const plan = PLANS.find((pl) => pl.id === btn.dataset.plan);
+      if (!plan) return;
+      state.combo.products = [...plan.products];
+      state.checkoutIdempotencyKey = `chk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      persistSelectionSoon();
+      render();
+      await refreshQuote(true);
+      if (state.tab === 'plans') render();
+    }));
+    rootEl.querySelector('#eno-custom-toggle')?.addEventListener('click', () => { state.customOpen = !state.customOpen; render(); });
+    rootEl.querySelectorAll('[data-flow-continue]').forEach((b) => b.addEventListener('click', () => rootEl.querySelector('#eno-flow-continue')?.click()));
 
     rootEl.querySelectorAll('button[data-toggle-prod]').forEach((btn) => btn.addEventListener('click', async () => {
       const prod = btn.dataset.toggleProd;

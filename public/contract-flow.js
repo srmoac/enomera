@@ -13,6 +13,48 @@ export const PRODUCT_INFO = {
 
 const ORDER = ['ambo', 'minne', 'etha'];
 
+// Planos prontos (preços aprovados em 22/11: 39 · 79 · 99 por mês; anual = 10 mensalidades).
+// "Completo" é o recomendado: é o que mais economiza e cobre site, agenda e prontuário.
+export const PLANS = [
+  { id: 'agenda', name: 'Agenda', products: ['ambo'], monthly: 39, separate: 39, for: 'Para começar a receber pedidos de consulta.',
+    items: ['Página de agendamento com seus horários', 'Área do paciente com lembretes', 'Pedidos de primeira consulta'] },
+  { id: 'consultorio', name: 'Consultório', products: ['ambo', 'minne'], monthly: 79, separate: 98, for: 'Agenda e prontuário no mesmo lugar.',
+    items: ['Tudo do Agenda', 'Prontuários e evolução clínica (Minne)', 'Agenda do dia ligada aos pedidos'] },
+  { id: 'completo', name: 'Completo', products: ['ambo', 'minne', 'etha'], monthly: 99, separate: 147, recommended: true, for: 'Site, agenda e prontuário: a prática inteira.',
+    items: ['Tudo do Consultório', 'Site profissional exclusivo (Etha)', 'Hospedagem e painel para editar'] },
+];
+const brl = (n) => `R$ ${Number(n).toLocaleString('pt-BR', { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 })}`;
+export function planFor(products = []) {
+  const key = ORDER.filter((p) => products.includes(p)).join('+');
+  return PLANS.find((pl) => pl.products.join('+') === key) || null;
+}
+
+function renderPlanCard(plan, { selected, billing }) {
+  const annual = billing === 'permanent';
+  const price = annual ? plan.monthly * 10 : plan.monthly;
+  const save = annual ? plan.separate * 12 - plan.monthly * 10 : plan.separate - plan.monthly;
+  const old = annual ? plan.separate * 12 : plan.separate;
+  return `
+    <button type="button" role="radio" aria-checked="${selected}" class="eno-plan eno-plan-${plan.id}${plan.recommended ? ' is-recommended' : ''}${selected ? ' is-selected' : ''}"
+      data-plan="${plan.id}" data-m-key="plan-${plan.id}" data-m-state="${selected ? 'on' : 'off'}"
+      aria-label="${plan.name}${plan.recommended ? ', recomendado' : ''}, ${brl(price)} ${annual ? 'por ano' : 'por mês'}">
+      <span class="eno-plan-head">
+        <span class="eno-plan-radio m-pop" aria-hidden="true">${selected ? '✓' : ''}</span>
+        <span class="eno-plan-name">${plan.name}</span>
+        ${plan.recommended ? '<span class="eno-plan-badge">Recomendado</span>' : ''}
+      </span>
+      <span class="eno-plan-for">${plan.for}</span>
+      <span class="eno-plan-dots" aria-hidden="true">${plan.products.map((p) => `<i class="eno-plan-dot eno-plan-dot-${p}"></i>`).join('')}<small>${plan.products.map((p) => PRODUCT_INFO[p].name).join(' + ')}</small></span>
+      <span class="eno-plan-price">
+        <b data-m-key="plan-price-${plan.id}" data-m-num>${brl(price)}</b><small data-m-key="plan-cad-${plan.id}" data-m-num>${annual ? '/ano' : '/mês'}</small>
+      </span>
+      <span class="eno-plan-save" data-m-key="plan-save-${plan.id}" data-m-num>${save > 0
+        ? `<s>${brl(old)}</s> economiza ${brl(save)}${annual ? ' por ano' : ' por mês'}`
+        : annual ? `${brl(plan.monthly * 10 / 12)} por mês, 2 meses grátis` : 'Sem fidelidade'}</span>
+      <span class="eno-plan-items">${plan.items.map((i) => `<span>${i}</span>`).join('')}</span>
+    </button>`;
+}
+
 export function namesWithE(products = []) {
   const names = ORDER.filter((p) => products.includes(p)).map((p) => PRODUCT_INFO[p].name);
   if (names.length <= 1) return names[0] || '';
@@ -132,28 +174,51 @@ function footerNotes() {
   `;
 }
 
-export function renderChoice({ combo, contract, signedIn, returnedFromReview }) {
+export function renderChoice({ combo, contract, signedIn, returnedFromReview, customOpen = false }) {
   const billing = combo.viewMode === 'permanent' ? 'permanent' : 'monthly';
   const sel = (p) => combo.products.includes(p);
-  const ctaLabel = returnedFromReview ? 'Voltar à revisão' : signedIn ? 'Continuar · revisar e ativar' : 'Continuar · verificar conta';
-  const cta = `<button type="button" class="eno-btn eno-flow-cta" id="eno-flow-continue" data-m-key="flow-cta" data-m-state="${combo.products.length ? 'on' : 'off'}" ${combo.products.length ? '' : 'disabled'}>${ctaLabel}</button>`;
+  const plan = planFor(combo.products);
+  customOpen = customOpen || (!plan && combo.products.length > 0);
+  const ctaLabel = returnedFromReview ? 'Voltar à revisão' : 'Começar 30 dias grátis';
+  const cta = `<button type="button" class="eno-btn eno-flow-cta" id="eno-flow-continue" data-m-key="flow-cta" data-m-state="${combo.products.length ? 'on' : 'off'}" ${combo.products.length ? '' : 'disabled'}>${ctaLabel}</button>
+    <p class="eno-flow-reassure" data-m-key="reassure">Sem cartão agora · nenhuma cobrança hoje · cancele quando quiser</p>`;
+  const mobileBar = combo.products.length && contract ? `
+    <div class="eno-plan-bar eno-show-sm" data-m-key="plan-bar">
+      <span><b data-m-key="bar-name" data-m-num>${esc(plan ? plan.name : comboLabel(combo.products))}</b><small data-m-key="bar-total" data-m-num>${esc(contract.total)}</small></span>
+      <button type="button" class="eno-btn" data-flow-continue>${returnedFromReview ? 'Voltar à revisão' : 'Começar grátis'}</button>
+    </div>` : '';
   return `
     <section class="eno-flow eno-flow-choice" data-flow-step="choice">
       <div class="eno-flow-main">
         ${renderFlowStepper('choice')}
-        <h1 class="eno-flow-title">O que sua prática<br> precisa agora?</h1>
+        <h1 class="eno-flow-title">Escolha seu plano.</h1>
         ${returnedFromReview
           ? `<p class="eno-flow-lead is-return" role="status">↻ Você voltou da revisão. ${esc(comboLabel(combo.products) || 'Sua escolha')} e ${esc(billingLabel(billing))} foram mantidos; a conta continua verificada.</p>`
-          : '<p class="eno-flow-lead">Contrate um serviço ou combine. <span class="eno-hide-sm">O desconto aparece no resumo.</span></p>'}
-        <div class="eno-pc-list" role="group" aria-label="Serviços">
-          ${ORDER.map((p) => renderProductCard(p, { selected: sel(p), billing, ethaFormat: combo.ethaFormat })).join('')}
+          : '<p class="eno-flow-lead">30 dias grátis em qualquer plano. Sem cartão, cancele quando quiser.</p>'}
+        <div class="eno-flow-seg eno-plan-seg" role="radiogroup" aria-label="Periodicidade" data-m-key="seg">
+          <span class="eno-seg-pill" data-m-key="seg-pill" data-active="${billing === 'permanent' ? '1' : '0'}" aria-hidden="true"></span>
+          <button type="button" role="radio" data-viewmode="monthly" data-m-key="seg-m" data-m-state="${billing !== 'permanent'}" aria-checked="${billing !== 'permanent'}">Mensal</button>
+          <button type="button" role="radio" data-viewmode="permanent" data-m-key="seg-a" data-m-state="${billing === 'permanent'}" aria-checked="${billing === 'permanent'}">Anual <span class="eno-seg-badge">2 meses grátis</span></button>
+        </div>
+        <div class="eno-plan-list" role="radiogroup" aria-label="Planos">
+          ${PLANS.map((pl) => renderPlanCard(pl, { selected: plan?.id === pl.id, billing })).join('')}
+        </div>
+        <div class="eno-custom${customOpen ? ' is-open' : ''}" data-m-key="custom">
+          <button type="button" class="eno-custom-toggle" id="eno-custom-toggle" aria-expanded="${customOpen}" aria-controls="eno-custom-list">
+            ${plan ? 'Prefere montar do seu jeito?' : 'Montando do seu jeito'} <span aria-hidden="true">${customOpen ? '−' : '+'}</span>
+          </button>
+          ${customOpen ? `<p class="eno-custom-note">Escolha os serviços um a um. Combinações têm desconto automático.</p>
+          <div class="eno-pc-list" id="eno-custom-list" role="group" aria-label="Serviços">
+            ${ORDER.map((p) => renderProductCard(p, { selected: sel(p), billing, ethaFormat: combo.ethaFormat })).join('')}
+          </div>` : ''}
         </div>
       </div>
       <aside class="eno-flow-side">
         ${flower()}
-        ${renderSummary(contract, { billing, withToggle: true, cta })}
+        ${renderSummary(contract, { billing, withToggle: false, cta })}
       </aside>
       ${footerNotes()}
+      ${mobileBar}
     </section>
   `;
 }

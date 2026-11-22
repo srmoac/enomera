@@ -179,4 +179,75 @@ button.eno-pc:active { transform: scale(.985); }
 
 /* Re-render não pode puxar o scroll: sem ancoragem automática e com a calha da barra reservada. */
 #portal { overflow-anchor: none; }
-html:has(#portal:not([hidden])) { scrollbar-gutter: stable; }
+html:has(#portal:not([hidden])) { scrollbar-gutter: stable; overflow-anchor: none; }
+html:has(#portal:not([hidden])) body { overflow-anchor: none; }
+
+/* ===== Escolha de plano (pesquisa de UX, 22 nov) =====
+   Planos prontos com um recomendado, preço grande, economia visível, Mensal/Anual antes dos preços,
+   personalização em segundo plano, CTA com o benefício e barra fixa no celular. */
+.eno-plan-seg { max-width: 360px; margin: 6px 0 18px; position: relative; }
+.eno-plan-seg button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; position: relative; z-index: 1; }
+.eno-seg-badge { font-size: .68rem; font-weight: 700; letter-spacing: .01em; padding: 3px 7px; border-radius: 999px; background: #E3F4EE; color: #2F6B5A; white-space: nowrap; }
+.eno-plan-list { display: flex; flex-direction: column; gap: 14px; }
+.eno-plan {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "head price" "for save" "dots dots" "items items";
+  column-gap: 16px; row-gap: 6px; width: 100%; text-align: left; font: inherit; color: var(--flow-ink); cursor: pointer;
+  padding: 20px 24px; border-radius: 22px;
+  background: linear-gradient(135deg, rgba(255,255,255,.62) 0%, rgba(240,244,253,.5) 100%);
+  border: 1.5px solid rgba(255,255,255,.92);
+  box-shadow: 0 12px 30px rgba(60,84,150,.08), inset 0 1px 0 rgba(255,255,255,.9);
+}
+.eno-plan.is-selected { background: var(--flow-selected); border-color: var(--flow-accent); box-shadow: 0 16px 36px rgba(60,84,150,.16), inset 0 1px 0 rgba(255,255,255,.9); }
+.eno-plan.is-recommended:not(.is-selected) { border-color: rgba(91,112,179,.45); }
+.eno-plan-head { grid-area: head; display: flex; align-items: center; gap: 10px; min-width: 0; }
+.eno-plan-radio { width: 22px; height: 22px; flex: none; border-radius: 50%; border: 1.5px solid #8C98BC; display: grid; place-items: center; font-size: .8rem; font-weight: 700; color: #fff; background: rgba(255,255,255,.7); }
+.eno-plan.is-selected .eno-plan-radio { background: var(--flow-accent); border-color: var(--flow-accent); }
+.eno-plan-name { font-size: 1.45rem; font-weight: 500; line-height: 1.2; }
+.eno-plan-badge { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; padding: 4px 9px; border-radius: 999px; background: var(--flow-accent); color: #fff; }
+.eno-plan-for { grid-area: for; color: var(--flow-ink-2); font-size: .95rem; }
+.eno-plan-dots { grid-area: dots; display: flex; align-items: center; gap: 6px; }
+.eno-plan-dots small { color: var(--flow-muted); font-size: .8rem; margin-left: 4px; }
+.eno-plan-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.eno-plan-dot-ambo { background: #A4CFF6; } .eno-plan-dot-minne { background: #A6DDD8; } .eno-plan-dot-etha { background: #C7BDF4; }
+.eno-plan-price { grid-area: price; display: flex; align-items: baseline; justify-content: flex-end; gap: 2px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.eno-plan-price b { font-size: 1.6rem; font-weight: 600; letter-spacing: -.01em; display: inline-block; }
+.eno-plan-price small { color: var(--flow-muted); font-size: .9rem; display: inline-block; }
+.eno-plan-save { grid-area: save; justify-self: end; text-align: right; font-size: .8rem; font-weight: 600; color: #2F6B5A; white-space: nowrap; display: inline-block; }
+.eno-plan-save s { color: var(--flow-muted); font-weight: 500; margin-right: 4px; }
+.eno-plan-items { grid-area: items; display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 6px; font-size: .88rem; color: var(--flow-ink-2); }
+.eno-plan-items span::before { content: "✓"; color: var(--flow-accent); font-weight: 700; margin-right: 6px; }
+.eno-custom { margin-top: 18px; }
+.eno-custom-toggle { appearance: none; border: 0; background: none; font: inherit; font-weight: 600; color: var(--flow-accent); cursor: pointer; padding: 10px 0; min-height: 44px; display: inline-flex; gap: 8px; align-items: center; }
+.eno-custom-note { margin: 0 0 12px; color: var(--flow-muted); font-size: .9rem; }
+.eno-custom .eno-pc { min-height: 0; padding: 14px 18px; }
+.eno-custom .eno-pc-name { font-size: 1.15rem; }
+.eno-flow-reassure { margin: 8px 0 0; text-align: center; font-size: .8rem; color: var(--flow-muted); }
+.eno-plan-bar { display: none; }
+@media (hover: hover) and (pointer: fine) {
+  .eno-plan:not(.is-selected):hover { border-color: rgba(91,112,179,.6); box-shadow: 0 16px 34px rgba(60,84,150,.12); }
+}
+@media (max-width: 860px) {
+  .eno-flow-title { font-size: clamp(2rem, 8vw, 2.6rem); }
+  .eno-plan-seg { max-width: none; }
+  .eno-plan { padding: 16px 18px; grid-template-areas: "head price" "for for" "save save" "dots dots" "items items"; }
+  .eno-plan-save { justify-self: start; text-align: left; }
+  .eno-plan-name { font-size: 1.25rem; }
+  .eno-plan-price b { font-size: 1.35rem; }
+  .eno-plan-items { flex-direction: column; gap: 4px; }
+  .eno-flow-choice { padding-bottom: 96px; }
+  .eno-plan-bar.eno-show-sm {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 40;
+    padding: 10px 10px 10px 18px; border-radius: 22px;
+    background: rgba(255,255,255,.82); backdrop-filter: blur(18px) saturate(1.4); -webkit-backdrop-filter: blur(18px) saturate(1.4);
+    border: 1px solid rgba(255,255,255,.95); box-shadow: 0 14px 34px rgba(40,60,120,.18);
+  }
+  .eno-plan-bar span { display: flex; flex-direction: column; min-width: 0; }
+  .eno-plan-bar b { font-size: 1rem; display: inline-block; } .eno-plan-bar small { color: var(--flow-muted); font-size: .85rem; display: inline-block; font-variant-numeric: tabular-nums; }
+  .eno-plan-bar .eno-btn { min-height: 48px; padding: 0 20px; white-space: nowrap; }
+}
+@media (max-width: 860px) {
+  .eno-plan { position: relative; }
+  .eno-plan-badge { position: absolute; top: -11px; left: 18px; font-size: .64rem; padding: 4px 8px; box-shadow: 0 6px 14px rgba(60,84,150,.2); }
+  .eno-plan.is-recommended { margin-top: 8px; }
+}
