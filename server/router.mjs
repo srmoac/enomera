@@ -622,34 +622,61 @@ export async function handleApiRequest(req, res, customDb = null) {
       });
       const data = schema.parse(await readJsonBody(req));
       const normEmail = data.email.trim().toLowerCase();
-      const exists = (await db.get('SELECT id FROM users WHERE email = ?', normEmail));
-      if (exists) throw Object.assign(new Error('Já existe uma conta com este e-mail. Entre para recuperar sua combinação.'), { status: 409, code: 'EMAIL_EXISTS' });
-
-      const { userId, accountId, slug } = await createProfessionalUser(db, {
-        fullName: data.fullName,
-        email: normEmail,
-        password: data.password,
-        crpOrCrm: data.crpOrCrm,
-        specialty: data.specialty,
-      });
+      const exists = (await db.get('SELECT * FROM users WHERE email = ?', normEmail));
+      let userId; let accountId; let slug; let resumed = false;
+      if (exists) {
+        // Cadastro pendente (e-mail nunca confirmado): quem tem a senha retoma a
+        // conta e recebe um novo código, em vez de ficar preso no "já existe".
+        const pending = !exists.email_verified_at && exists.role === 'professional';
+        if (!pending || !verifyPassword(data.password, exists.password_hash, exists.password_salt)) {
+          const msg = pending
+            ? 'Já existe um cadastro pendente com este e-mail. Use a mesma senha para continuar ou entre em "Já tenho conta".'
+            : 'Já existe uma conta com este e-mail. Entre para recuperar sua combinação.';
+          throw Object.assign(new Error(msg), { status: 409, code: pending ? 'EMAIL_PENDING' : 'EMAIL_EXISTS' });
+        }
+        const acc = await db.get('SELECT pa.id, pa.slug FROM professional_accounts pa JOIN account_memberships am ON am.account_id = pa.id WHERE am.user_id = ? LIMIT 1', exists.id);
+        if (!acc) throw Object.assign(new Error('Já existe uma conta com este e-mail. Entre para recuperar sua combinação.'), { status: 409, code: 'EMAIL_EXISTS' });
+        ({ id: userId } = exists); ({ id: accountId, slug } = acc); resumed = true;
+      } else {
+        ({ userId, accountId, slug } = await createProfessionalUser(db, {
+          fullName: data.fullName,
+          email: normEmail,
+          password: data.password,
+          crpOrCrm: data.crpOrCrm,
+          specialty: data.specialty,
+        }));
+      }
       if (data.selection) await writeAccountSelection(db, accountId, data.selection);
 
-      const ver = await issueVerificationCode(db, {
-        purpose: 'email_verify',
-        targetContact: normEmail,
-        userId,
-        accountId,
-        subject: 'Verifique seu e-mail na Enomera',
-      });
+      // A sessão vem antes do envio: se o e-mail falhar, a pessoa continua na
+      // conta pendente e pode pedir outro código ou corrigir o endereço.
       const sess = await issueSession(db, { userId, actorType: 'professional', accountId });
+      let verification;
+      try {
+        const ver = await issueVerificationCode(db, {
+          purpose: 'email_verify',
+          targetContact: normEmail,
+          userId,
+          accountId,
+          subject: 'Verifique seu e-mail na Enomera',
+        });
+        verification = { required: true, expiresAt: ver.expiresAt, delivery: ver.delivery };
+      } catch (err) {
+        if (err?.code === 'RESEND_RATE_LIMITED') verification = { required: true, alreadySent: true };
+        else if (err?.code === 'MAIL_DELIVERY_FAILED') verification = { required: true, deliveryFailed: true, error: 'Não conseguimos entregar o código neste endereço. Confira o e-mail, corrija se precisar e peça um novo código.' };
+        else throw err;
+      }
+      const user = await db.get('SELECT full_name FROM users WHERE id = ?', userId);
+      const account = await db.get('SELECT display_name, crp_or_crm, specialty FROM professional_accounts WHERE id = ?', accountId);
 
-      return json(res, 201, {
-        user: { id: userId, email: normEmail, fullName: data.fullName.trim(), emailVerified: false, role: 'professional' },
-        account: { id: accountId, slug, displayName: data.fullName.trim(), crpOrCrm: data.crpOrCrm.trim(), specialty: data.specialty },
+      return json(res, resumed ? 200 : 201, {
+        user: { id: userId, email: normEmail, fullName: user?.full_name || data.fullName.trim(), emailVerified: false, role: 'professional' },
+        account: { id: accountId, slug, displayName: account?.display_name || data.fullName.trim(), crpOrCrm: account?.crp_or_crm || '', specialty: account?.specialty || data.specialty },
         entitlements: await getAccountEntitlements(db, accountId),
         sessionToken: sess.rawToken,
         expiresAt: sess.expiresAt,
-        verification: { required: true, expiresAt: ver.expiresAt, delivery: ver.delivery },
+        resumed,
+        verification,
       }, { 'Set-Cookie': sess.cookie });
     }
 

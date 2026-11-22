@@ -1,10 +1,19 @@
+// Destinos do ecossistema. O build injeta os endereços do conjunto de previews
+// (window.__ENOMERA_*_URL); sem injeção, valem os endereços públicos.
+const injected = typeof window === 'undefined' ? {} : window;
+const withSlash = url => (url.endsWith('/') ? url : `${url}/`);
+const pick = (key, fallback) => withSlash(String(injected[key] || fallback).trim());
+const helenaBase = pick('__ENOMERA_HELENA_URL', 'https://helenaduartepsi.vercel.app/');
+const enomeraBase = typeof location === 'undefined' ? 'https://enomera.vercel.app/' : `${location.origin}/`;
+
 export const ecosystem = {
-  enomera: 'https://enomera.vercel.app/',
-  portal: 'https://enomera.vercel.app/portal',
-  etha: 'https://etha-enomera.vercel.app/',
-  helena: 'https://helenaduartepsi.vercel.app/',
-  minne: 'https://minne-enomera.vercel.app/',
-  ambo: 'https://ambo-enomera.vercel.app/'
+  enomera: enomeraBase,
+  portal: `${enomeraBase}portal`,
+  etha: pick('__ENOMERA_ETHA_URL', 'https://etha-enomera.vercel.app/'),
+  // O site integrado atende vários profissionais; o exemplo abre o da Helena.
+  helena: injected.__ENOMERA_HELENA_URL ? `${helenaBase}?site=helena-duarte` : helenaBase,
+  minne: pick('__ENOMERA_MINNE_URL', 'https://minne-enomera.vercel.app/'),
+  ambo: pick('__ENOMERA_AMBO_URL', 'https://ambo-enomera.vercel.app/')
 };
 
 export const services = [

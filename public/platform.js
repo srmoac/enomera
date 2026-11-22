@@ -38,6 +38,17 @@ const APP_ORIGINS = {
 };
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const PRODUCT_NAMES = { ambo: 'Ambo', minne: 'Minne', etha: 'Etha' };
+const STATUS_LABELS = {
+  active: 'Ativo', trial: 'Em teste', read_only: 'Somente leitura', cancelled: 'Cancelado', canceled: 'Cancelado',
+  past_due: 'Pagamento pendente', expired: 'Encerrado', pending: 'Pendente', approved: 'Aprovado', failed: 'Não concluído',
+  briefing: 'Briefing', draft: 'Rascunho', revision_submitted: 'Revisão enviada', published_staging: 'Site publicado',
+  published: 'Site publicado', confirmed: 'Confirmado',
+};
+const statusLabel = (status) => STATUS_LABELS[status] || 'Em andamento';
+const BILLING_LABELS = { monthly: 'Mensal', subscription: 'Mensal', permanent: 'Licença permanente', license: 'Licença permanente', trial: 'Teste de 7 dias' };
+const SYNC_LABELS = {};
+const fmtDateTime = (iso) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? String(iso ?? '') : d.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); };
 const brl = (cents) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((cents || 0) / 100);
 
 function getToken() { try { return sessionStorage.getItem(TOKEN_KEY) || ''; } catch { return ''; } }
@@ -448,11 +459,44 @@ export async function mountEnomeraPlatform(rootEl) {
     if (!s) return '<div class="eno-card"><p class="eno-muted">Carregando seu portal...</p></div>';
     const e = s.entitlements || {};
     const activeCount = ['ambo', 'minne', 'etha'].filter((p) => e[p]?.canReadExport).length;
-    const isEthaOnly = e.etha?.canReadExport && !e.ambo?.canReadExport && !e.minne?.canReadExport;
-
-    const chosen = state.combo.products.length
-      ? `${comboLabel(state.combo.products)} · ${state.combo.viewMode === 'permanent' ? 'Licença permanente' : 'Mensal'}`
-      : '';
+    const activeProducts = ['ambo', 'minne', 'etha'].filter((p) => e[p]);
+    const otherProducts = ['ambo', 'minne', 'etha'].filter((p) => !e[p]);
+    // Com serviços na conta, o portal mostra o que está contratado; a escolha
+    // guardada no navegador só aparece para quem ainda não contratou nada.
+    const chosen = activeProducts.length
+      ? comboLabel(activeProducts)
+      : state.combo.products.length
+        ? `${comboLabel(state.combo.products)} · ${state.combo.viewMode === 'permanent' ? 'Licença permanente' : 'Mensal'}`
+        : '';
+    const productCard = (prod, owned) => {
+      const ent = e[prod];
+      const name = PRODUCT_NAMES[prod];
+      const status = prod === 'etha' && ent ? (s.routine.ethaProject?.status || ent.status) : ent?.status;
+      const pill = `<span class="eno-pill ${ent?.canWrite ? 'eno-pill-ok' : `eno-pill-${prod}`}">${name} · ${owned ? esc(statusLabel(status)) : 'Disponível'}</span>`;
+      const body = {
+        ambo: ent?.canReadExport ? `Seu endereço no Ambo: <code>?pro=${esc(s.account.slug)}</code><br>Solicitações aguardando resposta: <b>${s.routine.pendingRequests ?? 0}</b>` : 'Agendamento online e área do paciente.',
+        minne: ent?.canReadExport ? `Consultas confirmadas: <b>${s.routine.confirmedAppointments ?? 0}</b> · Rascunhos: <b>${s.routine.clinicalDrafts ?? 0}</b>` : 'Agenda clínica, prontuários e importação dos seus registros.',
+        etha: 'Site exclusivo com briefing, uma revisão e painel para editar textos e fotos.',
+      }[prod];
+      const actions = {
+        ambo: `<button type="button" class="eno-btn eno-btn-ambo" data-launch="ambo" data-path="/?pro=${encodeURIComponent(s.account.slug)}">Ver perfil público ↗</button>
+               <button type="button" class="eno-btn eno-btn-sec" data-launch="ambo" data-path="/operacao">Abrir solicitações ↗</button>`,
+        minne: `<button type="button" class="eno-btn eno-btn-minne" data-launch="minne" data-path="/?modo=ao-vivo">Abrir Minne ↗</button>
+                <button type="button" class="eno-btn eno-btn-sec" data-launch="minne" data-path="/?modo=ao-vivo&aba=importar">Importar prontuários ↗</button>`,
+        etha: `<button type="button" class="eno-btn eno-btn-etha" data-launch="etha" data-path="/?modo=ao-vivo">Abrir Etha ↗</button>
+               <button type="button" class="eno-btn eno-btn-sec" data-launch="helena" data-path="/?site=${encodeURIComponent(s.account.slug)}">Ver site publicado ↗</button>`,
+      }[prod];
+      const offer = prod === 'etha' ? 'Adicionar site Etha' : 'Contratar ou testar 7 dias';
+      return `
+        <article class="eno-card ${ent?.canReadExport ? `eno-card-${prod}` : ''}">
+          ${pill}
+          <h2 class="eno-h2">${prod}</h2>
+          <p class="eno-muted">${body}</p>
+          <div class="eno-btn-row">
+            ${ent?.canReadExport ? actions : `<button type="button" class="eno-btn eno-btn-sec" data-tab="plans">${owned ? 'Reativar' : offer}</button>`}
+          </div>
+        </article>`;
+    };
     return `
       <section class="eno-list eno-panel-enter" style="gap:20px">
         ${renderActivationBanner(state.activation)}
@@ -462,7 +506,7 @@ export async function mountEnomeraPlatform(rootEl) {
               <span class="eno-pill">PORTAL PROFISSIONAL · ${esc(s.account.displayName)} ${s.account.crpOrCrm ? `· ${esc(s.account.crpOrCrm)}` : ''}</span>
               <h1 class="eno-h1" style="margin-top:8px">${activeCount ? 'Seus produtos prontos para uso' : 'Bem-vinda! Escolha seu ponto de partida'}</h1>
               <p class="eno-muted">Primeira ação recomendada agora: <b>${esc(s.nextAction.label)}</b></p>
-              ${chosen ? `<p class="eno-muted" data-portal-combo>Sua combinação: <b>${esc(chosen)}</b> · <button type="button" class="eno-link" data-tab="plans">Alterar</button></p>` : ''}
+              ${chosen ? `<p class="eno-muted" data-portal-combo>${activeProducts.length ? 'Seus serviços' : 'Sua combinação'}: <b>${esc(chosen)}</b> · <button type="button" class="eno-link" data-tab="plans">${activeProducts.length ? 'Ver outros serviços' : 'Alterar'}</button></p>` : ''}
             </div>
             <div class="eno-btn-row">
               ${!state.me.user.emailVerified ? `<button type="button" class="eno-btn eno-btn-sec" id="eno-go-verify">Verificar e-mail pendente</button>` : `<span class="eno-pill eno-pill-ok">E-mail verificado</span>`}
@@ -471,62 +515,22 @@ export async function mountEnomeraPlatform(rootEl) {
           </div>
           ${s.pendingSyncs?.length ? `
             <div class="eno-card eno-card-warn">
-              <b>Atualização pendente entre produtos (${s.pendingSyncs.length})</b>
-              <p class="eno-muted">O registro principal está salvo no banco. Conclua a propagação sem duplicar a ação:</p>
-              ${s.pendingSyncs.map((ev) => `<button type="button" class="eno-btn eno-btn-sec" data-retry-sync="${esc(ev.id)}">Reenviar sincronização ${esc(ev.event_type)}</button>`).join('')}
+              <b>${s.pendingSyncs.length === 1 ? 'Uma atualização ainda não chegou aos outros serviços' : `${s.pendingSyncs.length} atualizações ainda não chegaram aos outros serviços`}</b>
+              <p class="eno-muted">O que você fez está salvo. Toque abaixo para enviar de novo, sem repetir a ação:</p>
+              ${s.pendingSyncs.map((ev) => `<button type="button" class="eno-btn eno-btn-sec" data-retry-sync="${esc(ev.id)}">Atualizar ${esc(SYNC_LABELS[ev.event_type] || 'os outros serviços')}</button>`).join('')}
             </div>
           ` : ''}
         </div>
 
-        ${isEthaOnly ? `
-          <div class="eno-card eno-card-etha">
-            <span class="eno-pill eno-pill-etha">PORTAL ADAPTADO · SOMENTE ETHA</span>
-            <h2 class="eno-h2">Andamento do seu site exclusivo</h2>
-            <p class="eno-muted">Sem menus vazios de agenda ou prontuário. Status atual na Etha: <b>${esc(s.routine.ethaProject?.status || 'briefing')}</b>.</p>
-            <div class="eno-btn-row">
-              <button type="button" class="eno-btn eno-btn-etha" data-launch="etha" data-path="/?modo=ao-vivo">Abrir Etha (briefing, revisão e painel) ↗</button>
-              <button type="button" class="eno-btn eno-btn-sec" data-tab="plans">Conhecer Ambo e Minne</button>
-            </div>
-          </div>
-        ` : `
-          <div class="eno-grid-3">
-            <article class="eno-card ${e.ambo?.canReadExport ? 'eno-card-ambo' : ''}">
-              <span class="eno-pill ${e.ambo?.canWrite ? 'eno-pill-ok' : 'eno-pill-ambo'}">${e.ambo ? `Ambo · ${esc(e.ambo.status)}` : 'Ambo · Não contratado'}</span>
-              <h2 class="eno-h2">ambo</h2>
-              <p class="eno-muted">Link público: <code>?pro=${esc(s.account.slug)}</code><br>${e.ambo?.canReadExport ? `Solicitações pendentes: <b>${s.routine.pendingRequests ?? 0}</b>` : 'Agendamento online e área verificada do paciente.'}</p>
-              <div class="eno-btn-row">
-                ${e.ambo?.canReadExport ? `
-                  <button type="button" class="eno-btn eno-btn-ambo" data-launch="ambo" data-path="/?pro=${encodeURIComponent(s.account.slug)}">Ver perfil público ↗</button>
-                  <button type="button" class="eno-btn eno-btn-sec" data-launch="ambo" data-path="/operacao">Operação Ambo ↗</button>
-                ` : `<button type="button" class="eno-btn eno-btn-sec" data-tab="plans">Contratar / Testar 7 dias</button>`}
-              </div>
-            </article>
-
-            <article class="eno-card ${e.minne?.canReadExport ? 'eno-card-minne' : ''}">
-              <span class="eno-pill ${e.minne?.canWrite ? 'eno-pill-ok' : 'eno-pill-minne'}">${e.minne ? `Minne · ${esc(e.minne.status)}` : 'Minne · Não contratado'}</span>
-              <h2 class="eno-h2">minne</h2>
-              <p class="eno-muted">${e.minne?.canReadExport ? `Consultas confirmadas: <b>${s.routine.confirmedAppointments ?? 0}</b> · Rascunhos: <b>${s.routine.clinicalDrafts ?? 0}</b>` : 'Agenda clínica, prontuários versionados e importação em 6 meios.'}</p>
-              <div class="eno-btn-row">
-                ${e.minne?.canReadExport ? `
-                  <button type="button" class="eno-btn eno-btn-minne" data-launch="minne" data-path="/?modo=ao-vivo">Abrir Minne ↗</button>
-                  <button type="button" class="eno-btn eno-btn-sec" data-launch="minne" data-path="/?modo=ao-vivo&aba=importar">Importar prontuários ↗</button>
-                ` : `<button type="button" class="eno-btn eno-btn-sec" data-tab="plans">Contratar / Testar 7 dias</button>`}
-              </div>
-            </article>
-
-            <article class="eno-card ${e.etha?.canReadExport ? 'eno-card-etha' : ''}">
-              <span class="eno-pill ${e.etha?.canWrite ? 'eno-pill-ok' : 'eno-pill-etha'}">${e.etha ? `Etha · ${esc(s.routine.ethaProject?.status || e.etha.status)}` : 'Etha · Outro serviço'}</span>
-              <h2 class="eno-h2">etha</h2>
-              <p class="eno-muted">Site exclusivo com briefing, 1 rodada consolidada e painel de edição.</p>
-              <div class="eno-btn-row">
-                ${e.etha?.canReadExport ? `
-                  <button type="button" class="eno-btn eno-btn-etha" data-launch="etha" data-path="/?modo=ao-vivo">Abrir Etha ↗</button>
-                  <button type="button" class="eno-btn eno-btn-sec" data-launch="helena" data-path="/">Site de homologação ↗</button>
-                ` : `<button type="button" class="eno-btn eno-btn-sec" data-tab="plans">Adicionar site Etha</button>`}
-              </div>
-            </article>
-          </div>
-        `}
+        <div class="eno-grid-3">
+          ${activeProducts.map((prod) => productCard(prod, true)).join('')}
+        </div>
+        ${otherProducts.length ? `
+          <section class="eno-list" aria-labelledby="eno-other-title" style="gap:12px">
+            <h2 class="eno-h2" id="eno-other-title">Outros serviços</h2>
+            <div class="eno-grid-3">${otherProducts.map((prod) => productCard(prod, false)).join('')}</div>
+          </section>
+        ` : ''}
       </section>
     `;
   }
@@ -551,13 +555,13 @@ export async function mountEnomeraPlatform(rootEl) {
           <span class="eno-pill eno-pill-ambo">DISPONIBILIDADE E BLOQUEIOS</span>
           <h2 class="eno-h2">Fuso configurado: ${esc(p.timezone)}</h2>
           <form id="eno-block-form" class="eno-list">
-            <div class="eno-field"><label for="b-start">Início do bloqueio (ISO com -03:00)</label><input id="b-start" name="startAt" class="eno-input" value="${new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10)}T14:00:00-03:00"></div>
-            <div class="eno-field"><label for="b-end">Fim do bloqueio</label><input id="b-end" name="endAt" class="eno-input" value="${new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10)}T16:00:00-03:00"></div>
+            <div class="eno-field"><label for="b-start">Início do bloqueio</label><input id="b-start" name="startAt" type="datetime-local" class="eno-input" value="${new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10)}T14:00"></div>
+            <div class="eno-field"><label for="b-end">Fim do bloqueio</label><input id="b-end" name="endAt" type="datetime-local" class="eno-input" value="${new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10)}T16:00"></div>
             <div class="eno-field"><label for="b-reason">Motivo</label><input id="b-reason" name="reason" class="eno-input" value="Supervisão clínica"></div>
             <button type="submit" class="eno-btn eno-btn-ambo">Salvar bloqueio na agenda</button>
           </form>
           <div class="eno-list">
-            ${(state.profileData.availabilityBlocks || []).map((b) => `<div class="eno-row"><span>${esc(b.reason)}</span><small>${esc(b.start_at)} → ${esc(b.end_at)}</small></div>`).join('') || '<p class="eno-muted">Nenhum bloqueio cadastrado.</p>'}
+            ${(state.profileData.availabilityBlocks || []).map((b) => `<div class="eno-row"><span>${esc(b.reason)}</span><small>${esc(fmtDateTime(b.start_at))} até ${esc(fmtDateTime(b.end_at))}</small></div>`).join('') || '<p class="eno-muted">Nenhum bloqueio cadastrado.</p>'}
           </div>
         </div>
       </section>
@@ -569,7 +573,7 @@ export async function mountEnomeraPlatform(rootEl) {
     return `
       <section class="eno-grid-2 eno-panel-enter">
         <div class="eno-card">
-          <span class="eno-pill">CICLO DE VIDA E DIREITOS DE ACESSO</span>
+          <span class="eno-pill">SERVIÇOS E ACESSO</span>
           <h1 class="eno-h1">Serviços, cancelamento parcial e exportação</h1>
           <div class="eno-list">
             ${['ambo', 'minne', 'etha'].map((prod) => {
@@ -578,8 +582,8 @@ export async function mountEnomeraPlatform(rootEl) {
               return `
                 <div class="eno-row">
                   <div>
-                    <b>${prod.toUpperCase()}</b> · <span class="eno-pill ${ent.canWrite ? 'eno-pill-ok' : 'eno-pill-warn'}">${esc(ent.status)}</span>
-                    <div class="eno-muted">${ent.trialEndsAt ? `Teste até ${esc(ent.trialEndsAt.slice(0, 10))}` : `Ciclo: ${esc(ent.billingMode)}`}</div>
+                    <b>${prod.toUpperCase()}</b> · <span class="eno-pill ${ent.canWrite ? 'eno-pill-ok' : 'eno-pill-warn'}">${esc(statusLabel(ent.status))}</span>
+                    <div class="eno-muted">${ent.trialEndsAt ? `Teste até ${esc(ent.trialEndsAt.slice(0, 10))}` : `Ciclo: ${esc(BILLING_LABELS[ent.billingMode] || 'Mensal')}`}</div>
                   </div>
                   ${ent.canWrite
                     ? `<button type="button" class="eno-btn eno-btn-sec" data-ent-action="cancel" data-ent-prod="${prod}">Cancelar só ${prod}</button>`
@@ -589,7 +593,7 @@ export async function mountEnomeraPlatform(rootEl) {
             }).join('')}
           </div>
           <div class="eno-btn-row">
-            <button type="button" class="eno-btn eno-btn-minne" id="eno-export-account">Exportar dados autorizados (JSON)</button>
+            <button type="button" class="eno-btn eno-btn-minne" id="eno-export-account">Exportar meus dados</button>
             <button type="button" class="eno-btn eno-btn-danger" id="eno-logout-all">Encerrar todas as sessões</button>
           </div>
         </div>
@@ -602,7 +606,7 @@ export async function mountEnomeraPlatform(rootEl) {
               <div class="eno-row">
                 <div>
                   <b>${esc(o.receipt_code)}</b> · ${esc(o.items.join(' + ').toUpperCase())}
-                  <div class="eno-muted">Hoje: ${brl(o.due_today_cents)} · Recorrente: ${brl(o.recurring_monthly_cents)}/mês · Status: <b>${esc(o.status)}</b></div>
+                  <div class="eno-muted">Hoje: ${brl(o.due_today_cents)} · Recorrente: ${brl(o.recurring_monthly_cents)}/mês · Situação: <b>${esc(statusLabel(o.status))}</b></div>
                 </div>
                 ${o.status !== 'approved' ? `<button type="button" class="eno-btn eno-btn-sec" data-retry-order="${esc(o.id)}" ${state.busyAction === 'retryOrder' ? 'disabled' : ''}>Retomar</button>` : ''}
               </div>
@@ -961,6 +965,20 @@ export async function mountEnomeraPlatform(rootEl) {
       setToken(res.data.sessionToken);
       state.formCache.loginPwd = '';
       state.fieldError = null;
+      if (res.data.user.role === 'professional' && !res.data.user.emailVerified) {
+        // Cadastro pendente: leva direto para confirmar, reenviar ou corrigir o e-mail.
+        state.pendingEmail = res.data.user.email;
+        state.fixEmailOpen = false;
+        state.tab = 'auth';
+        state.authMode = 'verify';
+        state.feedback = { tone: 'warn', text: 'Falta confirmar seu e-mail. Use o código que enviamos, peça um novo ou corrija o endereço.' };
+        syncHistory(state.tab, state.authMode);
+        await refreshSessionAndData();
+        state.tab = 'auth';
+        state.authMode = 'verify';
+        render();
+        return;
+      }
       state.feedback = { tone: 'ok', text: `Bem-vinda de volta, ${res.data.user.fullName}. Sua combinação foi mantida.` };
       state.tab = state.returnAfterAuth || 'portal';
       state.returnAfterAuth = null;
@@ -1005,11 +1023,17 @@ export async function mountEnomeraPlatform(rootEl) {
       state.pendingEmail = email;
       state.lastSentEmail = email;
       state.otpDigits = ['', '', '', '', '', ''];
-      state.lastDelivery = res.data.verification.delivery;
-      await loadOutbox(email);
+      state.lastDelivery = res.data.verification.delivery || null;
       state.authMode = 'verify';
-      startResendCooldown(30);
-      state.feedback = { tone: state.lastDelivery.sentExternally ? 'ok' : 'warn', text: state.lastDelivery.notice };
+      if (res.data.verification.deliveryFailed) {
+        state.fixEmailOpen = true;
+        state.feedback = { tone: 'err', text: res.data.verification.error };
+      } else {
+        state.fixEmailOpen = false;
+        await loadOutbox(email);
+        startResendCooldown(30);
+        state.feedback = { tone: state.lastDelivery?.sentExternally ? 'ok' : 'warn', text: res.data.verification.alreadySent ? 'Retomamos seu cadastro. O código que enviamos há pouco continua válido.' : res.data.resumed ? 'Retomamos seu cadastro e enviamos um novo código.' : state.lastDelivery?.notice };
+      }
       await refreshSessionAndData();
       state.tab = 'auth';
       state.authMode = 'verify';
@@ -1058,11 +1082,51 @@ export async function mountEnomeraPlatform(rootEl) {
       render();
       const res = await apiFetch('/api/v1/auth/resend-verification', { method: 'POST', body: { email } });
       state.busyAction = null;
+      if (!res.ok) {
+        state.fixEmailOpen = true;
+        state.feedback = { tone: 'err', text: res.data.error || 'Não foi possível enviar um novo código agora.' };
+        render();
+        return;
+      }
       state.lastDelivery = res.data.delivery || null;
       await loadOutbox(email);
       startResendCooldown(30);
       state.feedback = { tone: state.lastDelivery?.sentExternally ? 'ok' : 'warn', text: res.data.delivery?.notice || 'Novo código gerado.' };
       render();
+    });
+
+    rootEl.querySelector('#eno-fix-email')?.addEventListener('click', async () => {
+      if (state.busyAction === 'fixEmail') return;
+      const input = rootEl.querySelector('#v-email');
+      const email = String(input?.value || '').trim();
+      if (!input?.checkValidity() || !email) {
+        state.fixEmailOpen = true;
+        state.feedback = { tone: 'err', text: 'Digite um endereço de e-mail válido.' };
+        render();
+        return;
+      }
+      state.busyAction = 'fixEmail';
+      render();
+      const res = await apiFetch('/api/v1/auth/change-email', { method: 'POST', body: { email } });
+      state.busyAction = null;
+      state.fixEmailOpen = !res.ok;
+      if (!res.ok) {
+        state.feedback = { tone: 'err', text: res.data.error || 'Não foi possível trocar o endereço agora.' };
+        render();
+        return;
+      }
+      state.pendingEmail = res.data.email;
+      state.lastSentEmail = res.data.email;
+      state.formCache.email = res.data.email;
+      state.lastDelivery = res.data.delivery || null;
+      state.otpDigits = ['', '', '', '', '', ''];
+      startResendCooldown(30);
+      state.feedback = { tone: 'ok', text: `Endereço corrigido. Enviamos um novo código para ${res.data.email}.` };
+      await refreshSessionAndData();
+      state.tab = 'auth';
+      state.authMode = 'verify';
+      render();
+      rootEl.querySelector('#otp-0')?.focus();
     });
 
     rootEl.querySelector('#eno-rec-req')?.addEventListener('submit', async (ev) => {
@@ -1293,7 +1357,9 @@ export async function mountEnomeraPlatform(rootEl) {
       ev.preventDefault();
       const fd = new FormData(ev.currentTarget);
       const currentBlocks = (state.profileData?.availabilityBlocks || []).map((b) => ({ startAt: b.start_at, endAt: b.end_at, reason: b.reason }));
-      currentBlocks.push({ startAt: fd.get('startAt'), endAt: fd.get('endAt'), reason: fd.get('reason') });
+      // Campo datetime-local vem sem fuso; a agenda do profissional é em Brasília (-03:00).
+      const withZone = (v) => (/[+-]\d\d:\d\d$|Z$/.test(v) ? v : `${v.length === 16 ? `${v}:00` : v}-03:00`);
+      currentBlocks.push({ startAt: withZone(String(fd.get('startAt'))), endAt: withZone(String(fd.get('endAt'))), reason: fd.get('reason') });
       const res = await apiFetch('/api/v1/professional/availability', { method: 'PUT', body: { blocks: currentBlocks } });
       if (res.ok) { state.feedback = { tone: 'ok', text: 'Bloqueio salvo na agenda real.' }; await refreshSessionAndData(); }
     });
