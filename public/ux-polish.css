@@ -101,12 +101,16 @@ dialog, [role="dialog"], .eno-flow-side, .eno-sheet { overscroll-behavior: conta
 @keyframes enoOtpStatusIn { from { opacity: 0; transform: translateY(4px); } }
 
 /* ---------- Troca de tela ou etapa: cascata na direção do percurso ---------- */
-[data-route-in] > * > *, [data-route-in] .eno-flow-main > * { animation: enoRouteIn var(--eno-t-step) var(--eno-ease-out) both; }
-[data-route-in="back"] > * > *, [data-route-in="back"] .eno-flow-main > * { animation-name: enoRouteInBack; }
+/* Uma entrada só por troca: o contêiner (.eno-flow-main, .eno-panel-enter) fica parado e só os filhos entram.
+   Lateral (.eno-flow-side) é contexto e não anima. Cascata de 40 ms, 220 ms cada, termina em até 300 ms. */
+[data-route-in] .eno-panel-enter { animation: none !important; }
+[data-route-in] > * > *:not(.eno-flow-main):not(.eno-flow-side), [data-route-in] .eno-flow-main > * { animation: enoRouteIn var(--eno-t-base) var(--eno-ease-out) both; }
+[data-route-in="back"] > * > *:not(.eno-flow-main):not(.eno-flow-side), [data-route-in="back"] .eno-flow-main > * { animation-name: enoRouteInBack; }
 [data-route-in] > * > *:nth-child(2), [data-route-in] .eno-flow-main > *:nth-child(2) { animation-delay: 40ms; }
-[data-route-in] > * > *:nth-child(3), [data-route-in] .eno-flow-main > *:nth-child(3) { animation-delay: 80ms; }
-[data-route-in] > * > *:nth-child(4), [data-route-in] .eno-flow-main > *:nth-child(4) { animation-delay: 120ms; }
-[data-route-in] > * > *:nth-child(n+5), [data-route-in] .eno-flow-main > *:nth-child(n+5) { animation-delay: 150ms; }
+[data-route-in] > * > *:nth-child(n+3), [data-route-in] .eno-flow-main > *:nth-child(n+3) { animation-delay: 80ms; }
+/* Vidro entra materializando (blur e escala juntos), não deslizando. */
+[data-route-in] > * > .lg:not(.eno-flow-main):not(.eno-flow-side), [data-route-in] .eno-flow-main > .lg { animation-name: enoGlassIn; }
+@keyframes enoGlassIn { from { opacity: 0; transform: scale(.97); filter: blur(8px); } to { opacity: 1; transform: none; filter: none; } }
 @keyframes enoRouteIn { from { opacity: 0; transform: translateX(var(--eno-shift-step, 24px)); } to { opacity: 1; transform: none; } }
 @keyframes enoRouteInBack { from { opacity: 0; transform: translateX(calc(var(--eno-shift-step, 24px) * -1)); } to { opacity: 1; transform: none; } }
 
@@ -116,3 +120,11 @@ dialog, [role="dialog"], .eno-flow-side, .eno-sheet { overscroll-behavior: conta
   [data-route-in] > * > *, [data-route-in] .eno-flow-main > * { animation: none !important; }
 }
 .eno-otp-field:is(.is-verifying, .is-verified, .has-error) .eno-otp-d { animation: none; }
+
+/* Navegação entre páginas (site → conta/portal): sem tela branca. A página antiga sai em 160 ms;
+   a nova aparece direto e o conteúdo entra pela cascata acima (uma entrada só). */
+@view-transition { navigation: auto; }
+::view-transition-old(root) { animation: enoPageOut 160ms var(--eno-ease-out) both; }
+::view-transition-new(root) { animation: none; }
+@keyframes enoPageOut { to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { ::view-transition-old(root) { animation: none; } }

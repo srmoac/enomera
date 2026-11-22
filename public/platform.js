@@ -699,7 +699,8 @@ export async function mountEnomeraPlatform(rootEl) {
     const routeKey = state.tab === 'auth' ? `auth:${state.authMode === 'code' ? 'code' : 'email'}` : state.tab;
     const prevRoute = motionTracker.prevRoute;
     motionTracker.prevRoute = routeKey;
-    const routeDir = !prevRoute || prevRoute === routeKey ? '' : ROUTE_ORDER.indexOf(routeKey) < ROUTE_ORDER.indexOf(prevRoute) ? 'back' : 'fwd';
+    // Primeira pintura (vinda de outra página): entra para a frente. Re-render da mesma tela: nada anima.
+    const routeDir = !prevRoute ? 'fwd' : prevRoute === routeKey ? '' : ROUTE_ORDER.indexOf(routeKey) < ROUTE_ORDER.indexOf(prevRoute) ? 'back' : 'fwd';
     const markRoute = () => {
       if (!routeDir) return;
       const c = rootEl.querySelector('#portal-content');
