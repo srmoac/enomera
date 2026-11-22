@@ -61,7 +61,6 @@ function prefersReducedMotion() {
 function isRemoteInfraError(status, data) {
   const code = String(data?.code || '');
   return (
-    status === 503 ||
     code === 'REMOTE_INFRA_NOT_CONFIGURED' ||
     code === 'REMOTE_DB_NOT_CONFIGURED' ||
     code === 'REMOTE_BLOB_NOT_CONFIGURED' ||
@@ -372,24 +371,15 @@ export async function mountEnomeraPlatform(rootEl) {
 
   function renderInfraAlert() {
     if (!state.infraError) return '';
-    const missing = state.infraError.missingEnvVars || [];
+    // Detalhe de provedor e nomes de variáveis ficam no diagnóstico interno (/api/v1/health), não na tela.
     return `
       <section class="eno-infra-alert" role="alert" aria-live="polite">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
           <div style="max-width:740px">
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
-              <span class="eno-pill eno-pill-warn">503 · Infraestrutura Remota Pendente</span>
-              <strong style="font-size:0.92rem">Ambiente Preview aguardando configuração (${esc(state.infraError.code)})</strong>
-            </div>
+            <strong style="font-size:0.92rem">Ainda não é possível criar a conta por aqui</strong>
             <p style="margin:4px 0 6px;font-size:0.84rem;line-height:1.45">
-              ${esc(state.infraError.error)} Sua seleção de serviços e os dados preenchidos continuam salvos nesta aba.
+              Este ambiente de teste está terminando de ser preparado, e o envio do código por e-mail ainda não está disponível. Nada foi cobrado nem enviado. Sua escolha de serviços continua salva nesta aba, e você retoma de onde parou.
             </p>
-            ${missing.length ? `
-              <div style="font-size:0.77rem;font-weight:650;margin-top:6px">Variáveis ausentes no ambiente Preview:</div>
-              <div class="eno-infra-env-list">
-                ${missing.map((envName) => `<span class="eno-infra-env-pill">${esc(envName)}</span>`).join('')}
-              </div>
-            ` : ''}
           </div>
           <button type="button" class="eno-btn eno-btn-sec eno-btn-sm" id="eno-retry-health">Verificar novamente</button>
         </div>

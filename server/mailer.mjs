@@ -103,6 +103,11 @@ export async function sendTransactionalEmail(db, { recipient, subject, textBody,
     notice = `Destinatário ${recipient} fora da lista controlada de homologação (RESEND_TEST_ALLOWLIST). Código disponível apenas na caixa local.`;
   }
 
+  if (remoteRequired && deliveryStatus !== 'sent_resend') {
+    throw Object.assign(new Error('Não foi possível entregar o e-mail. Seus dados foram preservados. Confira o endereço e solicite um novo envio.'),
+      { status:503, code:'MAIL_DELIVERY_FAILED' });
+  }
+
   // Never store plaintext OTPs/tokens in dev_outbox_messages when real external Resend delivery succeeded
   const storedPreview = deliveryStatus === 'sent_resend'
     ? '[Enviado externamente via Resend — conteúdo oculto da caixa local por segurança]'

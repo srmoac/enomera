@@ -201,7 +201,9 @@ export function calculateSimulatedQuote({ products = [], ethaFormat = null, mode
     selectedProducts: [...unique],
     ethaFormat: hasEtha ? (ethaFormat === 'multi_page' ? 'multi_page' : 'one_page') : null,
     lines,
-    dueTodayCents,
+    referenceDueTodayCents: dueTodayCents,
+    dueTodayCents: 0,
+    chargedTodayCents: 0,
     recurringMonthlyCents,
     recurringAfterPublishCents,
     balanceOnApprovalCents,
@@ -209,7 +211,7 @@ export function calculateSimulatedQuote({ products = [], ethaFormat = null, mode
     nextBillingDate,
     discountRule: discountDetails.join(' ') || 'Sem desconto combinado aplicado.',
     answers: {
-      dueToday: formatBrl(dueTodayCents),
+      dueToday: formatBrl(0),
       recurring: [
         recurringMonthlyCents > 0 ? `${formatBrl(recurringMonthlyCents)}/mês (SaaS ativo)` : null,
         recurringAfterPublishCents > 0 ? `+ ${formatBrl(recurringAfterPublishCents)}/mês de hospedagem/painel Etha somente após publicação` : null,

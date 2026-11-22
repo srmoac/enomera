@@ -238,6 +238,21 @@ async function applyMigrations(db) {
       );
     }
 
+    if (!applied.has('003_approved_preview')) {
+      if (tx.dialect === 'sqlite') {
+        const cols = await tx.all('PRAGMA table_info(professional_accounts)');
+        if (!cols.some((c) => c.name === 'audience')) await tx.exec("ALTER TABLE professional_accounts ADD COLUMN audience TEXT NOT NULL DEFAULT ''");
+      } else {
+        await tx.exec("ALTER TABLE professional_accounts ADD COLUMN IF NOT EXISTS audience TEXT NOT NULL DEFAULT ''");
+      }
+      await tx.exec(`CREATE TABLE IF NOT EXISTS checkout_selections (
+        account_id TEXT PRIMARY KEY REFERENCES professional_accounts(id) ON DELETE CASCADE,
+        selection_json TEXT NOT NULL, updated_at TEXT NOT NULL
+      )`);
+      await tx.run('INSERT INTO schema_migrations (version, description, applied_at) VALUES (?, ?, ?) ON CONFLICT(version) DO NOTHING',
+        '003_approved_preview', 'Approved profile metadata and server checkout selection', nowIso());
+    }
+
     await tx.run(
       "INSERT INTO etha_settings (id, capacity_limit, updated_at) VALUES ('default', 3, ?) ON CONFLICT(id) DO NOTHING",
       nowIso()
