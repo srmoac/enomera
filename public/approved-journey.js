@@ -1,3 +1,4 @@
+import { otpFieldHTML } from './otp-field.js';
 // Native controls adapted from the approved Figma journey. Data comes from the Core API.
 const escape = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money = n => new Intl.NumberFormat('pt-BR', { style:'currency', currency:'BRL' }).format((n || 0) / 100);
@@ -39,7 +40,7 @@ export function approvedAuth(s, { password, outbox }) {
     ${mode === 'login' ? `<form id="eno-login-form" class="eno-list">${field('l-email','email','E-mail profissional','email',s.formCache.email,'email')}
       ${password({id:'l-pwd',name:'password',label:'Senha',hint:'',value:s.formCache.loginPwd,autocomplete:'current-password',invalid:s.fieldError?.field==='login',errorText:s.fieldError?.field==='login'?s.fieldError.text:''})}<button class="eno-btn" type="submit" ${s.busyAction === 'login'?'disabled aria-busy="true"':''}>${s.busyAction === 'login'?'Entrando…':'Entrar e continuar'}</button></form>
       <button class="eno-text-button" type="button" data-authmode="recovery">Esqueci minha senha</button><button class="eno-btn eno-btn-sec" type="button" data-authmode="signup">Criar uma conta</button>` : ''}
-    ${mode === 'verify' ? `<form id="eno-verify-form" class="eno-list"><label for="otp-0">Código de confirmação</label><div class="eno-otp-row" id="eno-otp-group">${[0,1,2,3,4,5].map(i => `<input id="otp-${i}" class="eno-otp-digit" inputmode="numeric" autocomplete="${i===0?'one-time-code':'off'}" maxlength="6" aria-label="Dígito ${i+1} do código" aria-invalid="${s.fieldError?.field==='code'}" ${s.fieldError?.field==='code'?'aria-describedby="eno-code-error"':''} value="${escape(s.otpDigits[i])}">`).join('')}</div><input type="hidden" id="v-code" name="code" value="${escape(s.otpDigits.join(''))}">
+    ${mode === 'verify' ? `<form id="eno-verify-form" class="eno-list"><label for="otp-0">Código de confirmação</label>${otpFieldHTML({ value: s.otpDigits.join(''), error: s.fieldError?.field==='code', describedBy: s.fieldError?.field==='code' ? 'eno-code-error' : '', state: s.busyAction==='verify' ? 'verifying' : '' })}
       ${s.fieldError?.field==='code'?`<p class="eno-field-err" id="eno-code-error" role="alert">${escape(s.fieldError.text)}</p>`:''}
       <button class="eno-btn" type="submit" ${s.busyAction==='verify'?'disabled aria-busy="true"':''}>${s.busyAction==='verify'?'Confirmando…':'Confirmar e continuar'}</button>
       <button class="eno-btn eno-btn-sec" id="eno-resend-ver" type="button" ${s.resendCooldown>0||s.busyAction==='resend'?'disabled':''}>${s.resendCooldown>0?`Reenviar código (${s.resendCooldown}s)`:'Reenviar código'}</button>

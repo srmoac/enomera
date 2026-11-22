@@ -6,7 +6,10 @@ import {
   renderChoice,
   renderReview,
 } from './contract-flow.js';
+import { bindOtpField } from './otp-field.js';
 const TOKEN_KEY = 'enomera_session_token_v1';
+// Guarda o último código enviado automaticamente (sobrevive a re-render).
+const otpAuto = { code: '' };
 const DRAFT_COMBO_KEY = 'enomera_pending_combo_v1';
 const LAST_ORDER_KEY = 'enomera_last_order_v1';
 const ACTIVATION_KEY = 'enomera_last_activation_v1';
@@ -205,7 +208,7 @@ export async function mountEnomeraPlatform(rootEl) {
     cooldownTimer = setInterval(() => {
       state.resendCooldown = Math.max(0, state.resendCooldown - 1);
       if (state.tab === 'auth' && state.authMode === 'code') {
-        const note = rootEl.querySelector('#eno-code-form .eno-flow-note');
+        const note = rootEl.querySelector('#eno-code-form .eno-flow-note:not(.eno-otp-status)');
         if (state.resendCooldown === 0) {
           render(); // mostra "Reenviar código" (o foco é preservado por id)
         } else if (note && !state.codeError && note.firstChild?.nodeType === 3) {
@@ -704,6 +707,7 @@ export async function mountEnomeraPlatform(rootEl) {
           codeError: state.codeError,
           cooldown: state.resendCooldown,
           busy: state.busyAction === 'email' || state.busyAction === 'verify',
+          verified: Boolean(state.otpVerified),
           devCode: state.devCode,
           deliveryNote: '',
           fieldError: state.fieldError?.field === 'email' ? state.fieldError.text : '',
@@ -798,64 +802,34 @@ export async function mountEnomeraPlatform(rootEl) {
   }
 
   function bindOtpInputs() {
-    const inputs = [...rootEl.querySelectorAll('.eno-otp-digit')];
     const hidden = rootEl.querySelector('#v-code');
-    if (!inputs.length) return;
-    const syncHidden = () => {
-      state.otpDigits = inputs.map((i) => i.value.replace(/\D/g, '').slice(-1));
-      if (hidden) hidden.value = state.otpDigits.join('');
-      if (state.codeError) {
-        state.codeError = '';
-        inputs.forEach((el) => el.setAttribute('aria-invalid', 'false'));
-        rootEl.querySelector('#eno-otp-group')?.classList.remove('has-error');
-        rootEl.querySelector('#eno-code-err')?.remove();
-      }
-    };
-    const fillFrom = (raw) => {
-      const clean = raw.replace(/\D/g, '').slice(0, 6);
-      inputs.forEach((el, j) => { el.value = clean[j] || ''; });
-      syncHidden();
-      inputs[Math.min(clean.length, 5)]?.focus();
-    };
-
-    inputs.forEach((inp, idx) => {
-      inp.addEventListener('input', () => {
-        const clean = inp.value.replace(/\D/g, '');
-        if (clean.length >= 6) {
-          fillFrom(clean);
-          return;
+    const ctl = bindOtpField(rootEl, {
+      lastAuto: otpAuto,
+      onChange: (digits) => {
+        state.otpDigits = digits;
+        if (hidden) hidden.value = digits.join('');
+        if (state.codeError || state.fieldError?.field === 'code') {
+          state.codeError = '';
+          if (state.fieldError?.field === 'code') state.fieldError = null;
+          const group = rootEl.querySelector('#eno-otp-group');
+          group?.classList.remove('has-error');
+          group?.querySelector('.eno-otp-input')?.setAttribute('aria-invalid', 'false');
+          rootEl.querySelector('#eno-code-err')?.remove();
+          rootEl.querySelector('#eno-code-error')?.remove();
         }
-        if (clean.length > 1) {
-          const prev = state.otpDigits[idx] || '';
-          const fresh = prev && clean.startsWith(prev) ? clean.slice(1) : clean.slice(-1);
-          inp.value = fresh.slice(-1);
-        } else {
-          inp.value = clean;
-        }
-        syncHidden();
-        if (inp.value && inputs[idx + 1]) inputs[idx + 1].focus();
-      });
-      inp.addEventListener('paste', (ev) => {
-        const pasted = (ev.clipboardData?.getData('text') || '').replace(/\D/g, '').slice(0, 6);
-        if (!pasted) return;
-        ev.preventDefault();
-        fillFrom(pasted);
-      });
-      inp.addEventListener('keydown', (ev) => {
-        if (ev.key === 'Backspace' && !inp.value && inputs[idx - 1]) {
-          ev.preventDefault();
-          inputs[idx - 1].value = '';
-          syncHidden();
-          inputs[idx - 1].focus();
-        } else if (ev.key === 'ArrowLeft' && inputs[idx - 1]) {
-          ev.preventDefault();
-          inputs[idx - 1].focus();
-        } else if (ev.key === 'ArrowRight' && inputs[idx + 1]) {
-          ev.preventDefault();
-          inputs[idx + 1].focus();
-        }
-      });
+      },
+      // Último dígito válido inicia uma única verificação (mesmo código não reenvia).
+      onComplete: () => {
+        const form = rootEl.querySelector('#eno-code-form') || rootEl.querySelector('#eno-verify-form');
+        if (!form || state.busyAction === 'verify') return;
+        form.requestSubmit ? form.requestSubmit() : form.dispatchEvent(new Event('submit', { cancelable: true }));
+      },
     });
+    if (ctl && state.otpFocusPending) {
+      state.otpFocusPending = false;
+      ctl.focus(state.otpSelectAll);
+      state.otpSelectAll = false;
+    }
 
     // Reset resend cooldown immediately if user edits verification email to a different address
     const vEmail = rootEl.querySelector('#v-email');
@@ -877,7 +851,7 @@ export async function mountEnomeraPlatform(rootEl) {
     bindOtpInputs();
 
     // Live clear of inline errors + keep password/form values across error re-renders
-    rootEl.querySelectorAll('.eno-input, .eno-select, .eno-otp-digit').forEach((el) => {
+    rootEl.querySelectorAll('.eno-input, .eno-select').forEach((el) => {
       el.addEventListener('input', () => {
         if (el.id === 'l-email' || el.id === 's-email') state.formCache.email = el.value;
         else if (el.id === 's-name') state.formCache.fullName = el.value;
@@ -942,11 +916,11 @@ export async function mountEnomeraPlatform(rootEl) {
       }
       state.codeError = '';
       state.otpDigits = [0, 1, 2, 3, 4, 5].map((i) => code[i] || '');
-      const inputs = [...rootEl.querySelectorAll('.eno-otp-digit')];
-      inputs.forEach((inp, i) => {
-        inp.value = state.otpDigits[i];
-        inp.setAttribute('aria-invalid', 'false');
-      });
+      const otpInput = rootEl.querySelector('.eno-otp-input');
+      if (otpInput) {
+        otpInput.value = code.slice(0, 6);
+        otpInput.dispatchEvent(new Event('input', { bubbles: true }));
+      }
       const hidden = rootEl.querySelector('#v-code');
       if (hidden) hidden.value = code;
     });
@@ -1086,8 +1060,7 @@ export async function mountEnomeraPlatform(rootEl) {
       if (code.length < 6) {
         state.fieldError = { field: 'code', text: 'Preencha ou cole todos os 6 dígitos do código.' };
         render();
-        const firstEmpty = state.otpDigits.findIndex((d) => !d);
-        rootEl.querySelector(`#otp-${firstEmpty >= 0 ? firstEmpty : 0}`)?.focus();
+        rootEl.querySelector('#otp-0')?.focus();
         return;
       }
       state.busyAction = 'verify';
@@ -1277,8 +1250,7 @@ export async function mountEnomeraPlatform(rootEl) {
       if (code.length < 6) {
         state.codeError = 'Preencha ou cole os 6 dígitos do código.';
         render();
-        const firstEmpty = state.otpDigits.findIndex((d) => !d);
-        rootEl.querySelector(`#otp-${firstEmpty >= 0 ? firstEmpty : 0}`)?.focus();
+        rootEl.querySelector('#otp-0')?.focus();
         return;
       }
       state.busyAction = 'verify';
@@ -1294,10 +1266,19 @@ export async function mountEnomeraPlatform(rootEl) {
           ? 'Código incorreto. Confira os 6 dígitos ou peça um novo código. Sua combinação continua guardada.'
           : `${res.data.error || 'Não foi possível verificar o código.'} Sua combinação continua guardada.`;
         render();
-        rootEl.querySelector('#otp-0')?.focus();
+        const otpEl = rootEl.querySelector('#otp-0');
+        otpEl?.focus();
+        otpEl?.select();
         return;
       }
       setToken(res.data.sessionToken);
+      // Êxito só depois da resposta do servidor: casas dão lugar ao ✓ por um instante.
+      state.otpVerified = true;
+      render();
+      const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      await new Promise((r) => setTimeout(r, reduce ? 150 : 520));
+      state.otpVerified = false;
+      otpAuto.code = '';
       state.codeError = '';
       state.devCode = '';
       state.otpDigits = ['', '', '', '', '', ''];

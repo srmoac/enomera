@@ -1,3 +1,4 @@
+import { otpFieldHTML } from './otp-field.js';
 // Percurso de contratação aprovado no Figma em 22 nov 2026
 // (arquivo R4FYsZmgvfyA1ESAlTuOCY, seção 76:696): Escolha → Conta → Código → Checkout → Ativando → Portal.
 // Funções puras de renderização; o estado e os eventos ficam em platform.js.
@@ -168,7 +169,7 @@ export function renderChoice({ combo, contract, signedIn, returnedFromReview }) 
   `;
 }
 
-export function renderAccount({ mode, email, contract, codeDigits, codeError, cooldown, busy, devCode, deliveryNote, fieldError, login = false }) {
+export function renderAccount({ mode, email, contract, codeDigits, codeError, cooldown, busy, devCode, deliveryNote, fieldError, login = false, verified = false }) {
   const isCode = mode === 'code';
   // Entrada simples ("Entrar" do site): sem etapas nem resumo de compra.
   const flowLogin = login;
@@ -182,17 +183,15 @@ export function renderAccount({ mode, email, contract, codeDigits, codeError, co
           <h1 class="eno-flow-title">Digite o código<br> enviado ao seu e-mail.</h1>
           <p class="eno-flow-lead">Enviado para <b>${esc(email)}</b></p>
           <form id="eno-code-form" class="eno-flow-card eno-glass" novalidate>
-            <div class="eno-otp-row ${codeError ? 'has-error' : ''}" id="eno-otp-group" role="group" aria-label="Código de 6 dígitos">
-              ${[0, 1, 2, 3, 4, 5].map((i) => `<input id="otp-${i}" class="eno-otp-digit" inputmode="numeric" autocomplete="${i === 0 ? 'one-time-code' : 'off'}" maxlength="6" value="${esc(codeDigits[i] || '')}" aria-label="Dígito ${i + 1} de 6" aria-invalid="${codeError ? 'true' : 'false'}" ${codeError ? 'aria-describedby="eno-code-err"' : ''}>`).join('')}
-            </div>
+            ${otpFieldHTML({ value: (codeDigits || []).join(''), error: Boolean(codeError), describedBy: codeError ? 'eno-code-err' : 'eno-code-status', state: verified ? 'verified' : (busy ? 'verifying' : '') })}
             ${codeError ? `<p class="eno-flow-err" id="eno-code-err" role="alert">${esc(codeError)}</p>` : ''}
+            <p class="eno-flow-note eno-otp-status" id="eno-code-status" role="status" aria-live="polite">${verified ? 'Código confirmado. Abrindo…' : busy ? '<span class="eno-spinner" aria-hidden="true"></span> Verificando…' : codeError ? '' : 'Cole ou digite. Verificamos sozinhos ao completar.'}</p>
             ${!codeError ? `<p class="eno-flow-note">${cooldown > 0
               ? `Reenviar código em ${mm}:${ss} · <button type="button" class="eno-link" id="eno-change-email">Trocar e-mail</button>`
               : `<button type="button" class="eno-link" id="eno-resend-code">Reenviar código</button> · <button type="button" class="eno-link" id="eno-change-email">Trocar e-mail</button>`}</p>` : ''}
-            <button type="submit" class="eno-btn eno-flow-cta" ${busy ? 'disabled' : ''}>${busy ? '<span class="eno-spinner" aria-hidden="true"></span> Verificando…' : flowLogin ? 'Entrar no portal' : 'Verificar e continuar'}</button>
             ${codeError
-              ? `<p class="eno-flow-note"><button type="button" class="eno-link" id="eno-resend-code" ${cooldown > 0 ? 'disabled' : ''}>${cooldown > 0 ? `Reenviar código em ${mm}:${ss}` : 'Reenviar código'}</button></p>`
-              : '<p class="eno-flow-note">Colar o código também funciona</p>'}
+              ? `<p class="eno-flow-note"><button type="button" class="eno-link" id="eno-resend-code" ${cooldown > 0 ? 'disabled' : ''}>${cooldown > 0 ? `Reenviar código em ${mm}:${ss}` : 'Reenviar código'}</button> · <button type="button" class="eno-link" id="eno-change-email">Trocar e-mail</button></p>`
+              : ''}
             ${devCode ? `<p class="eno-flow-dev">Homologação sem envio externo: código <b>${esc(devCode)}</b> <button type="button" class="eno-link" id="eno-fill-dev-code" data-dev-code="${esc(devCode)}">Preencher</button></p>` : ''}
             ${deliveryNote ? `<p class="eno-flow-dev">${esc(deliveryNote)}</p>` : ''}
           </form>

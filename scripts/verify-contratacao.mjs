@@ -61,22 +61,17 @@ async function run(browserType, label, viewport, scenario) {
   await page.keyboard.press('Enter');
   await page.waitForSelector('#otp-0');
   check(`${tag}: código mostra o e-mail e o reenvio com tempo`, (await page.innerText('#portal-content')).includes(email) && /Reenviar código em 0:5\d|1:00/.test(await page.textContent('#eno-code-form')));
-  await page.fill('#otp-0', '000000');
-  await page.click('#eno-code-form button[type="submit"]');
+  await page.fill('#otp-0', '000000'); // 6º dígito envia sozinho
   await page.waitForSelector('#eno-code-err');
   check(`${tag}: código incorreto avisa e preserva a combinação`, /Código incorreto.*combinação continua guardada/.test(await page.textContent('#eno-code-err')));
   await shot('4-codigo-incorreto');
 
   const code = await codeFor(email);
   await page.click('#otp-0');
-  await page.evaluate((c) => {
-    const dt = new DataTransfer(); dt.setData('text', c);
-    document.querySelector('#otp-0').dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
-  }, code);
-  const filled = await page.$$eval('.eno-otp-digit', (els) => els.map((e) => e.value).join(''));
+  await page.keyboard.insertText(code); // equivale a colar: um evento de entrada com os 6 dígitos
+  const filled = await page.$$eval('.eno-otp-digit', (els) => els.map((e) => e.textContent).join(''));
   check(`${tag}: colar preenche os seis dígitos`, filled === code, filled);
   await shot('5-codigo');
-  await page.click('#eno-code-form button[type="submit"]');
   await page.waitForSelector('[data-flow-step="review"]');
   await page.waitForFunction(() => document.querySelector('.eno-sum-total strong')?.textContent);
   const review = (await page.innerText('#portal-content')).replace(/\s+/g, ' ');

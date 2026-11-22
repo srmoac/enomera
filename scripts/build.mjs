@@ -19,4 +19,12 @@ if (activeEntries.length > 0) {
   await writeFile('dist/index.html', html, 'utf8');
 }
 
+// Previews e branches não entram em busca: só produção pode ser indexada.
+if (process.env.VERCEL_ENV && process.env.VERCEL_ENV !== 'production') {
+  let html = await readFile('dist/index.html', 'utf8');
+  html = html.replace('</head>', '<meta name="robots" content="noindex, nofollow">\n</head>');
+  await writeFile('dist/index.html', html, 'utf8');
+  await writeFile('dist/robots.txt', 'User-agent: *\nDisallow: /\n', 'utf8');
+}
+
 console.log('Built dist');

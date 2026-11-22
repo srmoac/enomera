@@ -1,0 +1,72 @@
+/* Acabamento vindo dos vídeos analisados em 22 nov 2026 (prompts 1, 4, 5 e 6).
+   Figma: R4FYsZmgvfyA1ESAlTuOCY, nós 82:746–82:890 (estados do código) e 82:929 (especificação).
+   Não altera pétalas, durações nem curvas do padrão: só usa os tokens --eno-*. */
+
+/* ---------- Código de 6 dígitos: um campo, seis casas ---------- */
+.eno-otp-field { position: relative; isolation: isolate; }
+.eno-otp-field .eno-otp-input {
+  position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%;
+  margin: 0; padding: 0; border: 0; outline: none; background: transparent;
+  color: transparent; caret-color: transparent; -webkit-text-fill-color: transparent;
+  font-size: 16px; letter-spacing: 0; text-indent: -9999px; /* sem texto real visível; as casas mostram */
+  cursor: text; -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+.eno-otp-field .eno-otp-input::selection { background: transparent; }
+.eno-otp-field .eno-otp-digit {
+  display: flex; align-items: center; justify-content: center; position: relative;
+  min-width: 0; user-select: none; font-variant-numeric: tabular-nums;
+  transition: border-color var(--eno-t-fast) var(--eno-ease-out), box-shadow var(--eno-t-fast) var(--eno-ease-out),
+    opacity var(--eno-t-base) var(--eno-ease-out), transform var(--eno-t-fast) var(--eno-ease-out);
+}
+.eno-otp-field .eno-otp-digit.is-filled { animation: enoOtpPop var(--eno-t-fast) var(--eno-ease-out); }
+.eno-otp-field .eno-otp-digit.is-active {
+  border-color: var(--flow-accent, #36599E);
+  box-shadow: 0 0 0 3px rgba(91, 112, 179, .22);
+}
+.eno-otp-field .eno-otp-digit.is-caret::after {
+  content: ""; width: 2px; height: 42%; border-radius: 2px; background: currentColor;
+  animation: enoOtpCaret 1s steps(2, start) infinite;
+}
+.eno-otp-field.is-verifying .eno-otp-digit { opacity: .55; }
+.eno-otp-field.has-error .eno-otp-digit { border-color: var(--flow-error, #C53030); }
+.eno-otp-field.has-error { animation: enoOtpShake var(--eno-t-base) var(--eno-ease-out); }
+.eno-otp-field .eno-otp-check {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  color: var(--flow-accent, #36599E); opacity: 0; transform: scale(.9); pointer-events: none;
+  transition: opacity var(--eno-t-base) var(--eno-ease-out), transform var(--eno-t-base) var(--eno-ease-out);
+}
+.eno-otp-field.is-verified .eno-otp-digit { opacity: 0; transform: scale(.96); }
+.eno-otp-field.is-verified .eno-otp-check { opacity: 1; transform: none; }
+.eno-otp-status { display: flex; align-items: center; gap: 8px; min-height: 20px; }
+.eno-otp-status:empty { display: none; }
+@keyframes enoOtpPop { from { transform: scale(.92); } to { transform: none; } }
+@keyframes enoOtpCaret { to { visibility: hidden; } }
+@keyframes enoOtpShake {
+  0%, 100% { transform: none; } 20% { transform: translateX(-6px); } 40% { transform: translateX(5px); }
+  60% { transform: translateX(-3px); } 80% { transform: translateX(2px); }
+}
+
+/* ---------- Pressionar: retorno imediato ao toque ---------- */
+.eno-btn:not(:disabled):active, .eno-link:not(:disabled):active { transform: scale(.97); }
+
+/* ---------- Celular ---------- */
+@media (pointer: coarse) {
+  /* iOS dá zoom em campos abaixo de 16 px */
+  input:not([type="checkbox"]):not([type="radio"]), select, textarea { font-size: max(16px, 1em); }
+}
+button, a, input, select, textarea, summary, label, [role="button"] { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+dialog, [role="dialog"], .eno-flow-side, .eno-sheet { overscroll-behavior: contain; }
+@supports (height: 100dvh) {
+  .eno-flow-shell, .eno-approved-shell { min-height: 100dvh; }
+}
+
+/* ---------- Tipografia ---------- */
+.eno-sum, .eno-sum-total, .eno-sum-today, .eno-sum-lines, .eno-pc-price, .billing-row, .service-option strong, time { font-variant-numeric: tabular-nums; }
+.eno-flow-title, .eno-h1, h1, h2 { text-wrap: balance; }
+.eno-flow-lead, .eno-flow-note, .eno-flow-err { text-wrap: pretty; }
+
+@media (prefers-reduced-motion: reduce) {
+  .eno-otp-field.has-error, .eno-otp-field .eno-otp-digit.is-filled { animation: none; }
+  .eno-otp-field .eno-otp-digit.is-caret::after { animation: none; }
+  .eno-btn:not(:disabled):active, .eno-link:not(:disabled):active { transform: none; }
+}
