@@ -21,6 +21,7 @@ import {
   writeAudit,
 } from './db.mjs';
 import { getMailerStatus, sendTransactionalEmail } from './mailer.mjs';
+import { getAsaasStatus, handleBillingRoutes } from './asaas.mjs';
 import { profilePhotoUrl, savePortrait, requireOwnedPortrait, servePortrait } from './profile-media.mjs';
 import {
   SUPPORTED_IMPORT_FORMATS,
@@ -516,6 +517,7 @@ export async function handleApiRequest(req, res, customDb = null) {
           },
           storage: getStorageBackendStatus(),
           mailer: getMailerStatus(),
+          payments: getAsaasStatus(),
         },
       });
     }
@@ -531,6 +533,11 @@ export async function handleApiRequest(req, res, customDb = null) {
       const body = await readJsonBody(req);
       const quote = calculateSimulatedQuote(body);
       return json(res, 200, { ...quote, contract: buildContractSummary(body) });
+    }
+
+    // ── COBRANÇA (Asaas; sandbox até autorização de cobrança real) ─────────
+    if (pathname.startsWith('/api/v1/billing/')) {
+      if (await handleBillingRoutes({ db, req, res, method, pathname, auth }, { json, readJsonBody, requireProfessional, writeAudit })) return;
     }
 
     // ── CONTRATAÇÃO: E-MAIL COM CÓDIGO (sem senha) E COMBINAÇÃO POR CONTA ─
