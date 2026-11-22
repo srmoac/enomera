@@ -3,3 +3,9 @@ node_modules/
 dist/
 test-results/
 .vercel/
+
+.vercel
+.env*
+
+server/data/
+server/storage/

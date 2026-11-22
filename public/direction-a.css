@@ -1,0 +1,302 @@
+/* Direction A: brand petal identity and workflow status are separate roles.
+   Liquid Glass material is preserved with smooth hover specular transitions. */
+:root {
+  --success: #1B653E;
+  --success-surface: #DFF4E8;
+  --warning: #7D5112;
+  --warning-surface: #F8EDD3;
+  --error: #992F49;
+  --error-surface: #FBE8EE;
+  --unavailable: #68738A;
+  --unavailable-surface: #EFF2F7;
+}
+
+#etha, [data-service=etha] {
+  --petal: #C7BDF4;
+  --surface: #F2EFFE;
+  --selection: rgba(199, 189, 244, .48);
+  --action: #53459A;
+  --focus: #42367D;
+}
+#ambo, [data-service=ambo] {
+  --petal: #A4CFF6;
+  --surface: #ECF6FE;
+  --selection: rgba(164, 207, 246, .50);
+  --action: #235D94;
+  --focus: #1D4E7D;
+}
+#minne, [data-service=minne] {
+  --petal: #A6DDD8;
+  --surface: #EDF8F7;
+  --selection: rgba(166, 221, 216, .52);
+  --action: #1E625E;
+  --focus: #174D4A;
+}
+
+.product .signature,
+.product .text-link,
+.service-option strong,
+.service-option .check {
+  color: var(--action);
+}
+.product :focus-visible,
+.service-option:focus-visible {
+  outline-color: var(--focus);
+}
+
+/* Frosted Liquid Glass product CTA with smooth specular sheen transition (no gradient snap). */
+.product .button {
+  background-color: rgba(164, 207, 246, .46);
+  background-image: linear-gradient(135deg, rgba(255, 255, 255, .74), rgba(164, 207, 246, .52));
+  color: var(--action);
+  border: 1px solid #ffffffeb;
+  box-shadow: inset 0 1px 2px #fff, 0 7px 18px #235D941c;
+  backdrop-filter: blur(14px) saturate(130%);
+  -webkit-backdrop-filter: blur(14px) saturate(130%);
+}
+.product .button:after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, .42), rgba(164, 207, 246, .24));
+  transition: opacity 180ms var(--ease);
+}
+@media (hover: hover) and (pointer: fine) {
+  .product .button:hover {
+    background-color: rgba(164, 207, 246, .66);
+    color: var(--focus);
+  }
+  .product .button:hover:after { opacity: 1; }
+}
+
+.product [aria-pressed=true],
+.service-option[aria-pressed=true] {
+  background: var(--selection) !important;
+  border-color: var(--action) !important;
+  color: var(--action);
+}
+
+.service-option { border-top: 4px solid var(--petal); }
+.billing-row { border-left: 3px solid var(--petal); padding-left: 14px; }
+.billing-row b { color: var(--action); }
+
+/* Ambo embedded demo: translucent celeste Liquid Glass controls + petal dock glow. */
+.ambo {
+  overflow: hidden;
+  background-image: linear-gradient(130deg, #ECF6FEee, #A4CFF688), url('/assets/ambo-substrate.svg');
+}
+.ambo-dock-glow {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  will-change: opacity;
+  background:
+    radial-gradient(280px 220px at 0% 38%, rgba(164, 207, 246, .74) 0%, rgba(164, 207, 246, .22) 52%, transparent 80%),
+    linear-gradient(110deg, rgba(164, 207, 246, .30), transparent 54%);
+  box-shadow: inset 1.5px 0 0 rgba(164, 207, 246, .92), inset 0 0 22px rgba(164, 207, 246, .34);
+}
+.ambo > :not(.ambo-dock-glow) { position: relative; z-index: 1; }
+
+.choice-group[aria-label=Modalidade] {
+  position: relative;
+  isolation: isolate;
+  gap: 0;
+  flex-wrap: nowrap;
+  padding: 4px;
+  border-radius: 25px;
+  background: #ffffff38;
+  border: 1px solid #ffffffc4;
+  box-shadow: inset 0 1px 2px #fff9;
+  backdrop-filter: blur(12px) saturate(125%);
+  -webkit-backdrop-filter: blur(12px) saturate(125%);
+}
+.choice-group[aria-label=Modalidade] button {
+  position: relative;
+  z-index: 1;
+  background: transparent !important;
+  border-color: transparent !important;
+  color: #235D94;
+}
+.choice-group[aria-label=Modalidade] > .motion-lens {
+  background: linear-gradient(135deg, #ffffff9c, #A4CFF69c);
+  border-color: #ffffffeb;
+}
+#ambo .choice-group[aria-label=Modalidade] [aria-pressed=true] {
+  background: transparent !important;
+}
+.choice-group[aria-label=Dias] button {
+  background: #ffffff54;
+  border: 1px solid #ffffffda;
+  box-shadow: inset 0 1px 1px #fff9, 0 3px 10px #4061a60d;
+}
+#ambo .choice-group[aria-label=Dias] [aria-pressed=true] {
+  background: linear-gradient(135deg, #ffffff88, #A4CFF694) !important;
+  border-color: #235D9478 !important;
+  box-shadow: inset 0 1px 2px #fff, 0 4px 12px #235D9418;
+}
+
+/* Minne embedded demo: translucent mineral Liquid Glass lens + interactive appointment rows. */
+.minne {
+  background-image: linear-gradient(130deg, #EDF8F7ee, #A6DDD888), url('/assets/minne-substrate.svg');
+}
+.minne-dock-glow {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  will-change: opacity;
+  background:
+    radial-gradient(300px 190px at 46% 0%, rgba(166, 221, 216, .78) 0%, rgba(166, 221, 216, .24) 50%, transparent 78%),
+    linear-gradient(180deg, rgba(166, 221, 216, .30), transparent 46%);
+  box-shadow: inset 0 1.5px 0 rgba(166, 221, 216, .95), inset 0 0 24px rgba(166, 221, 216, .34);
+}
+.minne > aside, .minne > .mini-content { position: relative; z-index: 1; }
+.mini-sidebar > .motion-lens {
+  background: linear-gradient(135deg, #ffffff9c, #A6DDD89c);
+  border-color: #ffffffeb;
+}
+.minne .mini-sidebar button[aria-pressed=true] {
+  background: transparent !important;
+}
+.minne .mini-cards > div:first-child {
+  border-left: 4px solid #1E625E;
+  background: linear-gradient(135deg, rgba(255, 255, 255, .64), rgba(166, 221, 216, .52));
+}
+.minne-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+.minne-list > .motion-lens {
+  background: linear-gradient(135deg, rgba(255, 255, 255, .86), rgba(166, 221, 216, .66));
+  border-color: rgba(30, 98, 94, .28);
+  border-radius: 12px;
+}
+.minne-row {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .28);
+  text-align: left;
+  font-size: 12px;
+  color: var(--ink);
+}
+.minne-row b { font-weight: 600; color: #1E625E; }
+.minne-row[aria-pressed=true] {
+  color: #174D4A;
+  font-weight: 600;
+}
+.state-confirmed {
+  color: var(--success);
+  background: var(--success-surface);
+  padding: 4px 8px;
+  border-radius: 9px;
+}
+
+/* Etha Liquid Glass stage framing Helena's site + lavender petal dock anchor (top-left on desktop & mobile). */
+.etha-frame {
+  padding: 12px;
+  border-radius: 30px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, .56), rgba(242, 239, 254, .46));
+  border-color: rgba(255, 255, 255, .90);
+  box-shadow: var(--elevation), inset 0 1px 2px #fff, inset 0 0 0 1px rgba(199, 189, 244, .34);
+  overflow: hidden;
+}
+.etha-frame .helena {
+  position: relative;
+  z-index: 1;
+  border-radius: 20px;
+  box-shadow: 0 2px 14px rgba(32, 45, 80, .06);
+}
+.etha-frame-bar {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 6px 10px;
+}
+.etha-dock-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: #F2EFFE;
+  border: 1px solid rgba(199, 189, 244, .88);
+  color: #53459A;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  box-shadow: inset 0 1px 1px #fff, 0 2px 8px rgba(83, 69, 154, .10);
+  transition: transform 220ms var(--ease-spring), box-shadow 220ms var(--ease), border-color 220ms var(--ease);
+}
+.etha-dock-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #C7BDF4;
+  box-shadow: 0 0 0 2px rgba(83, 69, 154, .18);
+}
+.etha-frame-url {
+  font-size: 12px;
+  font-weight: 500;
+  color: #53459A;
+  opacity: .84;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.etha-dock-glow {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  will-change: opacity;
+  background:
+    radial-gradient(320px 210px at 0% 0%, rgba(199, 189, 244, .72) 0%, rgba(199, 189, 244, .24) 48%, transparent 78%),
+    linear-gradient(135deg, rgba(199, 189, 244, .34), transparent 52%);
+  box-shadow: inset 1.5px 1.5px 0 rgba(199, 189, 244, .95), inset 0 0 24px rgba(199, 189, 244, .38);
+}
+.etha-frame.is-docked .etha-dock-pill {
+  border-color: #53459A66;
+  box-shadow: inset 0 1px 2px #fff, 0 4px 14px rgba(83, 69, 154, .18);
+}
+@media (max-width: 700px) {
+  .etha-frame { padding: 9px; border-radius: 26px; }
+  .etha-frame .helena { border-radius: 18px; }
+  .etha-frame-bar { padding: 2px 4px 8px; }
+}
+
+/* Helena Duarte keeps her own burgundy identity; Etha attribution keeps lavender-indigo. */
+.helena-name,
+.helena-title span,
+.helena-description a {
+  color: #662E42;
+}
+.helena > small a { color: #53459A; }
+
+.connection-track > div:nth-child(1) > span { color: #53459A; }
+.connection-track > div:nth-child(2) > span { color: #235D94; }
+.connection-track > div:nth-child(3) > span { color: #1E625E; }
