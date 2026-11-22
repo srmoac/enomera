@@ -21,6 +21,7 @@ import {
   writeAudit,
 } from './db.mjs';
 import { getMailerStatus, sendTransactionalEmail } from './mailer.mjs';
+import { profilePhotoUrl, savePortrait, requireOwnedPortrait, servePortrait } from './profile-media.mjs';
 import {
   SUPPORTED_IMPORT_FORMATS,
   cancelImportBatch,
@@ -57,9 +58,10 @@ function isAllowedOrigin(origin) {
   if (!origin) return false;
   try {
     const u = new URL(origin);
-    if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') return true;
-    if (u.protocol === 'https:' && ENOMERA_VERCEL_HOST_RE.test(u.hostname)) return true;
-    const extra = (process.env.ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
+    if (!isRemoteInfraRequired() && (u.hostname === 'localhost' || u.hostname === '127.0.0.1')) return true;
+    const extra = [process.env.ALLOWED_ORIGINS || '', process.env.ENOMERA_AMBO_URL, process.env.ENOMERA_MINNE_URL,
+      process.env.ENOMERA_ETHA_URL, process.env.ENOMERA_HELENA_URL, process.env.ENOMERA_PUBLIC_URL]
+      .filter(Boolean).flatMap((s) => s.split(',')).map((s) => s.trim()).filter(Boolean);
     if (extra.includes(origin)) return true;
   } catch {}
   return false;
@@ -250,6 +252,9 @@ async function buildPublicSiteDto(db, account) {
     headline: published?.content?.headline || `${account.display_name} · ${account.specialty}`,
     subheadline: published?.content?.subheadline || account.bio,
     about: published?.content?.about || account.bio,
+    photoAssetId: published?.content?.photoAssetId || null,
+    photoUrl: published?.content?.photoAssetId ? `/api/v1/public-sites/${encodeURIComponent(account.slug)}/photo/${encodeURIComponent(published.content.photoAssetId)}` : null,
+    audience: account.audience || '',
     ctaLabel: published?.content?.ctaLabel || (ctaMode === 'ambo' ? 'Solicitar primeira consulta' : 'Entrar em contato'),
     ctaMode,
     amboActive,
@@ -263,6 +268,10 @@ async function buildPublicSiteDto(db, account) {
 }
 
 async function issueVerificationCode(db, { purpose, targetContact, userId = null, accountId = null, patientId = null, subject, ttlMinutes = 15 }) {
+  const previous = await db.get('SELECT created_at FROM verification_tokens WHERE purpose = ? AND target_contact = ? ORDER BY created_at DESC LIMIT 1', purpose, targetContact.toLowerCase());
+  if (previous && Date.now() - Date.parse(previous.created_at) < 30_000) {
+    throw Object.assign(new Error('Aguarde 30 segundos antes de solicitar outro código.'), { status: 429, code: 'RESEND_RATE_LIMITED' });
+  }
   const code = randomDigits(6);
   const id = randomId('ver');
   const now = nowIso();
@@ -336,6 +345,9 @@ export async function handleApiRequest(req, res, customDb = null) {
   const method = req.method.toUpperCase();
 
   try {
+    if (req.headers.origin && !isAllowedOrigin(req.headers.origin)) {
+      return json(res,403,{error:'Origem não autorizada para este ambiente.',code:'ORIGIN_NOT_ALLOWED'});
+    }
     // ── HEALTH & CATALOG ──────────────────────────────────────────────
     if (method === 'GET' && pathname === '/api/v1/health') {
       const guard = getRemoteInfraGuard();
@@ -402,6 +414,20 @@ export async function handleApiRequest(req, res, customDb = null) {
       return json(res, 200, quote);
     }
 
+    if (pathname === '/api/v1/commercial/selection' && ['GET', 'PUT'].includes(method)) {
+      await requireProfessional(db, auth);
+      if (method === 'PUT') {
+        const body = await readJsonBody(req);
+        const quote = calculateSimulatedQuote(body);
+        const selection = { products: quote.selectedProducts, ethaFormat: quote.ethaFormat || 'one_page',
+          stage: ['selection','review','confirmed'].includes(body.stage) ? body.stage : 'selection' };
+        await db.run('INSERT INTO checkout_selections (account_id, selection_json, updated_at) VALUES (?, ?, ?) ON CONFLICT(account_id) DO UPDATE SET selection_json = excluded.selection_json, updated_at = excluded.updated_at', auth.account.id, JSON.stringify(selection), nowIso());
+        return json(res, 200, { selection, quote });
+      }
+      const row = await db.get('SELECT selection_json FROM checkout_selections WHERE account_id = ?', auth.account.id);
+      return json(res, 200, { selection: row ? JSON.parse(row.selection_json) : null });
+    }
+
     // ── AUTHENTICATION & VERIFICATION ─────────────────────────────────
     if (method === 'POST' && pathname === '/api/v1/auth/signup') {
       const schema = z.object({
@@ -410,6 +436,7 @@ export async function handleApiRequest(req, res, customDb = null) {
         password: z.string().min(8),
         crpOrCrm: z.string().optional().default(''),
         specialty: z.enum(['Psicologia', 'Psiquiatria']).optional().default('Psicologia'),
+        selection: z.object({ products: z.array(z.enum(['ambo', 'minne', 'etha'])).min(1), ethaFormat: z.enum(['one_page', 'multi_page']).optional() }).optional(),
       });
       const data = schema.parse(await readJsonBody(req));
       const normEmail = data.email.trim().toLowerCase();
@@ -449,6 +476,11 @@ export async function handleApiRequest(req, res, customDb = null) {
           `, randomId('avr'), accountId, wd, now));
         }
         await writeAudit(db, { actorUserId: userId, actorType: 'professional', accountId, action: 'auth.signup', resourceType: 'user', resourceId: userId });
+        if (data.selection) {
+          const quote = calculateSimulatedQuote(data.selection);
+          await db.run('INSERT INTO checkout_selections (account_id, selection_json, updated_at) VALUES (?, ?, ?)',
+            accountId, JSON.stringify({ products: quote.selectedProducts, ethaFormat: data.selection.ethaFormat || 'one_page', stage:'verification' }), now);
+        }
       });
 
       const ver = await issueVerificationCode(db, {
@@ -476,17 +508,36 @@ export async function handleApiRequest(req, res, customDb = null) {
       const row = await consumeVerificationCode(db, { purpose: 'email_verify', targetContact: email, code: body.code });
       const now = nowIso();
       (await db.run('UPDATE users SET email_verified_at = ?, updated_at = ? WHERE id = ?', now, now, row.user_id));
+      const account = await db.get('SELECT id FROM professional_accounts WHERE owner_user_id = ?', row.user_id);
+      const selection = account && await db.get('SELECT selection_json FROM checkout_selections WHERE account_id = ?', account.id);
+      if (selection) await db.run('UPDATE checkout_selections SET selection_json = ?, updated_at = ? WHERE account_id = ?', JSON.stringify({...JSON.parse(selection.selection_json),stage:'review'}), now, account.id);
       await writeAudit(db, { actorUserId: row.user_id, actorType: 'professional', accountId: row.account_id, action: 'auth.verify_email', resourceType: 'user', resourceId: row.user_id });
       return json(res, 200, { verified: true, verifiedAt: now });
     }
 
     if (method === 'POST' && pathname === '/api/v1/auth/resend-verification') {
+      await requireProfessional(db, auth);
       const body = await readJsonBody(req);
       const email = String(body.email || auth?.user?.email || '').trim().toLowerCase();
+      if (email !== auth.user.email) throw Object.assign(new Error('Use Corrigir e-mail para atualizar o endereço da sua conta.'), { status: 400, code: 'EMAIL_MISMATCH' });
       const u = (await db.get('SELECT id FROM users WHERE email = ?', email));
       if (!u) return json(res, 200, { ok: true, delivery: { deliveryStatus: 'ignored_unknown_account' } });
       const ver = await issueVerificationCode(db, { purpose: 'email_verify', targetContact: email, userId: u.id, subject: 'Novo código de verificação · Enomera' });
       return json(res, 200, { ok: true, expiresAt: ver.expiresAt, delivery: ver.delivery });
+    }
+
+    if (method === 'POST' && pathname === '/api/v1/auth/change-email') {
+      await requireProfessional(db, auth);
+      if (auth.user.email_verified_at) throw Object.assign(new Error('O e-mail desta conta já foi confirmado.'), { status: 409, code: 'EMAIL_ALREADY_VERIFIED' });
+      const { email } = z.object({ email: z.string().trim().email() }).parse(await readJsonBody(req));
+      const normalized = email.toLowerCase();
+      const existing = await db.get('SELECT id FROM users WHERE email = ?', normalized);
+      if (existing && existing.id !== auth.user.id) throw Object.assign(new Error('Este endereço já está em uso. Entre com ele ou use outro e-mail.'), { status: 409, code: 'EMAIL_EXISTS' });
+      if (normalized === auth.user.email) return json(res, 200, { ok: true, email: normalized });
+      const ver = await issueVerificationCode(db, { purpose: 'email_verify', targetContact: normalized, userId: auth.user.id, accountId: auth.account.id, subject: 'Confirme o endereço corrigido · Enomera' });
+      await db.run('UPDATE users SET email = ?, updated_at = ? WHERE id = ? AND email_verified_at IS NULL', normalized, nowIso(), auth.user.id);
+      await db.run("UPDATE verification_tokens SET consumed_at = ? WHERE purpose = 'email_verify' AND user_id = ? AND target_contact <> ? AND consumed_at IS NULL", nowIso(), auth.user.id, normalized);
+      return json(res, 200, { ok: true, email: normalized, expiresAt: ver.expiresAt, delivery: ver.delivery });
     }
 
     if (method === 'POST' && pathname === '/api/v1/auth/login') {
@@ -540,10 +591,14 @@ export async function handleApiRequest(req, res, customDb = null) {
       const email = String(body.email || '').trim().toLowerCase();
       const u = (await db.get('SELECT id FROM users WHERE email = ?', email));
       if (!u) {
-        return json(res, 200, { ok: true, message: 'Se o e-mail estiver cadastrado, um código de recuperação de uso único foi gerado.' });
+        return json(res, 200, { ok: true, message: 'Se o e-mail estiver cadastrado, você receberá as instruções de recuperação.' });
       }
-      const ver = await issueVerificationCode(db, { purpose: 'password_reset', targetContact: email, userId: u.id, subject: 'Recuperação de acesso · Enomera' });
-      return json(res, 200, { ok: true, expiresAt: ver.expiresAt, delivery: ver.delivery });
+      try {
+        await issueVerificationCode(db, { purpose: 'password_reset', targetContact: email, userId: u.id, subject: 'Recuperação de acesso · Enomera' });
+      } catch (err) {
+        if (![429,503].includes(err.status)) throw err;
+      }
+      return json(res, 200, { ok: true, message: 'Se o e-mail estiver cadastrado, você receberá as instruções de recuperação.' });
     }
 
     if (method === 'POST' && pathname === '/api/v1/auth/recovery/confirm') {
@@ -588,6 +643,7 @@ export async function handleApiRequest(req, res, customDb = null) {
       requireAuth(auth);
       const body = await readJsonBody(req);
       const targetOrigin = String(body.targetOrigin || '');
+      if (auth.session.actor_type !== 'professional') throw Object.assign(new Error('Use o acesso do paciente no Ambo.'), { status: 403, code: 'FORBIDDEN_ACTOR' });
       if (!isAllowedOrigin(targetOrigin)) {
         throw Object.assign(new Error('Origem de destino não autorizada para passagem autenticada.'), { status: 400, code: 'INVALID_TARGET_ORIGIN' });
       }
@@ -596,7 +652,7 @@ export async function handleApiRequest(req, res, customDb = null) {
       (await db.run(`
         INSERT INTO auth_handoff_codes (id, code_hash, session_id, target_origin, return_path, expires_at, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-      `, randomId('hnd'), sha256Hex(code), auth.session.id, targetOrigin, String(body.returnPath || '/'), expiresAt, nowIso()));
+      `, randomId('hnd'), sha256Hex(code), auth.session.id, targetOrigin, /^\/(?!\/)/.test(body.returnPath || '/') ? String(body.returnPath || '/') : '/', expiresAt, nowIso()));
       await writeAudit(db, { actorUserId: auth.user.id, actorType: auth.session.actor_type, accountId: auth.session.account_id, action: 'auth.handoff_issue', resourceType: 'handoff', meta: { targetOrigin } });
       return json(res, 200, { handoffCode: code, expiresAt, targetOrigin });
     }
@@ -723,6 +779,7 @@ export async function handleApiRequest(req, res, customDb = null) {
 
     if (method === 'POST' && pathname === '/api/v1/commercial/orders') {
       await requireProfessional(db, auth);
+      if (!auth.user.email_verified_at) throw Object.assign(new Error('Confirme seu e-mail antes de ativar os serviços.'), { status: 403, code: 'EMAIL_VERIFICATION_REQUIRED' });
       const body = await readJsonBody(req);
       const idempotencyKey = String(req.headers['x-idempotency-key'] || body.idempotencyKey || '').trim();
       if (!idempotencyKey) throw Object.assign(new Error('Chave de idempotência obrigatória no checkout simulado.'), { status: 400, code: 'IDEMPOTENCY_REQUIRED' });
@@ -738,6 +795,8 @@ export async function handleApiRequest(req, res, customDb = null) {
       const methodUsed = body.method === 'simulated_card' ? 'simulated_card' : 'simulated_pix';
 
       const result = await runTransaction(db, async (db) => {
+        const replay = await db.get('SELECT * FROM commercial_orders WHERE account_id = ? AND idempotency_key = ?', auth.account.id, idempotencyKey);
+        if (replay) return { order: replay, attempts: await db.all('SELECT * FROM payment_attempts WHERE order_id = ?', replay.id), idempotentReplay: true };
         const orderId = randomId('ord');
         const receiptCode = `SIM-ENO-${randomDigits(6)}`;
         const now = nowIso();
@@ -761,15 +820,17 @@ export async function handleApiRequest(req, res, customDb = null) {
 
         if (simulatedOutcome === 'approved') {
           await activateOrderEntitlementsTx(db, auth.account.id, quote);
+          await db.run('INSERT INTO checkout_selections (account_id, selection_json, updated_at) VALUES (?, ?, ?) ON CONFLICT(account_id) DO UPDATE SET selection_json = excluded.selection_json, updated_at = excluded.updated_at', auth.account.id,
+            JSON.stringify({products:quote.selectedProducts,ethaFormat:quote.ethaFormat || 'one_page',stage:'confirmed'}),now);
         }
         await writeAudit(db, { actorUserId: auth.user.id, actorType: 'professional', accountId: auth.account.id, action: 'commercial.checkout_simulated', resourceType: 'order', resourceId: orderId, meta: { outcome: simulatedOutcome, products: quote.selectedProducts } });
         return {
           order: (await db.get('SELECT * FROM commercial_orders WHERE id = ?', orderId)),
           attempts: (await db.all('SELECT * FROM payment_attempts WHERE order_id = ?', orderId)),
         };
-      });
+      }, `checkout:${auth.account.id}:${idempotencyKey}`);
 
-      return json(res, 201, {
+      return json(res, result.idempotentReplay ? 200 : 201, {
         ...result,
         summary: quote,
         entitlements: await getAccountEntitlements(db, auth.account.id),
@@ -799,7 +860,10 @@ export async function handleApiRequest(req, res, customDb = null) {
         `, randomId('pay'), orderId, count + 1, methodUsed, nextOutcome, nextOutcome === 'declined' ? 'Recusado na nova tentativa simulada.' : null, now, now));
         (await db.run('UPDATE commercial_orders SET status = ?, updated_at = ? WHERE id = ?', nextOutcome, now, orderId));
         if (nextOutcome === 'approved') {
-          await activateOrderEntitlementsTx(db, auth.account.id, JSON.parse(order.summary_json));
+          const quote = JSON.parse(order.summary_json);
+          await activateOrderEntitlementsTx(db, auth.account.id, quote);
+          await db.run('UPDATE checkout_selections SET selection_json = ?, updated_at = ? WHERE account_id = ?',
+            JSON.stringify({products:quote.selectedProducts,ethaFormat:quote.ethaFormat || 'one_page',stage:'confirmed'}), now, auth.account.id);
         }
         return {
           order: (await db.get('SELECT * FROM commercial_orders WHERE id = ?', orderId)),
@@ -924,6 +988,10 @@ export async function handleApiRequest(req, res, customDb = null) {
           crpOrCrm: auth.account.crp_or_crm,
           specialty: auth.account.specialty,
           bio: auth.account.bio,
+          audience: auth.account.audience || '',
+          contactEmail: auth.user.email,
+          photoAssetId: auth.account.photo_file_id || null,
+          photoUrl: profilePhotoUrl(auth.account),
           city: auth.account.city,
           timezone: auth.account.timezone,
           sessionDurationMin: auth.account.session_duration_min,
@@ -950,6 +1018,7 @@ export async function handleApiRequest(req, res, customDb = null) {
           crp_or_crm = COALESCE(?, crp_or_crm),
           specialty = COALESCE(?, specialty),
           bio = COALESCE(?, bio),
+          audience = COALESCE(?, audience),
           city = COALESCE(?, city),
           session_duration_min = COALESCE(?, session_duration_min),
           session_price_cents = COALESCE(?, session_price_cents),
@@ -961,7 +1030,7 @@ export async function handleApiRequest(req, res, customDb = null) {
           ui_preferences_json = COALESCE(?, ui_preferences_json),
           updated_at = ?
         WHERE id = ?
-      `, body.displayName ?? null, body.crpOrCrm ?? null, body.specialty ?? null, body.bio ?? null, body.city ?? null,
+      `, body.displayName ?? null, body.crpOrCrm ?? null, body.specialty ?? null, body.bio ?? null, body.audience ?? null, body.city ?? null,
         body.sessionDurationMin ?? null, body.sessionPriceCents ?? null,
         body.modalities ? JSON.stringify(body.modalities) : null,
         body.onlineMeetingUrl ?? null, body.onlineInstructions ?? null, body.onlineUnlockMinutes ?? null,
@@ -969,6 +1038,27 @@ export async function handleApiRequest(req, res, customDb = null) {
         body.uiPreferences ? JSON.stringify(body.uiPreferences) : null,
         now, auth.account.id));
       return json(res, 200, { ok: true, updatedAt: now });
+    }
+
+    if (pathname === '/api/v1/professional/profile/photo' && ['POST', 'DELETE'].includes(method)) {
+      await requireProfessional(db, auth);
+      const photo = method === 'POST' ? await savePortrait(db, auth, await readJsonBody(req)) : null;
+      await db.run('UPDATE professional_accounts SET photo_file_id = ?, updated_at = ? WHERE id = ?', photo?.photoAssetId || null, nowIso(), auth.account.id);
+      return json(res, 200, { photoAssetId: photo?.photoAssetId || null, photoUrl: profilePhotoUrl({ ...auth.account, photo_file_id: photo?.photoAssetId || null }) });
+    }
+
+    const publicPhoto = pathname.match(/^\/api\/v1\/(ambo\/public|public-sites)\/([^/]+)\/photo\/([^/]+)$/);
+    if (method === 'GET' && publicPhoto) {
+      const account = await db.get('SELECT * FROM professional_accounts WHERE slug = ?', publicPhoto[2]);
+      if (!account) throw Object.assign(new Error('Foto não encontrada.'), { status: 404 });
+      let allowed = publicPhoto[1] === 'ambo/public' && account.photo_file_id === publicPhoto[3];
+      if (publicPhoto[1] === 'public-sites') {
+        const published = await db.get("SELECT v.content_json FROM etha_projects p JOIN etha_content_versions v ON v.id = p.published_version_id WHERE p.account_id = ? AND v.stage = 'published'", account.id);
+        allowed = Boolean(published && JSON.parse(published.content_json).photoAssetId === publicPhoto[3]);
+      }
+      if (!allowed) throw Object.assign(new Error('Foto não publicada.'), { status: 404 });
+      const file = await requireOwnedPortrait(db, account.id, publicPhoto[3]);
+      return await servePortrait(res, file);
     }
 
     if (method === 'PUT' && pathname === '/api/v1/professional/availability') {
@@ -1018,6 +1108,8 @@ export async function handleApiRequest(req, res, customDb = null) {
           crpOrCrm: acc.crp_or_crm,
           specialty: acc.specialty,
           bio: acc.bio,
+          audience: acc.audience || '',
+          photoUrl: profilePhotoUrl(acc),
           city: acc.city,
           timezone: acc.timezone,
           sessionDurationMin: acc.session_duration_min,
@@ -1821,6 +1913,18 @@ export async function handleApiRequest(req, res, customDb = null) {
       return json(res, 200, await buildEthaProjectDetail(db, proj));
     }
 
+    if (pathname === '/api/v1/etha/project/photo' && ['POST', 'DELETE'].includes(method)) {
+      await requireProfessional(db, auth, { product: 'etha', write: true });
+      const proj = await ensureEthaProject(db, auth.account.id);
+      const photo = method === 'POST' ? await savePortrait(db, auth, await readJsonBody(req), 'etha_photo') : null;
+      const briefing = { ...JSON.parse(proj.briefing_json || '{}'), photoAssetId: photo?.photoAssetId || null,
+        photoUrl: photo?.photoUrl || null, photosConfirmed: Boolean(photo) };
+      const ids = JSON.parse(proj.attachment_file_ids_json || '[]');
+      if (photo) ids.push(photo.photoAssetId);
+      await db.run('UPDATE etha_projects SET briefing_json = ?, attachment_file_ids_json = ?, updated_at = ? WHERE id = ?', JSON.stringify(briefing), JSON.stringify(ids), nowIso(), proj.id);
+      return json(res, 200, photo || { photoAssetId: null, photoUrl: null });
+    }
+
     if (method === 'PUT' && pathname === '/api/v1/etha/project/briefing') {
       await requireProfessional(db, auth, { product: 'etha', write: true });
       const body = await readJsonBody(req);
@@ -1906,6 +2010,11 @@ export async function handleApiRequest(req, res, customDb = null) {
       await requireProfessional(db, auth, { product: 'etha', write: true });
       const body = await readJsonBody(req);
       const proj = await ensureEthaProject(db, auth.account.id);
+      const content = z.object({ displayName: z.string().max(160).optional(), headline: z.string().max(300).optional(),
+        subheadline: z.string().max(2000).optional(), about: z.string().max(15000).optional(),
+        ctaLabel: z.string().max(100).optional(), photoAssetId: z.string().nullable().optional(),
+        customContactUrl: z.string().max(1000).optional(), crp: z.string().max(100).optional() }).parse(body.content || {});
+      if (content.photoAssetId) await requireOwnedPortrait(db, auth.account.id, content.photoAssetId);
       const stage = body.stage === 'preview' ? 'preview' : 'draft';
       const lastVer = Number(((await db.get('SELECT MAX(version_number) as m FROM etha_content_versions WHERE project_id = ?', proj.id)))?.m || 0) || 0;
       const verId = randomId('ethav');
@@ -1913,7 +2022,7 @@ export async function handleApiRequest(req, res, customDb = null) {
       (await db.run(`
         INSERT INTO etha_content_versions (id, project_id, account_id, version_number, stage, content_json, created_by_user_id, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `, verId, proj.id, auth.account.id, lastVer + 1, stage, JSON.stringify(body.content || {}), auth.user.id, now));
+      `, verId, proj.id, auth.account.id, lastVer + 1, stage, JSON.stringify(content), auth.user.id, now));
       return json(res, 201, {
         versionId: verId,
         versionNumber: lastVer + 1,
@@ -1932,7 +2041,7 @@ export async function handleApiRequest(req, res, customDb = null) {
         : (await db.get('SELECT * FROM etha_content_versions WHERE project_id = ? ORDER BY version_number DESC LIMIT 1', proj.id));
       if (!version) throw Object.assign(new Error('Nenhuma versão encontrada para publicação em homologação.'), { status: 404, code: 'VERSION_NOT_FOUND' });
       const now = nowIso();
-      const ctaMode = body.ctaMode === 'custom' ? 'custom' : 'ambo';
+      const ctaMode = body.ctaMode === 'custom' || (body.ctaMode == null && proj.cta_mode === 'custom') ? 'custom' : 'ambo';
       const customContactUrl = body.customContactUrl ?? proj.custom_contact_url;
       (await db.run("UPDATE etha_content_versions SET stage = 'published', published_at = ? WHERE id = ?", now, version.id));
       // Honest DNS status: NEVER fakes verified DNS/SSL!
@@ -2011,7 +2120,9 @@ export async function handleApiRequest(req, res, customDb = null) {
     if (method === 'GET' && pubSiteMatch) {
       const acc = (await db.get('SELECT * FROM professional_accounts WHERE slug = ?', pubSiteMatch[1]));
       if (!acc) throw Object.assign(new Error('Site não encontrado.'), { status: 404, code: 'SITE_NOT_FOUND' });
-      return json(res, 200, await buildPublicSiteDto(db, acc));
+      const site = await buildPublicSiteDto(db, acc);
+      if (!site.publishedAt || !site.versionNumber) throw Object.assign(new Error('Este site ainda não foi publicado.'), { status: 404, code: 'SITE_NOT_PUBLISHED' });
+      return json(res, 200, site);
     }
 
     return json(res, 404, { error: 'Rota não encontrada.', code: 'NOT_FOUND', pathname });
@@ -2065,7 +2176,7 @@ async function ensureEthaProject(db, accountId, format = 'one_page') {
 async function buildEthaProjectDetail(db, proj) {
   const versions = (await db.all('SELECT * FROM etha_content_versions WHERE project_id = ? ORDER BY version_number DESC', proj.id)).map((v) => ({
     ...v,
-    content: JSON.parse(v.content_json || '{}'),
+    content: (() => { const c = JSON.parse(v.content_json || '{}'); return { ...c, photoUrl: c.photoAssetId ? `/api/v1/files/${encodeURIComponent(c.photoAssetId)}` : null }; })(),
   }));
   const revisions = (await db.all('SELECT * FROM etha_revisions WHERE project_id = ? ORDER BY round_number ASC', proj.id)).map((r) => ({
     ...r,

@@ -14,6 +14,7 @@ import {
   getRemoteInfraGuard,
 } from '../server/db.mjs';
 import { createEnomeraServer } from '../scripts/server.mjs';
+import { sendTransactionalEmail } from '../server/mailer.mjs';
 
 let server;
 let baseUrl;
@@ -141,7 +142,9 @@ test('2. Commercial simulation catalog (R$ 89 combo, Etha 50/50), idempotent che
   // Verify authoritative server quote for Ambo + Minne = R$ 89/mês (NOT 15% stacked)
   const quote = await api('/api/v1/catalog/quote', { method: 'POST', body: { products: ['ambo', 'minne'] } });
   assert.equal(quote.status, 200);
-  assert.equal(quote.data.dueTodayCents, 8900);
+  assert.equal(quote.data.dueTodayCents, 0);
+  assert.equal(quote.data.referenceDueTodayCents, 8900);
+  assert.equal(quote.data.recurringMonthlyCents, 8900);
   assert.equal(quote.data.discountCents, 1900);
 
   // Declined checkout preserves order without activating entitlements
@@ -425,6 +428,8 @@ test('7. Ambo Solo -> later Minne adoption + Patient Invitation single-use + Min
   });
   const soloTok = su.data.sessionToken;
   const slug = su.data.account.slug;
+  const soloCode = extractSixDigitCode(await api('/api/v1/dev/outbox?recipient=solo.ambo@exemplo.invalid'));
+  assert.equal((await api('/api/v1/auth/verify-email', {method:'POST',token:soloTok,body:{email:'solo.ambo@exemplo.invalid',code:soloCode}})).status,200);
   await api('/api/v1/commercial/orders', {
     method: 'POST', token: soloTok, headers: { 'X-Idempotency-Key': 'solo-ambo-1' },
     body: { products: ['ambo'], simulatedOutcome: 'approved' },
@@ -568,10 +573,14 @@ test('8. Two independent real accounts: isolation, clinical file attachment 403,
   assert.equal(expiredVer.data.code, 'CODE_EXPIRED');
 
   // Resend fresh code & verify
-  await api('/api/v1/auth/resend-verification', { method: 'POST', body: { email: 'beatriz.real@exemplo.invalid' } });
+  assert.equal((await api('/api/v1/auth/resend-verification', {method:'POST',token:tokenA,body:{email:'beatriz.real@exemplo.invalid'}})).status,429);
+  await db.run("UPDATE verification_tokens SET created_at = '2020-01-01T00:00:00.000Z' WHERE target_contact = ?", 'beatriz.real@exemplo.invalid');
+  await api('/api/v1/auth/resend-verification', { method: 'POST', token:tokenA, body: { email: 'beatriz.real@exemplo.invalid' } });
   const freshCode = extractSixDigitCode(await api('/api/v1/dev/outbox?recipient=beatriz.real@exemplo.invalid'));
   const okVer = await api('/api/v1/auth/verify-email', { method: 'POST', token: tokenA, body: { email: 'beatriz.real@exemplo.invalid', code: freshCode } });
   assert.equal(okVer.status, 200);
+  const codeB = extractSixDigitCode(await api('/api/v1/dev/outbox?recipient=lucas.isolado@exemplo.invalid'));
+  assert.equal((await api('/api/v1/auth/verify-email', {method:'POST',token:tokenB,body:{email:'lucas.isolado@exemplo.invalid',code:codeB}})).status,200);
 
   // Activate Ambo + Minne + Etha on Account A and Minne on Account B (simulated checkout)
   const ordA = await api('/api/v1/commercial/orders', {
@@ -677,7 +686,7 @@ test('8. Two independent real accounts: isolation, clinical file attachment 403,
   await closeDb();
   const reopenedDb = await getDb(process.env.ENOMERA_DB_PATH);
   const migrations = await getAppliedMigrations(reopenedDb);
-  assert.equal(migrations.length, 2);
+  assert.equal(migrations.length, 3);
   const persistedNote = await reopenedDb.get('SELECT id, attachment_file_ids_json FROM clinical_notes WHERE id = ?', draftA.data.noteId);
   assert.ok(persistedNote);
   assert.ok(JSON.parse(persistedNote.attachment_file_ids_json).includes(fileIdA));
@@ -747,9 +756,9 @@ test('9. Remote delivery infra guard (ENOMERA_REQUIRE_REMOTE_INFRA / VERCEL=1): 
       method: 'POST',
       body: { email: 'helena@helenaduartepsi.com.br' },
     });
-    assert.equal(mailerFail.status, 503);
-    assert.equal(mailerFail.data.code, 'REMOTE_MAILER_NOT_CONFIGURED');
-    assert.deepEqual(mailerFail.data.missingEnvVars, ['RESEND_API_KEY', 'RESEND_FROM_EMAIL']);
+    assert.equal(mailerFail.status, 200);
+    assert.match(mailerFail.data.message, /Se o e-mail estiver cadastrado/);
+    await assert.rejects(() => sendTransactionalEmail(null, {recipient:'teste@exemplo.invalid',subject:'Teste',textBody:'Teste',purpose:'test'}), err => err.status === 503 && err.code === 'REMOTE_MAILER_NOT_CONFIGURED');
 
     // 6. Subsystem guard: dev/outbox is strictly disabled (403 OUTBOX_DISABLED)
     const outboxDisabled = await api('/api/v1/dev/outbox?recipient=helena@helenaduartepsi.com.br');

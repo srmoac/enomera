@@ -59,6 +59,9 @@ export function detectFileMagic(buffer, filename = '') {
   if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
     return { mime: 'image/jpeg', format: 'jpg', safe: true };
   }
+  if (buffer.length >= 12 && buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP') {
+    return { mime: 'image/webp', format: 'webp', safe: true };
+  }
   // Legacy OLE2 .doc: D0 CF 11 E0
   if (buffer.length >= 4 && buffer[0] === 0xd0 && buffer[1] === 0xcf && buffer[2] === 0x11 && buffer[3] === 0xe0) {
     return { mime: 'application/msword', format: 'legacy_doc', safe: false };
