@@ -23,6 +23,9 @@ test('Contas de homologação: só com senha no ambiente, verificadas e com os s
   };
   try {
     await fetch(`${base}/api/v1/health`);
+    await fetch(`${base}/api/v1/health`);
+    assert.equal((await login('helena@helenaduartepsi.com.br', process.env.ENOMERA_HOMOLOG_PASSWORD)).status, 200);
+    assert.equal((await login('helena@helenaduartepsi.com.br', 'HelenaDemo!2026')).status, 401);
     const sofia = await login('sofia.mendes@homolog.enomera.invalid', process.env.ENOMERA_HOMOLOG_PASSWORD);
     assert.equal(sofia.status, 200);
     assert.equal(sofia.data.user.emailVerified, true);

@@ -1,4 +1,4 @@
-import { addDaysIso, hashPassword, nowIso, randomId } from './crypto.mjs';
+import { addDaysIso, hashPassword, nowIso, randomId, verifyPassword } from './crypto.mjs';
 import { getDb, runTransaction } from './db.mjs';
 
 // Contas fictícias de homologação (Preview). Só existem quando o ambiente define
@@ -60,7 +60,21 @@ export async function seedHomologAccounts(db) {
       created += 1;
     }, `seed_homolog_${acc.key}`);
   }
-  homologSeedDone = true;
+  // As contas demo nasceram com senha fixa no repositório. Em ambiente público, a senha passa a vir do ambiente.
+  const rotations = [
+    ['helena@helenaduartepsi.com.br', password],
+    ['marcos@enomera-ops.exemplo.com.br', process.env.ENOMERA_OPERATOR_PASSWORD || ''],
+  ];
+  for (const [email, next] of rotations) {
+    if (next.length < 12) continue;
+    const u = await db.get('SELECT id, password_hash, password_salt FROM users WHERE email = ? AND is_demo = 1', email);
+    if (!u || verifyPassword(next, u.password_hash, u.password_salt)) continue;
+    const pwd = hashPassword(next);
+    await db.run('UPDATE users SET password_hash = ?, password_salt = ?, updated_at = ? WHERE id = ?', pwd.hash, pwd.salt, nowIso(), u.id);
+    await db.run('DELETE FROM sessions WHERE user_id = ?', u.id);
+  }
+  // Só memoriza depois que a conta demo existe, para a troca de senha valer também em banco novo.
+  homologSeedDone = Boolean(await db.get("SELECT id FROM users WHERE email = 'helena@helenaduartepsi.com.br'"));
   return { seeded: created > 0, created };
 }
 
