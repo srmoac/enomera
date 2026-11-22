@@ -302,18 +302,12 @@ export async function mountEnomeraPlatform(rootEl) {
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
           <div style="max-width:740px">
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
-              <span class="eno-pill eno-pill-warn">503 · Infraestrutura Remota Pendente</span>
-              <strong style="font-size:0.92rem">Ambiente Preview aguardando configuração (${esc(state.infraError.code)})</strong>
+              <span class="eno-pill eno-pill-warn">Homologação em preparação</span>
+              <strong style="font-size:0.92rem">${missing.length && missing.every(name => name.startsWith('RESEND_')) ? 'O envio de e-mail ainda não está disponível.' : 'Um serviço está temporariamente indisponível.'}</strong>
             </div>
             <p style="margin:4px 0 6px;font-size:0.84rem;line-height:1.45">
-              ${esc(state.infraError.error)} Sua seleção de serviços e os dados preenchidos continuam salvos nesta aba.
+              Sua seleção de serviços e os dados preenchidos continuam salvos nesta aba. Tente novamente após a liberação do serviço.
             </p>
-            ${missing.length ? `
-              <div style="font-size:0.77rem;font-weight:650;margin-top:6px">Variáveis ausentes no ambiente Preview:</div>
-              <div class="eno-infra-env-list">
-                ${missing.map((envName) => `<span class="eno-infra-env-pill">${esc(envName)}</span>`).join('')}
-              </div>
-            ` : ''}
           </div>
           <button type="button" class="eno-btn eno-btn-sec eno-btn-sm" id="eno-retry-health">Verificar novamente</button>
         </div>
