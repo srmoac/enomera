@@ -38,6 +38,14 @@ for (const [name,engine] of [['chromium',chromium],['webkit',webkit]]) {
       await expect(page.getByRole('heading',{name:'Revise sua contratação',exact:true})).toBeVisible();
       await page.reload();
       await expect(page.getByRole('heading',{name:'Revise sua contratação',exact:true})).toBeVisible();
+      const unfinished=await browser.newContext({viewport:{width,height:844},reducedMotion:'reduce'});
+      const resume=await unfinished.newPage();
+      await resume.goto(`${base}/conta`);
+      await resume.getByLabel('E-mail profissional',{exact:true}).fill(email);
+      await resume.getByLabel('Senha',{exact:true}).fill(password);
+      await resume.getByRole('button',{name:'Entrar e continuar',exact:true}).click();
+      await expect(resume.getByRole('heading',{name:'Revise sua contratação',exact:true})).toBeVisible();
+      await unfinished.close();
       await page.getByRole('button',{name:'Alterar combinação',exact:true}).click();
       await page.getByRole('checkbox',{name:'Selecionar Minne',exact:true}).uncheck();
       await expect(page.getByRole('button',{name:'Continuar com esta combinação',exact:true})).toBeEnabled();

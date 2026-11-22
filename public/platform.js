@@ -797,6 +797,12 @@ export async function mountEnomeraPlatform(rootEl) {
       state.returnAfterAuth = null;
       syncHistory(state.tab, state.authMode);
       await refreshSessionAndData();
+      if (res.data.user.emailVerified && state.tab === 'portal' && state.checkoutStage === 'review') {
+        state.tab = 'plans';
+        syncHistory(state.tab, state.authMode);
+        render();
+        rootEl.querySelector('h1')?.focus();
+      }
     });
 
     rootEl.querySelector('#eno-signup-form')?.addEventListener('submit', async (ev) => {
