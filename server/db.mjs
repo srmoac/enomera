@@ -56,13 +56,13 @@ export function getRemoteInfraGuard() {
   const hasBlob = Boolean(process.env.BLOB_READ_WRITE_TOKEN);
   const hasResendKey = Boolean(process.env.RESEND_API_KEY);
   const hasResendFrom = Boolean(process.env.RESEND_FROM_EMAIL);
-  const hasSmtp = Boolean(process.env.SMTP_USER && process.env.SMTP_PASSWORD);
+  const hasSmtp = Boolean(process.env.SMTP_PASSWORD);
   const mailerReady = hasSmtp || (hasResendKey && hasResendFrom);
 
   const missingEnvVars = [];
   if (!hasDb) missingEnvVars.push('DATABASE_URL');
   if (!hasBlob) missingEnvVars.push('BLOB_READ_WRITE_TOKEN');
-  if (!mailerReady) missingEnvVars.push('SMTP_USER', 'SMTP_PASSWORD');
+  if (!mailerReady) missingEnvVars.push('SMTP_PASSWORD');
 
   return {
     required,
@@ -71,7 +71,7 @@ export function getRemoteInfraGuard() {
     components: {
       database: { configured: hasDb, requiredEnv: ['DATABASE_URL'] },
       storage: { configured: hasBlob, requiredEnv: ['BLOB_READ_WRITE_TOKEN'] },
-      mailer: { configured: mailerReady, provider: hasSmtp ? 'smtp' : (hasResendKey && hasResendFrom ? 'resend' : null), requiredEnv: ['SMTP_USER', 'SMTP_PASSWORD'] },
+      mailer: { configured: mailerReady, provider: hasSmtp ? 'smtp' : (hasResendKey && hasResendFrom ? 'resend' : null), requiredEnv: ['SMTP_PASSWORD'] },
     },
   };
 }

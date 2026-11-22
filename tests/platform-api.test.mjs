@@ -737,14 +737,14 @@ test('9. Remote delivery infra guard (ENOMERA_REQUIRE_REMOTE_INFRA / VERCEL=1): 
     const guard = getRemoteInfraGuard();
     assert.equal(guard.required, true);
     assert.equal(guard.ready, false);
-    assert.deepEqual(guard.missingEnvVars, ['DATABASE_URL', 'BLOB_READ_WRITE_TOKEN', 'SMTP_USER', 'SMTP_PASSWORD']);
+    assert.deepEqual(guard.missingEnvVars, ['DATABASE_URL', 'BLOB_READ_WRITE_TOKEN', 'SMTP_PASSWORD']);
 
     const remoteHealth = await api('/api/v1/health');
     assert.equal(remoteHealth.status, 503);
     assert.equal(remoteHealth.data.ok, false);
     assert.equal(remoteHealth.data.code, 'REMOTE_INFRA_NOT_CONFIGURED');
     assert.equal(remoteHealth.data.requireRemoteInfra, true);
-    assert.deepEqual(remoteHealth.data.missingEnvVars, ['DATABASE_URL', 'BLOB_READ_WRITE_TOKEN', 'SMTP_USER', 'SMTP_PASSWORD']);
+    assert.deepEqual(remoteHealth.data.missingEnvVars, ['DATABASE_URL', 'BLOB_READ_WRITE_TOKEN', 'SMTP_PASSWORD']);
     assert.equal(remoteHealth.data.integrations.database.activeBackend, 'unconfigured_remote_required');
     assert.equal(remoteHealth.data.integrations.storage.backend, 'unconfigured_remote_required');
     assert.equal(remoteHealth.data.integrations.mailer.provider, 'unconfigured_remote_required');

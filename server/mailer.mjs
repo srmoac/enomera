@@ -8,7 +8,8 @@ import { isRemoteInfraRequired } from './db.mjs';
  * Tem prioridade sobre o Resend, que sem domínio verificado só entrega ao dono da conta.
  */
 export function getSmtpConfig() {
-  const user = (process.env.SMTP_USER || '').trim();
+  // Remetente do piloto definido por Marcos em 22/11: o Gmail de trabalho dele.
+  const user = (process.env.SMTP_USER || 'mrsaocwork@gmail.com').trim();
   const pass = (process.env.SMTP_PASSWORD || '').replace(/\s+/g, '');
   if (!user || !pass) return null;
   return {
@@ -54,8 +55,7 @@ export function getMailerStatus() {
   const remoteRequired = isRemoteInfraRequired();
   const missingEnvVars = [];
   if (!configured) {
-    if (!process.env.SMTP_USER) missingEnvVars.push('SMTP_USER');
-    if (!process.env.SMTP_PASSWORD) missingEnvVars.push('SMTP_PASSWORD');
+    missingEnvVars.push('SMTP_PASSWORD');
   }
   const allowlistCount = (process.env.RESEND_TEST_ALLOWLIST || '')
     .split(',')
@@ -89,7 +89,7 @@ export async function sendTransactionalEmail(db, { recipient, subject, textBody,
   const smtp = channel === 'email' ? getSmtpConfig() : null;
 
   if (remoteRequired && !smtp && (!apiKey || !fromEmail)) {
-    const missingEnvVars = ['SMTP_USER', 'SMTP_PASSWORD'].filter((k) => !process.env[k]);
+    const missingEnvVars = ['SMTP_PASSWORD'];
     throw Object.assign(
       new Error(`Canal de envio de e-mail não configurado neste ambiente. Defina ${missingEnvVars.join(' e ')} no ambiente Preview da Vercel.`),
       {
