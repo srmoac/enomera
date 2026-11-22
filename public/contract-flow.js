@@ -194,6 +194,7 @@ export function renderAccount({ mode, email, contract, codeDigits, codeError, co
             <input id="eno-email" name="email" type="email" autocomplete="email" class="eno-input" required value="${esc(email)}" placeholder="voce@consultorio.com.br" aria-invalid="${fieldError ? 'true' : 'false'}" aria-describedby="eno-email-hint${fieldError ? ' eno-email-err' : ''}">
             ${fieldError ? `<p class="eno-flow-err" id="eno-email-err" role="alert">${esc(fieldError)}</p>` : ''}
             <p class="eno-flow-note" id="eno-email-hint">${flowLogin ? 'Ainda não tem conta? <a class="eno-link" href="/checkout">Escolher serviços</a>' : 'Quem já tem conta recebe o código no mesmo e-mail. Sem senha.'}</p>
+            ${flowLogin ? '' : '<p class="eno-flow-note eno-legal-note">Ao continuar, você concorda com os <a class="eno-link" href="/termos" target="_blank" rel="noopener">Termos de Uso</a> e a <a class="eno-link" href="/privacidade" target="_blank" rel="noopener">Política de Privacidade</a>.</p>'}
             <button type="submit" class="eno-btn eno-flow-cta" ${busy ? 'disabled' : ''}>${busy ? '<span class="eno-spinner" aria-hidden="true"></span> Enviando…' : 'Enviar código'}</button>
           </form>
         `}

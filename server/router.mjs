@@ -930,8 +930,8 @@ export async function handleApiRequest(req, res, customDb = null) {
       await requireProfessional(db, auth);
       if (!auth.user.email_verified_at) throw Object.assign(new Error('Confirme seu e-mail antes de iniciar o teste.'), { status: 403, code: 'EMAIL_VERIFICATION_REQUIRED' });
       const body = await readJsonBody(req);
-      const products = (Array.isArray(body.products) ? body.products : ['ambo', 'minne']).filter((p) => ['ambo', 'minne'].includes(p));
-      if (products.length === 0) throw Object.assign(new Error('Selecione Ambo e/ou Minne para os 30 dias grátis.'), { status: 400, code: 'INVALID_TRIAL_PRODUCTS' });
+      const products = (Array.isArray(body.products) ? body.products : ['ambo', 'minne']).filter((p) => ['ambo', 'minne', 'etha'].includes(p));
+      if (products.length === 0) throw Object.assign(new Error('Selecione ao menos um serviço para os 30 dias grátis.'), { status: 400, code: 'INVALID_TRIAL_PRODUCTS' });
       const now = nowIso();
       const trialEndsAt = addDaysIso(COMMERCIAL_CATALOG.trialDays);
       await runTransaction(db, async (db) => {
@@ -945,6 +945,7 @@ export async function handleApiRequest(req, res, customDb = null) {
               updated_at = excluded.updated_at
           `, randomId('ent'), auth.account.id, p, trialEndsAt, now));
         }
+        if (products.includes('etha')) await ensureEthaProject(db, auth.account.id, 'one_page');
         await writeAudit(db, { actorUserId: auth.user.id, actorType: 'professional', accountId: auth.account.id, action: 'commercial.trial_start', resourceType: 'entitlement', meta: { products } });
       });
       return json(res, 200, { ok: true, trialEndsAt, entitlements: await getAccountEntitlements(db, auth.account.id) });

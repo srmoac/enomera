@@ -136,3 +136,7 @@ dialog, [role="dialog"], .eno-flow-side, .eno-sheet { overscroll-behavior: conta
   .nav-login-mobile:active { background: rgb(255 255 255 / .5); }
   #nav-links .nav-login-in-menu { display: none; }
 }
+
+.eno-legal-note { font-size: 13px; opacity: .8; }
+.eno-legal-note .eno-link { display: inline; min-height: 0; padding: 0; }
+.foot-legal a { display: inline; padding: 0; min-height: 0; }

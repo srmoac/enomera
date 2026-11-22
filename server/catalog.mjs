@@ -95,7 +95,6 @@ export function calculateSimulatedQuote({ products = [], ethaFormat = null, mode
   const comboNote = savingsCents > 0 ? `Combo por ${formatBrl(monthlyCents)}/mês (economia de ${formatBrl(savingsCents)} sobre ${formatBrl(listCents)}).` : '';
 
   if (mode === 'trial') {
-    if (hasEtha) throw new Error('TRIAL_NOT_AVAILABLE_FOR_ETHA');
     return {
       catalogVersion: CATALOG_VERSION,
       mode: 'trial',
