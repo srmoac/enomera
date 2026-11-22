@@ -1,6 +1,17 @@
+import {
+  comboLabel,
+  namesWithE,
+  renderAccount,
+  renderActivationBanner,
+  renderChoice,
+  renderReview,
+} from './contract-flow.js';
 const TOKEN_KEY = 'enomera_session_token_v1';
 const DRAFT_COMBO_KEY = 'enomera_pending_combo_v1';
 const LAST_ORDER_KEY = 'enomera_last_order_v1';
+const ACTIVATION_KEY = 'enomera_last_activation_v1';
+const FLOW_EMAIL_KEY = 'enomera_flow_email_v1';
+
 
 // Preview: o projeto Vercel real de cada produto (nomes de projeto != nomes de marca).
 // Produção: domínio público oficial. Sempre sobrescrevível por window.__ENOMERA_*_URL.
@@ -36,6 +47,10 @@ function loadCombo() {
   return { products: ['ambo', 'minne'], ethaFormat: 'one_page', viewMode: 'monthly' };
 }
 function saveCombo(combo) { try { sessionStorage.setItem(DRAFT_COMBO_KEY, JSON.stringify(combo)); } catch {} }
+function loadActivation() { try { const r = sessionStorage.getItem(ACTIVATION_KEY); return r ? JSON.parse(r) : null; } catch { return null; } }
+function saveActivation(a) { try { if (a) sessionStorage.setItem(ACTIVATION_KEY, JSON.stringify(a)); else sessionStorage.removeItem(ACTIVATION_KEY); } catch {} }
+function loadFlowEmail() { try { return sessionStorage.getItem(FLOW_EMAIL_KEY) || ''; } catch { return ''; } }
+function saveFlowEmail(e) { try { if (e) sessionStorage.setItem(FLOW_EMAIL_KEY, e); else sessionStorage.removeItem(FLOW_EMAIL_KEY); } catch {} }
 function loadSavedOrder() { try { const r = sessionStorage.getItem(LAST_ORDER_KEY); return r ? JSON.parse(r) : null; } catch { return null; } }
 function saveLastOrder(o) { try { if (o) sessionStorage.setItem(LAST_ORDER_KEY, JSON.stringify(o)); else sessionStorage.removeItem(LAST_ORDER_KEY); } catch {} }
 
@@ -105,6 +120,14 @@ export async function mountEnomeraPlatform(rootEl) {
     checkoutIdempotencyKey: `chk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     lastOrder: loadSavedOrder(),
     returnAfterAuth: 'portal',
+    // Percurso de contratação aprovado (22 nov)
+    flowEmail: loadFlowEmail(),
+    codeError: '',
+    devCode: '',
+    returnedFromReview: false,
+    activating: false,
+    activation: loadActivation(),
+    comboDirty: false, // escolha feita nesta aba ainda não gravada na conta
   };
 
   const motionTracker = {
@@ -116,11 +139,12 @@ export async function mountEnomeraPlatform(rootEl) {
 
   function syncHistory(tab, authMode) {
     if (!window.history?.pushState) return;
-    const nextPath = tab === 'plans' ? '/checkout' : tab === 'auth' ? '/conta' : '/portal';
+    const nextPath = tab === 'plans' || tab === 'review' ? '/checkout' : tab === 'auth' ? '/conta' : '/portal';
+    const nextSearch = tab === 'review' ? '?etapa=revisao' : '';
     const st = window.history.state || {};
-    if (st.enoTab === tab && st.enoAuthMode === authMode && location.pathname === nextPath) return;
+    if (st.enoTab === tab && st.enoAuthMode === authMode && location.pathname === nextPath && location.search === nextSearch) return;
     try {
-      window.history.pushState({ enoTab: tab, enoAuthMode: authMode }, '', nextPath + location.search);
+      window.history.pushState({ enoTab: tab, enoAuthMode: authMode }, '', nextPath + nextSearch);
     } catch {}
   }
 
@@ -130,7 +154,7 @@ export async function mountEnomeraPlatform(rootEl) {
       state.tab = st.enoTab;
       if (st.enoAuthMode) state.authMode = st.enoAuthMode;
     } else if (location.pathname.startsWith('/checkout')) {
-      state.tab = 'plans';
+      state.tab = new URLSearchParams(location.search).get('etapa') === 'revisao' ? 'review' : 'plans';
     } else if (location.pathname.startsWith('/conta')) {
       state.tab = 'auth';
     } else {
@@ -145,15 +169,21 @@ export async function mountEnomeraPlatform(rootEl) {
   const qs = new URLSearchParams(location.search);
   if (qs.get('selecao')) {
     const prods = qs.get('selecao').split(',').filter((x) => ['ambo', 'minne', 'etha'].includes(x));
-    if (prods.length) { state.combo.products = prods; saveCombo(state.combo); }
+    if (prods.length) { state.combo.products = prods; state.comboDirty = true; saveCombo(state.combo); }
   }
+  if (qs.get('periodicidade')) {
+    state.combo.viewMode = qs.get('periodicidade') === 'licenca' ? 'permanent' : 'monthly';
+    state.comboDirty = true;
+    saveCombo(state.combo);
+  }
+  state.authMode = state.flowEmail && qs.get('etapa') === 'codigo' ? 'code' : 'email';
   if (location.pathname.startsWith('/checkout') || qs.get('etapa') === 'planos') {
-    state.tab = 'plans';
-    state.returnAfterAuth = 'plans';
+    state.tab = qs.get('etapa') === 'revisao' ? 'review' : 'plans';
+    state.returnAfterAuth = 'review';
   }
   if (location.pathname.startsWith('/conta') || qs.get('etapa') === 'conta') {
     state.tab = 'auth';
-    state.returnAfterAuth = 'plans';
+    state.returnAfterAuth = 'review';
   }
 
   let cooldownTimer = null;
@@ -162,10 +192,15 @@ export async function mountEnomeraPlatform(rootEl) {
     clearInterval(cooldownTimer);
     cooldownTimer = setInterval(() => {
       state.resendCooldown = Math.max(0, state.resendCooldown - 1);
-      const btn = rootEl.querySelector('#eno-resend-ver');
-      if (btn) {
-        btn.disabled = state.resendCooldown > 0;
-        btn.textContent = state.resendCooldown > 0 ? `Reenviar código (${state.resendCooldown}s)` : 'Reenviar código';
+      if (state.tab === 'auth' && state.authMode === 'code') {
+        const note = rootEl.querySelector('#eno-code-form .eno-flow-note');
+        if (state.resendCooldown === 0) {
+          render(); // mostra "Reenviar código" (o foco é preservado por id)
+        } else if (note && !state.codeError && note.firstChild?.nodeType === 3) {
+          const mm = Math.floor(state.resendCooldown / 60);
+          const ss = String(state.resendCooldown % 60).padStart(2, '0');
+          note.firstChild.textContent = `Reenviar código em ${mm}:${ss} · `;
+        }
       }
       if (state.resendCooldown === 0) clearInterval(cooldownTimer);
     }, 1000);
@@ -201,19 +236,21 @@ export async function mountEnomeraPlatform(rootEl) {
           }
         }
         if (profRes.ok) state.profileData = profRes.data;
+        await syncAccountSelection();
       }
+      if (state.tab === 'auth') state.tab = state.returnAfterAuth === 'review' ? 'review' : 'portal';
     } else {
       state.me = null;
       state.summary = null;
       if (hadToken && meRes.status === 401) {
         if (state.tab !== 'auth') state.returnAfterAuth = state.tab;
         state.tab = 'auth';
-        state.authMode = 'login';
+        state.authMode = 'email';
         state.feedback = {
           tone: 'warn',
           text: 'Sua sessão expirou. Entre novamente para retomar exatamente de onde parou com sua seleção preservada.',
         };
-      } else if (['portal', 'profile', 'billing'].includes(state.tab)) {
+      } else if (['portal', 'profile', 'billing', 'review'].includes(state.tab)) {
         state.returnAfterAuth = state.tab;
         state.tab = 'auth';
       }
@@ -222,18 +259,84 @@ export async function mountEnomeraPlatform(rootEl) {
     render();
   }
 
+  function selectionPayload() {
+    return {
+      products: state.combo.products,
+      billing: state.combo.viewMode === 'permanent' ? 'permanent' : 'monthly',
+      ethaFormat: state.combo.ethaFormat,
+    };
+  }
+
+  // A combinação escolhida é estado da conta: a conta guarda; a aba só guarda até a verificação.
+  async function syncAccountSelection() {
+    if (!state.me?.account) return;
+    if (state.comboDirty && state.combo.products.length) {
+      const put = await apiFetch('/api/v1/commercial/selection', { method: 'PUT', body: selectionPayload() });
+      if (put.ok) state.comboDirty = false;
+      return;
+    }
+    const res = await apiFetch('/api/v1/commercial/selection');
+    const sel = res.ok ? res.data.selection : null;
+    if (sel?.products?.length) {
+      state.combo.products = sel.products;
+      state.combo.viewMode = sel.billing === 'permanent' ? 'permanent' : 'monthly';
+      if (sel.ethaFormat) state.combo.ethaFormat = sel.ethaFormat;
+      saveCombo(state.combo);
+    }
+  }
+
+  let selectionTimer = null;
+  function persistSelectionSoon() {
+    saveCombo(state.combo);
+    state.comboDirty = true;
+    if (!state.me?.account || !state.combo.products.length) return;
+    clearTimeout(selectionTimer);
+    selectionTimer = setTimeout(async () => {
+      const res = await apiFetch('/api/v1/commercial/selection', { method: 'PUT', body: selectionPayload() });
+      if (res.ok) state.comboDirty = false;
+    }, 250);
+  }
+
   async function refreshQuote(pulse = true) {
     const seq = ++quoteSeq;
     if (!state.combo.products.length) { state.quote = null; return; }
     const q = await apiFetch('/api/v1/catalog/quote', {
       method: 'POST',
-      body: { products: state.combo.products, ethaFormat: state.combo.ethaFormat, mode: 'monthly' },
+      body: { ...selectionPayload(), mode: 'monthly' },
     });
     if (seq !== quoteSeq) return; // drop stale out-of-order response
     if (q.ok) {
       state.quote = q.data;
       state.deltaPulse = pulse;
     }
+  }
+
+  async function requestEmailCode(email) {
+    state.busyAction = 'email';
+    state.fieldError = null;
+    render();
+    const res = await apiFetch('/api/v1/auth/email-code/request', { method: 'POST', body: { email } });
+    state.busyAction = null;
+    if (res.infraError) state.infraError = res.infraError;
+    if (!res.ok && res.data.code !== 'CODE_REQUEST_TOO_SOON') {
+      if (state.authMode === 'code') state.codeError = res.data.error || 'Não foi possível reenviar agora.';
+      else state.fieldError = { field: 'email', text: res.data.error || 'Não foi possível enviar o código agora.' };
+      render();
+      return;
+    }
+    state.lastDelivery = res.data.delivery || null;
+    state.devCode = '';
+    if (!state.lastDelivery?.sentExternally) {
+      await loadOutbox(email);
+      const m = /\b(\d{6})\b/.exec(String(state.outboxMessages[0]?.body_preview || ''));
+      state.devCode = m ? m[1] : '';
+    }
+    state.authMode = 'code';
+    state.otpDigits = ['', '', '', '', '', ''];
+    startResendCooldown(res.data.resendAfterSec || 60);
+    syncHistory(state.tab, state.authMode);
+    render();
+    rootEl.querySelector('#otp-0')?.focus();
   }
 
   async function loadOutbox(recipient) {
@@ -294,40 +397,6 @@ export async function mountEnomeraPlatform(rootEl) {
     `;
   }
 
-  function renderStepper() {
-    if (!['plans', 'auth', 'portal'].includes(state.tab)) return '';
-    const step1Done = state.tab === 'auth' || state.tab === 'portal';
-    const step2Active = state.tab === 'auth';
-    const step2Done = Boolean(state.me);
-    const step3Active = state.tab === 'portal' && Boolean(state.me);
-    const step2Label = state.authMode === 'verify'
-      ? '2. Código de 6 dígitos'
-      : state.authMode === 'recovery'
-        ? '2. Recuperar acesso'
-        : '2. Conta e verificação';
-    return `
-      <div class="eno-stepper" aria-label="Etapas da contratação e acesso">
-        <div class="eno-stepper-steps">
-          <span class="eno-step-pill ${state.tab === 'plans' ? 'is-active' : step1Done ? 'is-done' : ''}">
-            <span class="eno-step-num">${step1Done && state.tab !== 'plans' ? '✓' : '1'}</span>
-            1. Planos e simulação
-          </span>
-          <span class="eno-step-pill ${step2Active ? 'is-active' : step2Done ? 'is-done' : ''}">
-            <span class="eno-step-num">${step2Done && !step2Active ? '✓' : '2'}</span>
-            ${esc(step2Label)}
-          </span>
-          <span class="eno-step-pill ${step3Active ? 'is-active' : ''}">
-            <span class="eno-step-num">3</span>
-            3. Portal e produtos ativos
-          </span>
-        </div>
-        ${state.tab !== 'plans'
-          ? `<button type="button" class="eno-btn eno-btn-sec eno-btn-sm" id="eno-step-back">← Voltar</button>`
-          : `<span style="font-size:0.78rem;color:#4E6083;font-weight:600">Simulação transparente · sem cobrança real</span>`}
-      </div>
-    `;
-  }
-
   function renderPasswordField({ id, name, label, hint, value, autocomplete, invalid, errorText }) {
     const isVisible = Boolean(state.pwdVisible[id]);
     return `
@@ -346,8 +415,8 @@ export async function mountEnomeraPlatform(rootEl) {
   function renderTopbar() {
     const authed = Boolean(state.me);
     const tabs = authed
-      ? [['portal', 'Portal'], ['plans', 'Planos e checkout'], ['profile', 'Perfil e agenda'], ['billing', 'Cobrança e ciclo'], ['pilot', 'Piloto (2 sem.)']]
-      : [['auth', 'Conta'], ['plans', 'Comparar preços'], ['pilot', 'Piloto (2 sem.)']];
+      ? [['portal', 'Portal'], ['profile', 'Perfil e agenda'], ['plans', 'Outros serviços'], ['billing', 'Cobrança'], ['pilot', 'Piloto (2 sem.)']]
+      : [['auth', 'Entrar'], ['plans', 'Serviços e preços'], ['pilot', 'Piloto (2 sem.)']];
     return `
       <header class="eno-topbar">
         <a class="eno-brand" href="/"><img src="/assets/brand.svg" width="32" height="27" alt="">enomera</a>
@@ -384,290 +453,6 @@ export async function mountEnomeraPlatform(rootEl) {
     `;
   }
 
-  function renderAuthView(animateAuthBody) {
-    const comboNames = state.combo.products.map((p) => p.toUpperCase()).join(' + ') || 'Nenhum';
-    const modeTitles = {
-      login: 'Entrar na sua conta Enomera',
-      signup: 'Criar conta profissional',
-      verify: 'Confirmar seu e-mail com código',
-      recovery: 'Recuperar acesso à conta',
-    };
-    const emailTarget = state.pendingEmail || state.formCache.email || state.me?.user?.email || '';
-
-    return `
-      <section class="eno-grid-2">
-        <div class="eno-card">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-            <div style="flex:1;min-width:240px">
-              ${renderSegmented('eno-auth-seg', [
-                ['login', 'Entrar'],
-                ['signup', 'Criar conta'],
-                ['verify', 'Código'],
-                ['recovery', 'Recuperar'],
-              ], state.authMode, 'data-authmode')}
-            </div>
-            ${(state.authMode === 'verify' || state.authMode === 'recovery') ? `<button type="button" class="eno-btn eno-btn-sec eno-btn-sm" id="eno-auth-back">← Voltar</button>` : ''}
-          </div>
-
-          <div class="${animateAuthBody ? 'eno-panel-enter' : ''}" data-auth-panel="${state.authMode}">
-            <h1 class="eno-h1" style="margin-bottom:8px">${modeTitles[state.authMode]}</h1>
-
-            ${state.authMode === 'login' ? `
-              <p class="eno-muted" style="margin-bottom:14px">Sua seleção atual (<b>${esc(comboNames)}</b>) acompanha você automaticamente após entrar.</p>
-              <form id="eno-login-form" class="eno-list">
-                <div class="eno-field">
-                  <label for="l-email">E-mail profissional</label>
-                  <input id="l-email" name="email" type="email" autocomplete="email" class="eno-input" required value="${esc(state.formCache.email)}" placeholder="voce@consultorio.com.br" aria-invalid="${state.fieldError?.field === 'login' ? 'true' : 'false'}">
-                </div>
-                ${renderPasswordField({
-                  id: 'l-pwd',
-                  name: 'password',
-                  label: 'Senha',
-                  hint: '',
-                  value: state.formCache.loginPwd,
-                  autocomplete: 'current-password',
-                  invalid: state.fieldError?.field === 'login',
-                  errorText: state.fieldError?.field === 'login' ? state.fieldError.text : '',
-                })}
-                <div class="eno-btn-row">
-                  <button type="submit" class="eno-btn">Entrar e continuar</button>
-                  <button type="button" class="eno-btn eno-btn-sec" id="eno-fill-helena">Usar Helena (fictícia)</button>
-                </div>
-              </form>
-            ` : state.authMode === 'signup' ? `
-              <p class="eno-muted" style="margin-bottom:14px">Ao criar a conta, sua combinação <b>${esc(comboNames)}</b> segue salva até o checkout.</p>
-              <form id="eno-signup-form" class="eno-list">
-                <div class="eno-field"><label for="s-name">Nome completo</label><input id="s-name" name="fullName" autocomplete="name" class="eno-input" required value="${esc(state.formCache.fullName)}" placeholder="Ex.: Helena Duarte"></div>
-                <div class="eno-field">
-                  <label for="s-email">E-mail profissional</label>
-                  <span class="eno-field-hint">Enviaremos um código de 6 dígitos para confirmar sua conta.</span>
-                  <input id="s-email" name="email" type="email" autocomplete="email" class="eno-input" required value="${esc(state.formCache.email)}" placeholder="helena@exemplo.com.br" aria-invalid="${state.fieldError?.field === 'email' ? 'true' : 'false'}">
-                  ${state.fieldError?.field === 'email' ? `<span class="eno-field-err">${esc(state.fieldError.text)}</span>` : ''}
-                </div>
-                <div class="eno-grid-2" style="grid-template-columns:1fr 1fr;gap:10px">
-                  <div class="eno-field">
-                    <div class="eno-label-row"><label for="s-crp">CRP ou CRM</label><span class="eno-opt-tag">(opcional)</span></div>
-                    <input id="s-crp" name="crpOrCrm" class="eno-input" value="${esc(state.formCache.crpOrCrm)}" placeholder="CRP 06/148290">
-                  </div>
-                  <div class="eno-field"><label for="s-spec">Especialidade</label><select id="s-spec" name="specialty" class="eno-select"><option value="Psicologia" ${state.formCache.specialty === 'Psicologia' ? 'selected' : ''}>Psicologia</option><option value="Psiquiatria" ${state.formCache.specialty === 'Psiquiatria' ? 'selected' : ''}>Psiquiatria</option></select></div>
-                </div>
-                ${renderPasswordField({
-                  id: 's-pwd',
-                  name: 'password',
-                  label: 'Senha',
-                  hint: 'Mínimo de 8 caracteres.',
-                  value: state.formCache.signupPwd,
-                  autocomplete: 'new-password',
-                  invalid: state.fieldError?.field === 'password',
-                  errorText: state.fieldError?.field === 'password' ? state.fieldError.text : '',
-                })}
-                <button type="submit" class="eno-btn">Criar conta e receber código</button>
-              </form>
-            ` : state.authMode === 'verify' ? `
-              <p class="eno-muted" style="margin-bottom:10px">
-                ${state.lastDelivery?.sentExternally
-                  ? `Enviamos um código de 6 dígitos para <b>${esc(emailTarget)}</b>.`
-                  : `Código de 6 dígitos em homologação (caixa local — sem envio externo por Resend/SMTP neste ambiente) para <b>${esc(emailTarget)}</b>.`}
-              </p>
-              <p class="eno-muted" style="margin-bottom:12px;font-size:0.84rem">
-                ${esc(state.lastDelivery?.delayGuidance || 'Se demorar mais de 60 segundos, verifique o spam, corrija o e-mail abaixo ou clique em Reenviar código.')}
-              </p>
-              <form id="eno-verify-form" class="eno-list">
-                <div class="eno-field">
-                  <label for="v-email">E-mail de verificação (você pode corrigir aqui se digitou errado)</label>
-                  <input id="v-email" name="email" type="email" autocomplete="email" class="eno-input" required value="${esc(emailTarget)}">
-                </div>
-                <div class="eno-field">
-                  <label for="otp-0">Código de 6 dígitos (aceita colar o código inteiro)</label>
-                  <div class="eno-otp-row" id="eno-otp-group">
-                    ${[0, 1, 2, 3, 4, 5].map((i) => `<input id="otp-${i}" class="eno-otp-digit" inputmode="numeric" autocomplete="${i === 0 ? 'one-time-code' : 'off'}" maxlength="6" value="${esc(state.otpDigits[i] || '')}" aria-label="Dígito ${i + 1} de 6" aria-invalid="${state.fieldError?.field === 'code' ? 'true' : 'false'}">`).join('')}
-                  </div>
-                  <input type="hidden" id="v-code" name="code" value="${esc(state.otpDigits.join(''))}">
-                  ${state.fieldError?.field === 'code' ? `<span class="eno-field-err">${esc(state.fieldError.text)}</span>` : ''}
-                </div>
-                <div class="eno-btn-row">
-                  <button type="submit" class="eno-btn" ${state.busyAction === 'verify' ? 'disabled' : ''}>${state.busyAction === 'verify' ? '<span class="eno-spinner" aria-hidden="true"></span> Validando...' : 'Confirmar código e ir ao checkout'}</button>
-                  <button type="button" class="eno-btn eno-btn-sec" id="eno-resend-ver" ${state.resendCooldown > 0 || state.busyAction === 'resend' ? 'disabled' : ''}>${state.busyAction === 'resend' ? 'Reenviando...' : state.resendCooldown > 0 ? `Reenviar código (${state.resendCooldown}s)` : 'Reenviar código'}</button>
-                </div>
-              </form>
-            ` : `
-              <p class="eno-muted" style="margin-bottom:12px">Redefinir a senha encerra automaticamente sessões antigas em outros dispositivos.</p>
-              <form id="eno-rec-req" class="eno-list" style="margin-bottom:14px">
-                <div class="eno-field"><label for="r-email">E-mail cadastrado</label><input id="r-email" name="email" type="email" autocomplete="email" class="eno-input" required value="${esc(emailTarget)}"></div>
-                <button type="submit" class="eno-btn eno-btn-sec">Enviar código de recuperação</button>
-              </form>
-              <form id="eno-rec-confirm" class="eno-list">
-                <div class="eno-field"><label for="rc-code">Código de 6 dígitos</label><input id="rc-code" name="code" inputmode="numeric" class="eno-input" required maxlength="6" value="${esc(state.formCache.recoveryCode)}" placeholder="000000"></div>
-                ${renderPasswordField({
-                  id: 'rc-pwd',
-                  name: 'newPassword',
-                  label: 'Nova senha',
-                  hint: 'Mínimo de 8 caracteres.',
-                  value: state.formCache.recoveryPwd,
-                  autocomplete: 'new-password',
-                  invalid: false,
-                  errorText: '',
-                })}
-                <button type="submit" class="eno-btn">Redefinir senha e entrar</button>
-              </form>
-            `}
-          </div>
-          ${renderOutboxBox()}
-        </div>
-
-        <aside class="eno-card">
-          <span class="eno-pill">SEU CARRINHO PRESERVADO</span>
-          <h2 class="eno-h2">${esc(comboNames)}</h2>
-          ${state.quote ? `
-            <p class="eno-muted">Hoje (simulado): <b>${esc(state.quote.answers.dueToday)}</b><br>Recorrente: <b>${esc(state.quote.answers.recurring)}</b></p>
-            <button type="button" class="eno-btn eno-btn-sec" data-tab="plans">Alterar combinação</button>
-          ` : ''}
-          <hr style="border:0;border-top:1px solid #E2E9F7;margin:4px 0">
-          <span class="eno-pill eno-pill-warn">CONTAS FICTÍCIAS DE TESTE</span>
-          <div class="eno-list">
-            <div class="eno-row"><div><b>Helena Duarte</b><div class="eno-muted">Ambo + Minne + Etha</div></div></div>
-            <div class="eno-row"><div><b>Dr. Paulo Mendes</b><div class="eno-muted">Minne solo (isolamento)</div></div></div>
-            <div class="eno-row"><div><b>Marcos Martins</b><div class="eno-muted">Operação Etha (sem acesso clínico)</div></div></div>
-          </div>
-        </aside>
-      </section>
-    `;
-  }
-
-  function renderPlansAndCheckout() {
-    const q = state.quote;
-    const isSel = (p) => state.combo.products.includes(p);
-    const isPermView = state.combo.viewMode === 'permanent';
-    const pulseClass = state.deltaPulse ? 'eno-delta-pulse' : '';
-    state.deltaPulse = false;
-
-    return `
-      <section class="eno-grid-2">
-        <div class="eno-card">
-          <span class="eno-pill eno-pill-warn">CATÁLOGO DE HOMOLOGAÇÃO ${esc(state.catalog?.version || '2026-11-sim-v2')} · SEM COBRANÇA REAL</span>
-          <h1 class="eno-h1">Escolha seus serviços Enomera</h1>
-
-          ${renderSegmented('eno-bill-seg', [
-            ['monthly', 'Assinatura mensal (simulação)'],
-            ['permanent', 'Licença permanente (em avaliação)'],
-          ], state.combo.viewMode || 'monthly', 'data-viewmode')}
-
-          ${isPermView ? `
-            <div class="eno-card eno-card-warn eno-panel-enter" style="padding:16px">
-              <b>Licença permanente — oferta em avaliação (não liberada para cobrança)</b>
-              <p class="eno-muted">Hipóteses de referência: <b>Ambo R$ 790</b> e <b>Minne R$ 1.390</b> (pagamento único com atualizações futuras incluídas). Hospedagem gerenciada, suporte e condições continuam sendo cobrados separadamente e dependem de definição antes da venda real.</p>
-            </div>
-          ` : ''}
-
-          <div class="eno-list">
-            <label class="eno-check-card" data-prod="ambo" data-selected="${isSel('ambo')}">
-              <div>
-                <span class="eno-pill eno-pill-ambo">Ambo · R$ 39/mês</span>
-                <p class="eno-muted" style="margin-top:6px">Agendamento online, área verificada do paciente, convites e Ambo Solo. Hospedagem, atualizações e suporte incluídos.</p>
-              </div>
-              <input type="checkbox" data-toggle-prod="ambo" ${isSel('ambo') ? 'checked' : ''} style="width:22px;height:22px;accent-color:#235D94">
-            </label>
-
-            <label class="eno-check-card" data-prod="minne" data-selected="${isSel('minne')}">
-              <div>
-                <span class="eno-pill eno-pill-minne">Minne · R$ 69/mês (Combo Ambo + Minne: R$ 89/mês)</span>
-                <p class="eno-muted" style="margin-top:6px">Agenda integrada ao Ambo, prontuários versionados e importação em 6 formatos. Economia explícita de <b>R$ 19/mês</b> no combo.</p>
-              </div>
-              <input type="checkbox" data-toggle-prod="minne" ${isSel('minne') ? 'checked' : ''} style="width:22px;height:22px;accent-color:#1E625E">
-            </label>
-
-            <div class="eno-check-card" data-prod="etha" data-selected="${isSel('etha')}">
-              <div style="flex:1">
-                <label for="cb-etha" style="cursor:pointer;display:block">
-                  <span class="eno-pill eno-pill-etha">Etha · 50% entrada hoje + 50% na entrega</span>
-                  <p class="eno-muted" style="margin-top:6px">Página única: <b>R$ 1.190</b> (R$ 595 hoje + R$ 595 na aprovação) · Multipágina até 4 pág.: <b>R$ 2.190</b> (R$ 1.095 + R$ 1.095). Hospedagem e painel <b>R$ 39/mês</b> somente após publicação.</p>
-                </label>
-                ${isSel('etha') ? `
-                  <div style="margin-top:10px">
-                    <label for="eno-etha-fmt" class="eno-sr-only">Formato do site Etha</label>
-                    <select id="eno-etha-fmt" class="eno-select">
-                      <option value="one_page" ${state.combo.ethaFormat === 'one_page' ? 'selected' : ''}>Página única — R$ 1.190 (50% hoje: R$ 595 · 50% na entrega: R$ 595)</option>
-                      <option value="multi_page" ${state.combo.ethaFormat === 'multi_page' ? 'selected' : ''}>Multipágina (até 4 pág.) — R$ 2.190 (50% hoje: R$ 1.095 · 50% na entrega: R$ 1.095)</option>
-                    </select>
-                  </div>
-                ` : ''}
-              </div>
-              <input id="cb-etha" type="checkbox" data-toggle-prod="etha" ${isSel('etha') ? 'checked' : ''} aria-label="Incluir site exclusivo Etha" style="width:22px;height:22px;accent-color:#53459A;flex-shrink:0">
-            </div>
-          </div>
-        </div>
-
-        <aside class="eno-card" aria-live="polite">
-          <span class="eno-pill">${isPermView ? 'SIMULAÇÃO MENSAL · LICENÇA PERMANENTE EM AVALIAÇÃO' : 'RESUMO EM TEMPO REAL · SIMULAÇÃO'}</span>
-          <h2 class="eno-h2">Checkout simulado (idempotente)</h2>
-          ${isPermView ? `<p class="eno-muted" style="font-size:0.85rem;color:#7D5112"><b>Nota:</b> a licença permanente ainda está em avaliação e não está liberada para contratação. Volte para <b>Assinatura mensal</b> para simular o pedido.</p>` : ''}
-          ${q ? `
-            <div class="eno-list">
-              ${q.lines.map((l) => `<div class="eno-row"><div><b>${esc(l.label)}</b><div class="eno-muted">${esc(l.includes)}</div></div></div>`).join('')}
-            </div>
-            <div class="eno-card ${pulseClass}" style="background:#F0F4FE;padding:16px;border-color:#CAD4F8">
-              <div><b>Hoje (entrada/1º ciclo):</b> ${esc(q.answers.dueToday)}</div>
-              <div><b>Saldo na entrega/aprovação:</b> ${esc(q.answers.balanceOnApproval)}</div>
-              <div><b>Recorrência separada:</b> ${esc(q.answers.recurring)}</div>
-              <div><b>Desconto aplicado:</b> ${esc(q.answers.discountWhere)}</div>
-              <div class="eno-muted"><b>Se retirar 1 produto:</b> ${esc(q.answers.ifRemoveOne)}</div>
-            </div>
-
-            ${state.me ? `
-              <div class="eno-field">
-                <label for="chk-outcome">Simular resposta do pagamento (sem cobrança real)</label>
-                <select id="chk-outcome" class="eno-select">
-                  <option value="approved">Aprovado (libera produtos no backend)</option>
-                  <option value="pending">Pendente (retomável após recarregar)</option>
-                  <option value="declined">Recusado (mantém seleção para nova tentativa)</option>
-                </select>
-              </div>
-              <div class="eno-btn-row">
-                <button type="button" class="eno-btn" id="eno-checkout-submit" ${state.processingCheckout || isPermView ? 'disabled' : ''}>
-                  ${state.processingCheckout ? '<span class="eno-spinner" aria-hidden="true"></span> Processando pedido...' : isPermView ? 'Disponível no modo mensal' : `Confirmar pedido simulado · ${esc(q.answers.dueToday)}`}
-                </button>
-                ${!isSel('etha') ? `<button type="button" class="eno-btn eno-btn-minne" id="eno-start-trial" ${state.busyAction === 'trial' ? 'disabled' : ''}>${state.busyAction === 'trial' ? 'Ativando...' : 'Teste 7 dias (sem cartão)'}</button>` : ''}
-              </div>
-              <small class="eno-muted">Pedido único protegido contra cliques repetidos (<code>${esc(state.checkoutIdempotencyKey)}</code>).</small>
-            ` : `
-              <button type="button" class="eno-btn" id="eno-go-auth">Criar conta ou entrar mantendo seleção →</button>
-            `}
-          ` : `<p class="eno-muted">Selecione ao menos um serviço para calcular.</p>`}
-
-          ${state.lastOrder ? `
-            <div class="eno-card eno-panel-enter ${state.lastOrder.order.status === 'approved' ? 'eno-card-minne' : state.lastOrder.order.status === 'declined' ? 'eno-card-err' : 'eno-card-warn'}">
-              <span class="eno-pill ${state.lastOrder.order.status === 'approved' ? 'eno-pill-ok' : state.lastOrder.order.status === 'declined' ? 'eno-pill-err' : 'eno-pill-warn'}">
-                ${state.lastOrder.order.status === 'approved' ? 'Aprovado (simulação)' : state.lastOrder.order.status === 'pending' ? 'Pagamento pendente' : 'Pagamento recusado'} · ${esc(state.lastOrder.order.receipt_code)}
-              </span>
-              <p class="eno-muted">
-                ${state.lastOrder.order.status === 'approved'
-                  ? 'Direitos liberados no servidor. Abra o Portal para começar pela primeira ação útil.'
-                  : state.lastOrder.order.status === 'pending'
-                    ? 'Seu pedido segue registrado mesmo se você recarregar a página. Acompanhe em Cobrança ou conclua a simulação abaixo.'
-                    : 'Nenhuma cobrança real foi feita e sua combinação foi mantida. Tente novamente sem preencher tudo outra vez.'}
-              </p>
-              ${state.lastOrder.order.status !== 'approved'
-                ? `<button type="button" class="eno-btn" data-retry-order="${esc(state.lastOrder.order.id)}" ${state.busyAction === 'retryOrder' ? 'disabled' : ''}>${state.busyAction === 'retryOrder' ? 'Retomando...' : 'Retomar e aprovar pedido (simulado)'}</button>`
-                : `<button type="button" class="eno-btn eno-btn-ambo" data-tab="portal">Ir para o Portal (produtos ativos) →</button>`}
-            </div>
-          ` : ''}
-        </aside>
-      </section>
-
-      ${q ? `
-        <div class="eno-mobile-bar" id="eno-mobile-bar" role="region" aria-live="polite" aria-label="Resumo móvel da contratação">
-          <div style="min-width:0;flex:1">
-            <small class="eno-muted" style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Hoje (simulado)</small>
-            <div style="font-weight:800;font-size:1.02rem;white-space:nowrap">${esc(q.answers.dueToday)}</div>
-          </div>
-          ${state.me
-            ? `<button type="button" class="eno-btn" id="eno-mobile-checkout" style="flex-shrink:0" ${state.processingCheckout || isPermView ? 'disabled' : ''}>${state.processingCheckout ? 'Processando...' : isPermView ? 'Modo mensal' : 'Confirmar'}</button>`
-            : `<button type="button" class="eno-btn" id="eno-mobile-auth" style="flex-shrink:0">Continuar →</button>`}
-        </div>
-      ` : ''}
-    `;
-  }
-
   function renderPortalView() {
     const s = state.summary;
     if (!s) return '<div class="eno-card"><p class="eno-muted">Carregando seu portal...</p></div>';
@@ -675,14 +460,19 @@ export async function mountEnomeraPlatform(rootEl) {
     const activeCount = ['ambo', 'minne', 'etha'].filter((p) => e[p]?.canReadExport).length;
     const isEthaOnly = e.etha?.canReadExport && !e.ambo?.canReadExport && !e.minne?.canReadExport;
 
+    const chosen = state.combo.products.length
+      ? `${comboLabel(state.combo.products)} · ${state.combo.viewMode === 'permanent' ? 'Licença permanente' : 'Mensal'}`
+      : '';
     return `
       <section class="eno-list eno-panel-enter" style="gap:20px">
+        ${renderActivationBanner(state.activation)}
         <div class="eno-card eno-card-highlight">
           <div class="eno-row" style="background:transparent;border:0;padding:0">
             <div>
               <span class="eno-pill">PORTAL PROFISSIONAL · ${esc(s.account.displayName)} ${s.account.crpOrCrm ? `· ${esc(s.account.crpOrCrm)}` : ''}</span>
               <h1 class="eno-h1" style="margin-top:8px">${activeCount ? 'Seus produtos prontos para uso' : 'Bem-vinda! Escolha seu ponto de partida'}</h1>
               <p class="eno-muted">Primeira ação recomendada agora: <b>${esc(s.nextAction.label)}</b></p>
+              ${chosen ? `<p class="eno-muted" data-portal-combo>Sua combinação: <b>${esc(chosen)}</b> · <button type="button" class="eno-link" data-tab="plans">Alterar</button></p>` : ''}
             </div>
             <div class="eno-btn-row">
               ${!state.me.user.emailVerified ? `<button type="button" class="eno-btn eno-btn-sec" id="eno-go-verify">Verificar e-mail pendente</button>` : `<span class="eno-pill eno-pill-ok">E-mail verificado</span>`}
@@ -892,14 +682,42 @@ export async function mountEnomeraPlatform(rootEl) {
     motionTracker.prevAuthMode = state.authMode;
     motionTracker.prevViewMode = state.combo.viewMode;
 
-    const view = state.tab === 'auth' ? renderAuthView(animateAuthBody)
-      : state.tab === 'plans' ? renderPlansAndCheckout()
-      : state.tab === 'profile' ? renderProfileView()
+    const flowTab = ['plans', 'auth', 'review'].includes(state.tab);
+    if (flowTab) {
+      const contract = state.combo.products.length ? state.quote?.contract || null : null;
+      const flowView = state.tab === 'auth'
+        ? renderAccount({
+          mode: state.authMode === 'code' ? 'code' : 'email',
+          email: state.flowEmail,
+          contract,
+          codeDigits: state.otpDigits,
+          codeError: state.codeError,
+          cooldown: state.resendCooldown,
+          busy: state.busyAction === 'email' || state.busyAction === 'verify',
+          devCode: state.devCode,
+          deliveryNote: '',
+          fieldError: state.fieldError?.field === 'email' ? state.fieldError.text : '',
+        })
+        : state.tab === 'review'
+          ? renderReview({ combo: state.combo, contract, me: state.me, activating: state.activating })
+          : renderChoice({ combo: state.combo, contract, signedIn: Boolean(state.me), returnedFromReview: state.returnedFromReview && Boolean(state.me) });
+      rootEl.innerHTML = `<div class="eno-shell eno-flow-shell"><header class="eno-flow-top"><a class="eno-brand" href="/"><img src="/assets/brand.svg" width="32" height="27" alt="">enomera</a>${state.me ? `<button type="button" class="eno-link" data-tab="portal">Ir ao portal</button>` : '<a class="eno-link" href="/">Voltar ao site</a>'}</header><main class="eno-container" id="portal-content" tabindex="-1">${renderInfraAlert()}${state.feedback && state.feedback.tone === 'err' ? renderFeedback() : ''}${flowView}</main></div>`;
+      bindEvents();
+      if (focusKey) {
+        const target = focusKey.by === 'id'
+          ? rootEl.querySelector(`#${CSS.escape(focusKey.val)}`)
+          : rootEl.querySelector(`[${focusKey.attr}="${CSS.escape(focusKey.val)}"]`);
+        if (target && typeof target.focus === 'function') target.focus({ preventScroll: true });
+      }
+      return;
+    }
+
+    const view = state.tab === 'profile' ? renderProfileView()
       : state.tab === 'billing' ? renderBillingView()
       : state.tab === 'pilot' ? renderPilotView()
       : renderPortalView();
 
-    rootEl.innerHTML = `<div class="eno-shell"><img class="eno-flower-watermark" src="/assets/flower.svg" alt="" aria-hidden="true">${renderTopbar()}<div class="eno-container" id="portal-content" tabindex="-1">${renderInfraAlert()}${renderStepper()}${renderFeedback()}${view}</div></div>`;
+    rootEl.innerHTML = `<div class="eno-shell"><img class="eno-flower-watermark" src="/assets/flower.svg" alt="" aria-hidden="true">${renderTopbar()}<div class="eno-container" id="portal-content" tabindex="-1">${renderInfraAlert()}${renderFeedback()}${view}</div></div>`;
     animateSegmentedIndicators();
     bindEvents();
 
@@ -914,37 +732,56 @@ export async function mountEnomeraPlatform(rootEl) {
   }
 
   async function runCheckoutSubmit() {
-    if (state.processingCheckout || state.combo.viewMode === 'permanent') return;
-    const outcome = rootEl.querySelector('#chk-outcome')?.value || 'approved';
+    if (state.activating || state.processingCheckout || !state.combo.products.length) return;
+    state.activating = true;
     state.processingCheckout = true;
     render();
+    const started = Date.now();
+    const sel = selectionPayload();
     const res = await apiFetch('/api/v1/commercial/orders', {
       method: 'POST',
       headers: { 'X-Idempotency-Key': state.checkoutIdempotencyKey },
-      body: { products: state.combo.products, ethaFormat: state.combo.ethaFormat, simulatedOutcome: outcome, method: 'simulated_pix' },
+      body: { ...sel, simulatedOutcome: 'approved', method: 'simulated_pix' },
     });
+    const wait = prefersReducedMotion() ? 0 : Math.max(0, 1400 - (Date.now() - started));
+    if (wait) await new Promise((r) => setTimeout(r, wait));
+    state.activating = false;
     state.processingCheckout = false;
-    if (!res.ok) { state.feedback = { tone: 'err', text: res.data.error }; render(); return; }
+    if (!res.ok) {
+      state.feedback = { tone: 'err', text: res.data.error || 'Não foi possível ativar agora. Sua combinação continua guardada.' };
+      render();
+      return;
+    }
     state.lastOrder = res.data;
     saveLastOrder(res.data);
-    state.feedback = {
-      tone: res.data.order.status === 'approved' ? 'ok' : res.data.order.status === 'pending' ? 'warn' : 'err',
-      text: res.data.order.status === 'approved'
-        ? `Contratação simulada aprovada (${res.data.order.receipt_code}) e serviços liberados no backend!`
-        : res.data.order.status === 'pending'
-          ? `Pedido ${res.data.order.receipt_code} em processamento. Mesmo recarregando a página, você retoma este mesmo pedido.`
-          : `Pagamento simulado recusado (${res.data.order.receipt_code}). Sua combinação foi preservada para tentar novamente.`,
+    state.activation = {
+      names: namesWithE(sel.products),
+      count: sel.products.length,
+      chargedToday: res.data.summary?.contract?.chargedToday || 'R$ 0,00',
+      at: new Date().toISOString(),
     };
+    saveActivation(state.activation);
+    state.checkoutIdempotencyKey = `chk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    state.returnedFromReview = false;
+    state.feedback = null;
+    state.tab = 'portal';
+    syncHistory(state.tab, state.authMode);
     await refreshSessionAndData();
   }
 
   function bindOtpInputs() {
     const inputs = [...rootEl.querySelectorAll('.eno-otp-digit')];
     const hidden = rootEl.querySelector('#v-code');
-    if (!inputs.length || !hidden) return;
+    if (!inputs.length) return;
     const syncHidden = () => {
       state.otpDigits = inputs.map((i) => i.value.replace(/\D/g, '').slice(-1));
-      hidden.value = state.otpDigits.join('');
+      if (hidden) hidden.value = state.otpDigits.join('');
+      if (state.codeError) {
+        state.codeError = '';
+        inputs.forEach((el) => el.setAttribute('aria-invalid', 'false'));
+        rootEl.querySelector('#eno-otp-group')?.classList.remove('has-error');
+        rootEl.querySelector('#eno-code-err')?.remove();
+      }
     };
     const fillFrom = (raw) => {
       const clean = raw.replace(/\D/g, '').slice(0, 6);
@@ -1075,6 +912,7 @@ export async function mountEnomeraPlatform(rootEl) {
         if (rc) rc.value = code;
         return;
       }
+      state.codeError = '';
       state.otpDigits = [0, 1, 2, 3, 4, 5].map((i) => code[i] || '');
       const inputs = [...rootEl.querySelectorAll('.eno-otp-digit')];
       inputs.forEach((inp, i) => {
@@ -1099,10 +937,14 @@ export async function mountEnomeraPlatform(rootEl) {
       syncHistory(state.tab, state.authMode);
       render();
     }));
-    rootEl.querySelectorAll('[data-viewmode]').forEach((b) => b.addEventListener('click', () => {
+    rootEl.querySelectorAll('[data-viewmode]').forEach((b) => b.addEventListener('click', async () => {
+      if (state.combo.viewMode === b.dataset.viewmode) return;
       state.combo.viewMode = b.dataset.viewmode;
-      saveCombo(state.combo);
+      state.checkoutIdempotencyKey = `chk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      persistSelectionSoon();
       render();
+      await refreshQuote(true);
+      if (state.tab === 'plans') render();
     }));
 
     rootEl.querySelector('#eno-fill-helena')?.addEventListener('click', () => {
@@ -1266,24 +1108,126 @@ export async function mountEnomeraPlatform(rootEl) {
       state.tab = 'auth'; state.authMode = 'verify'; syncHistory(state.tab, state.authMode); render();
     });
 
-    rootEl.querySelectorAll('[data-toggle-prod]').forEach((cb) => cb.addEventListener('change', async () => {
-      const prod = cb.dataset.toggleProd;
-      state.combo.products = cb.checked
-        ? [...new Set([...state.combo.products, prod])]
+    rootEl.querySelectorAll('button[data-toggle-prod]').forEach((btn) => btn.addEventListener('click', async () => {
+      const prod = btn.dataset.toggleProd;
+      const on = !state.combo.products.includes(prod);
+      state.combo.products = on
+        ? ['ambo', 'minne', 'etha'].filter((p) => p === prod || state.combo.products.includes(p))
         : state.combo.products.filter((x) => x !== prod);
-      saveCombo(state.combo);
       state.checkoutIdempotencyKey = `chk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      render(); // resposta imediata ao clique antes da cotação retornar
+      persistSelectionSoon();
+      render(); // resposta imediata ao toque antes da cotação retornar
       await refreshQuote(true);
       if (state.tab === 'plans') render(); // nunca re-renderizar sobre outra tela após a cotação tardia
     }));
 
     rootEl.querySelector('#eno-etha-fmt')?.addEventListener('change', async (e) => {
       state.combo.ethaFormat = e.target.value;
-      saveCombo(state.combo);
       state.checkoutIdempotencyKey = `chk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      persistSelectionSoon();
       await refreshQuote(true);
       if (state.tab === 'plans') render();
+    });
+
+    rootEl.querySelector('#eno-flow-continue')?.addEventListener('click', () => {
+      if (!state.combo.products.length) return;
+      state.feedback = null;
+      if (state.me) {
+        state.tab = 'review';
+      } else {
+        state.tab = 'auth';
+        state.authMode = 'email';
+        state.returnAfterAuth = 'review';
+      }
+      state.returnedFromReview = false;
+      syncHistory(state.tab, state.authMode);
+      render();
+      rootEl.querySelector(state.tab === 'auth' ? '#eno-email' : 'h1')?.focus?.();
+    });
+
+    rootEl.querySelectorAll('[data-flow-go="choice"]').forEach((b) => b.addEventListener('click', () => {
+      state.returnedFromReview = state.tab === 'review';
+      state.tab = 'plans';
+      state.feedback = null;
+      syncHistory(state.tab, state.authMode);
+      render();
+    }));
+
+    rootEl.querySelector('#eno-email-form')?.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      if (state.busyAction === 'email') return;
+      const email = String(new FormData(ev.currentTarget).get('email') || '').trim();
+      state.flowEmail = email;
+      saveFlowEmail(email);
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        state.fieldError = { field: 'email', text: 'Confira o e-mail: ele precisa ter o formato nome@dominio.com.br.' };
+        render();
+        rootEl.querySelector('#eno-email')?.focus();
+        return;
+      }
+      await requestEmailCode(email);
+    });
+
+    rootEl.querySelector('#eno-change-email')?.addEventListener('click', () => {
+      state.authMode = 'email';
+      state.codeError = '';
+      state.otpDigits = ['', '', '', '', '', ''];
+      render();
+      rootEl.querySelector('#eno-email')?.focus();
+    });
+
+    rootEl.querySelector('#eno-resend-code')?.addEventListener('click', async () => {
+      if (state.resendCooldown > 0 || state.busyAction) return;
+      state.codeError = '';
+      state.otpDigits = ['', '', '', '', '', ''];
+      await requestEmailCode(state.flowEmail);
+    });
+
+    rootEl.querySelector('#eno-code-form')?.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      if (state.busyAction === 'verify') return;
+      const code = state.otpDigits.join('');
+      if (code.length < 6) {
+        state.codeError = 'Preencha ou cole os 6 dígitos do código.';
+        render();
+        const firstEmpty = state.otpDigits.findIndex((d) => !d);
+        rootEl.querySelector(`#otp-${firstEmpty >= 0 ? firstEmpty : 0}`)?.focus();
+        return;
+      }
+      state.busyAction = 'verify';
+      render();
+      const res = await apiFetch('/api/v1/auth/email-code/verify', {
+        method: 'POST',
+        body: { email: state.flowEmail, code, selection: state.combo.products.length ? selectionPayload() : null },
+      });
+      state.busyAction = null;
+      if (res.infraError) state.infraError = res.infraError;
+      if (!res.ok) {
+        state.codeError = res.data.code === 'CODE_INVALID'
+          ? 'Código incorreto. Confira os 6 dígitos ou peça um novo código. Sua combinação continua guardada.'
+          : `${res.data.error || 'Não foi possível verificar o código.'} Sua combinação continua guardada.`;
+        render();
+        rootEl.querySelector('#otp-0')?.focus();
+        return;
+      }
+      setToken(res.data.sessionToken);
+      state.codeError = '';
+      state.devCode = '';
+      state.otpDigits = ['', '', '', '', '', ''];
+      state.comboDirty = false;
+      if (res.data.selection?.products?.length) {
+        state.combo.products = res.data.selection.products;
+        state.combo.viewMode = res.data.selection.billing === 'permanent' ? 'permanent' : 'monthly';
+        if (res.data.selection.ethaFormat) state.combo.ethaFormat = res.data.selection.ethaFormat;
+        saveCombo(state.combo);
+      }
+      const goReview = state.returnAfterAuth === 'review' && state.combo.products.length;
+      state.tab = goReview ? 'review' : (state.returnAfterAuth && state.returnAfterAuth !== 'review' ? state.returnAfterAuth : 'portal');
+      state.returnAfterAuth = null;
+      state.authMode = 'email';
+      syncHistory(state.tab, state.authMode);
+      await refreshSessionAndData();
+      rootEl.querySelector('h1')?.focus?.();
     });
 
     rootEl.querySelector('#eno-start-trial')?.addEventListener('click', async () => {
@@ -1395,7 +1339,7 @@ export async function mountEnomeraPlatform(rootEl) {
     const doLogout = async (revokeAll) => {
       await apiFetch('/api/v1/auth/logout', { method: 'POST', body: { revokeAll } });
       setToken(''); saveLastOrder(null);
-      state.me = null; state.summary = null; state.lastOrder = null; state.tab = 'auth'; state.authMode = 'login'; state.returnAfterAuth = null;
+      state.me = null; state.summary = null; state.lastOrder = null; state.tab = 'auth'; state.authMode = 'email'; state.returnAfterAuth = null; state.activation = null; saveActivation(null);
       state.formCache.loginPwd = ''; state.formCache.signupPwd = ''; state.formCache.recoveryCode = ''; state.formCache.recoveryPwd = '';
       state.feedback = { tone: 'ok', text: revokeAll ? 'Todas as sessões foram revogadas no servidor.' : 'Você saiu da conta.' };
       syncHistory(state.tab, state.authMode);

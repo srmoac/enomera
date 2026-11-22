@@ -223,3 +223,93 @@ export function calculateSimulatedQuote({ products = [], ethaFormat = null, mode
     },
   };
 }
+
+const CONTRACT_ORDER = ['ambo', 'minne', 'etha'];
+const PRODUCT_LABELS = { ambo: 'Ambo', minne: 'Minne', etha: 'Etha' };
+
+/** Normaliza a combinação escolhida (produtos, periodicidade e formato da Etha). */
+export function normalizeSelection(input = {}) {
+  const raw = Array.isArray(input.products) ? input.products : [];
+  const products = CONTRACT_ORDER.filter((p) => raw.includes(p));
+  const billing = input.billing === 'permanent' ? 'permanent' : 'monthly';
+  const ethaFormat = input.ethaFormat === 'multi_page' ? 'multi_page' : 'one_page';
+  return { products, billing, ethaFormat };
+}
+
+export function selectionLabel(products = []) {
+  const names = CONTRACT_ORDER.filter((p) => products.includes(p)).map((p) => PRODUCT_LABELS[p]);
+  if (names.length <= 1) return names[0] || '';
+  return names.join(' + ');
+}
+
+/**
+ * Resumo da contratação na forma aprovada no Figma (22 nov): preço por produto,
+ * desconto do combo como linha, periodicidade, total e "cobrado hoje R$ 0,00".
+ * Não expõe a versão interna do catálogo.
+ */
+export function buildContractSummary(input = {}) {
+  const sel = normalizeSelection(input);
+  if (!sel.products.length) throw new Error('EMPTY_SELECTION');
+  const { products, billing, ethaFormat } = sel;
+  const hasAmbo = products.includes('ambo');
+  const hasMinne = products.includes('minne');
+  const hasEtha = products.includes('etha');
+  const catalog = COMMERCIAL_CATALOG.products;
+  const lines = [];
+  let subtotalCents = 0;
+  let discount = null;
+  let discountHint = null;
+  const notes = [];
+
+  for (const p of ['ambo', 'minne']) {
+    if (!products.includes(p)) continue;
+    const cents = billing === 'permanent' ? catalog[p].permanentHypothesisCents : catalog[p].monthlyCents;
+    lines.push({ product: p, label: PRODUCT_LABELS[p], amountCents: cents, amount: formatBrl(cents) });
+    subtotalCents += cents;
+  }
+
+  if (billing === 'monthly') {
+    if (hasAmbo && hasMinne) {
+      discount = { label: 'Desconto do combo', amountCents: -COMMERCIAL_CATALOG.bundle.savingsCents, amount: `−${formatBrl(COMMERCIAL_CATALOG.bundle.savingsCents)}` };
+    } else if (hasAmbo || hasMinne) {
+      discountHint = `Adicione ${hasAmbo ? 'Minne' : 'Ambo'} e economize ${formatBrl(COMMERCIAL_CATALOG.bundle.savingsCents)}/mês.`;
+    }
+  } else if (hasAmbo || hasMinne) {
+    notes.push('Hospedagem e suporte da licença: cobrados à parte, valor em definição.');
+    if (hasAmbo && hasMinne) notes.push('Desconto do combo na licença: em definição.');
+  }
+
+  const totalCents = subtotalCents + (discount ? discount.amountCents : 0);
+  let etha = null;
+  if (hasEtha) {
+    const spec = catalog[ethaFormat === 'multi_page' ? 'etha_multi_page' : 'etha_one_page'];
+    etha = {
+      format: ethaFormat,
+      label: ethaFormat === 'multi_page' ? 'Etha · até quatro páginas' : 'Etha · página única',
+      projectCents: spec.productionCents,
+      project: formatBrl(spec.productionCents),
+      split: `${formatBrl(spec.depositCents)} + ${formatBrl(spec.balanceOnApprovalCents)} (50% + 50%)`,
+      hostingAfterPublish: `${formatBrl(spec.hostingMonthlyAfterPublishCents)}/mês após publicar`,
+    };
+  }
+
+  const hasSaas = hasAmbo || hasMinne;
+  return {
+    products,
+    billing,
+    ethaFormat: hasEtha ? ethaFormat : null,
+    label: selectionLabel(products),
+    billingLabel: billing === 'permanent' ? 'Licença permanente' : 'Mensal',
+    lines,
+    discount,
+    discountHint,
+    notes,
+    totalCents: hasSaas ? totalCents : (etha ? etha.projectCents : 0),
+    totalLabel: hasSaas ? (billing === 'permanent' ? 'Total da licença' : 'Total mensal') : 'Projeto Etha',
+    total: hasSaas ? `${formatBrl(totalCents)}${billing === 'monthly' ? '/mês' : ''}` : (etha ? etha.project : formatBrl(0)),
+    etha,
+    chargedTodayCents: 0,
+    chargedToday: formatBrl(0),
+    chargedTodayNote: 'nenhum cartão solicitado',
+  };
+}

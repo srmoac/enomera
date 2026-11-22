@@ -301,7 +301,9 @@ if (isPortal) {
   renderCombination();
   $('#combo-continue-cta')?.addEventListener('click', (e) => {
     const sel = state.selected.length ? state.selected.join(',') : 'ambo,minne';
-    e.currentTarget.href = `/portal?etapa=planos&selecao=${encodeURIComponent(sel)}`;
+    // A combinação e a periodicidade escolhidas no site seguem para o percurso de contratação.
+    const periodicidade = state.billing === 'license' ? 'licenca' : 'mensal';
+    e.currentTarget.href = `/checkout?selecao=${encodeURIComponent(sel)}&periodicidade=${periodicidade}`;
   });
 }
 

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { COMMERCIAL_CATALOG, calculateSimulatedQuote } from './catalog.mjs';
+import { COMMERCIAL_CATALOG, buildContractSummary, calculateSimulatedQuote, normalizeSelection } from './catalog.mjs';
 import {
   addDaysIso,
   addMinutesIso,
@@ -323,6 +323,84 @@ async function consumeVerificationCode(db, { purpose, targetContact, code }) {
   return row;
 }
 
+function displayNameFromEmail(email) {
+  const local = String(email || '').split('@')[0].replace(/[._-]+/g, ' ').replace(/\d+/g, ' ').trim();
+  const name = local.split(/\s+/).filter(Boolean).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  return name.length >= 2 ? name : 'Profissional';
+}
+
+async function createProfessionalUser(db, { fullName, email, password, crpOrCrm = '', specialty = 'Psicologia', emailVerifiedAt = null }) {
+  const userId = randomId('usr');
+  const accountId = randomId('acc');
+  const now = nowIso();
+  const pwd = hashPassword(password);
+  const cleanName = String(fullName || '').trim();
+  let slug = slugify(cleanName);
+  if ((await db.get('SELECT id FROM professional_accounts WHERE slug = ?', slug))) {
+    slug = `${slug}-${randomDigits(4)}`;
+  }
+  await runTransaction(db, async (db) => {
+    (await db.run(`
+      INSERT INTO users (id, email, password_hash, password_salt, full_name, role, email_verified_at, mfa_enabled, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, 'professional', ?, 1, ?, ?)
+    `, userId, email, pwd.hash, pwd.salt, cleanName, emailVerifiedAt, now, now));
+
+    (await db.run(`
+      INSERT INTO professional_accounts (id, owner_user_id, slug, display_name, crp_or_crm, specialty, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `, accountId, userId, slug, cleanName, String(crpOrCrm || '').trim(), specialty, now, now));
+
+    (await db.run(`
+      INSERT INTO account_memberships (id, account_id, user_id, role, can_access_clinical, created_at)
+      VALUES (?, ?, ?, 'owner', 1, ?)
+    `, randomId('mem'), accountId, userId, now));
+
+    // Sensible default availability Mon-Fri 09:00-18:00 (editable by professional)
+    for (const wd of [1, 2, 3, 4, 5]) {
+      (await db.run(`
+        INSERT INTO availability_rules (id, account_id, weekday, start_time, end_time, modality, active, created_at)
+        VALUES (?, ?, ?, '09:00', '18:00', 'both', 1, ?)
+      `, randomId('avr'), accountId, wd, now));
+    }
+    await writeAudit(db, { actorUserId: userId, actorType: 'professional', accountId, action: 'auth.signup', resourceType: 'user', resourceId: userId });
+  });
+  return { userId, accountId, slug };
+}
+
+async function findPrimaryAccountForUser(db, userId) {
+  return db.get(`
+    SELECT pa.* FROM professional_accounts pa
+    JOIN account_memberships am ON am.account_id = pa.id
+    WHERE am.user_id = ? LIMIT 1
+  `, userId);
+}
+
+async function readAccountSelection(db, accountId) {
+  const row = await db.get('SELECT ui_preferences_json FROM professional_accounts WHERE id = ?', accountId);
+  let prefs = {};
+  try { prefs = JSON.parse(row?.ui_preferences_json || '{}') || {}; } catch { prefs = {}; }
+  return prefs.commercialSelection || null;
+}
+
+async function writeAccountSelection(db, accountId, input) {
+  const sel = normalizeSelection(input);
+  if (!sel.products.length) throw Object.assign(new Error('Escolha ao menos um serviço.'), { status: 400, code: 'EMPTY_SELECTION' });
+  const row = await db.get('SELECT ui_preferences_json FROM professional_accounts WHERE id = ?', accountId);
+  let prefs = {};
+  try { prefs = JSON.parse(row?.ui_preferences_json || '{}') || {}; } catch { prefs = {}; }
+  const selection = { ...sel, updatedAt: nowIso() };
+  prefs.commercialSelection = selection;
+  await db.run('UPDATE professional_accounts SET ui_preferences_json = ?, updated_at = ? WHERE id = ?', JSON.stringify(prefs), selection.updatedAt, accountId);
+  return selection;
+}
+
+function sessionPayload(u, account) {
+  return {
+    user: { id: u.id, email: u.email, fullName: u.full_name, role: u.role, emailVerified: Boolean(u.email_verified_at) },
+    account: account ? { id: account.id, slug: account.slug, displayName: account.display_name, crpOrCrm: account.crp_or_crm, specialty: account.specialty } : null,
+  };
+}
+
 export async function handleApiRequest(req, res, customDb = null) {
   setCors(req, res);
   if (req.method === 'OPTIONS') {
@@ -399,7 +477,84 @@ export async function handleApiRequest(req, res, customDb = null) {
     if (method === 'POST' && pathname === '/api/v1/catalog/quote') {
       const body = await readJsonBody(req);
       const quote = calculateSimulatedQuote(body);
-      return json(res, 200, quote);
+      return json(res, 200, { ...quote, contract: buildContractSummary(body) });
+    }
+
+    // ── CONTRATAÇÃO: E-MAIL COM CÓDIGO (sem senha) E COMBINAÇÃO POR CONTA ─
+    if (method === 'POST' && pathname === '/api/v1/auth/email-code/request') {
+      const body = await readJsonBody(req);
+      const email = String(body.email || '').trim().toLowerCase();
+      if (!z.string().email().safeParse(email).success) {
+        throw Object.assign(new Error('Informe um e-mail válido.'), { status: 400, code: 'INVALID_EMAIL' });
+      }
+      const recent = await db.get(
+        "SELECT created_at FROM verification_tokens WHERE purpose = 'email_login' AND target_contact = ? ORDER BY created_at DESC LIMIT 1",
+        email
+      );
+      if (recent && Date.now() - Date.parse(recent.created_at) < 20_000) {
+        throw Object.assign(new Error('Aguarde alguns segundos antes de pedir outro código.'), { status: 429, code: 'CODE_REQUEST_TOO_SOON' });
+      }
+      const u = await db.get('SELECT id FROM users WHERE email = ?', email);
+      const ver = await issueVerificationCode(db, {
+        purpose: 'email_login',
+        targetContact: email,
+        userId: u?.id || null,
+        subject: 'Seu código de acesso · Enomera',
+      });
+      // Mesma resposta para conta nova ou existente (sem revelar cadastro).
+      return json(res, 200, { ok: true, expiresAt: ver.expiresAt, resendAfterSec: 60, delivery: ver.delivery });
+    }
+
+    if (method === 'POST' && pathname === '/api/v1/auth/email-code/verify') {
+      const body = await readJsonBody(req);
+      const email = String(body.email || '').trim().toLowerCase();
+      await consumeVerificationCode(db, { purpose: 'email_login', targetContact: email, code: body.code });
+      const now = nowIso();
+      let u = await db.get('SELECT * FROM users WHERE email = ?', email);
+      let isNewAccount = false;
+      if (!u) {
+        await createProfessionalUser(db, {
+          fullName: displayNameFromEmail(email),
+          email,
+          password: randomToken(24),
+          emailVerifiedAt: now,
+        });
+        isNewAccount = true;
+        u = await db.get('SELECT * FROM users WHERE email = ?', email);
+      } else if (!u.email_verified_at) {
+        await db.run('UPDATE users SET email_verified_at = ?, updated_at = ? WHERE id = ?', now, now, u.id);
+        u = await db.get('SELECT * FROM users WHERE id = ?', u.id);
+      }
+      const account = u.role === 'professional' ? await findPrimaryAccountForUser(db, u.id) : null;
+      const sess = await issueSession(db, { userId: u.id, actorType: u.role, accountId: account?.id || null });
+      await writeAudit(db, { actorUserId: u.id, actorType: u.role, accountId: account?.id || null, action: 'auth.email_code_login', resourceType: 'session', resourceId: sess.id, meta: { isNewAccount } });
+      let selection = account ? await readAccountSelection(db, account.id) : null;
+      const incoming = body.selection ? normalizeSelection(body.selection) : null;
+      if (account && incoming?.products.length) {
+        // A escolha feita antes da verificação é a mais recente: passa a ser a da conta.
+        selection = await writeAccountSelection(db, account.id, incoming);
+      }
+      return json(res, 200, {
+        ...sessionPayload(u, account),
+        entitlements: account ? await getAccountEntitlements(db, account.id) : null,
+        sessionToken: sess.rawToken,
+        expiresAt: sess.expiresAt,
+        isNewAccount,
+        selection,
+        contract: selection?.products?.length ? buildContractSummary(selection) : null,
+      }, { 'Set-Cookie': sess.cookie });
+    }
+
+    if (method === 'GET' && pathname === '/api/v1/commercial/selection') {
+      await requireProfessional(db, auth);
+      const selection = await readAccountSelection(db, auth.account.id);
+      return json(res, 200, { selection, contract: selection?.products?.length ? buildContractSummary(selection) : null });
+    }
+
+    if (method === 'PUT' && pathname === '/api/v1/commercial/selection') {
+      await requireProfessional(db, auth);
+      const selection = await writeAccountSelection(db, auth.account.id, await readJsonBody(req));
+      return json(res, 200, { selection, contract: buildContractSummary(selection) });
     }
 
     // ── AUTHENTICATION & VERIFICATION ─────────────────────────────────
@@ -416,39 +571,12 @@ export async function handleApiRequest(req, res, customDb = null) {
       const exists = (await db.get('SELECT id FROM users WHERE email = ?', normEmail));
       if (exists) throw Object.assign(new Error('Já existe uma conta com este e-mail. Entre para recuperar sua combinação.'), { status: 409, code: 'EMAIL_EXISTS' });
 
-      const userId = randomId('usr');
-      const accountId = randomId('acc');
-      const now = nowIso();
-      const pwd = hashPassword(data.password);
-      let slug = slugify(data.fullName);
-      if ((await db.get('SELECT id FROM professional_accounts WHERE slug = ?', slug))) {
-        slug = `${slug}-${randomDigits(4)}`;
-      }
-
-      await runTransaction(db, async (db) => {
-        (await db.run(`
-          INSERT INTO users (id, email, password_hash, password_salt, full_name, role, email_verified_at, mfa_enabled, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, 'professional', NULL, 1, ?, ?)
-        `, userId, normEmail, pwd.hash, pwd.salt, data.fullName.trim(), now, now));
-
-        (await db.run(`
-          INSERT INTO professional_accounts (id, owner_user_id, slug, display_name, crp_or_crm, specialty, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `, accountId, userId, slug, data.fullName.trim(), data.crpOrCrm.trim(), data.specialty, now, now));
-
-        (await db.run(`
-          INSERT INTO account_memberships (id, account_id, user_id, role, can_access_clinical, created_at)
-          VALUES (?, ?, ?, 'owner', 1, ?)
-        `, randomId('mem'), accountId, userId, now));
-
-        // Sensible default availability Mon-Fri 09:00-18:00 (editable by professional)
-        for (const wd of [1, 2, 3, 4, 5]) {
-          (await db.run(`
-            INSERT INTO availability_rules (id, account_id, weekday, start_time, end_time, modality, active, created_at)
-            VALUES (?, ?, ?, '09:00', '18:00', 'both', 1, ?)
-          `, randomId('avr'), accountId, wd, now));
-        }
-        await writeAudit(db, { actorUserId: userId, actorType: 'professional', accountId, action: 'auth.signup', resourceType: 'user', resourceId: userId });
+      const { userId, accountId, slug } = await createProfessionalUser(db, {
+        fullName: data.fullName,
+        email: normEmail,
+        password: data.password,
+        crpOrCrm: data.crpOrCrm,
+        specialty: data.specialty,
       });
 
       const ver = await issueVerificationCode(db, {
@@ -734,6 +862,16 @@ export async function handleApiRequest(req, res, customDb = null) {
       }
 
       const quote = calculateSimulatedQuote({ products: body.products, ethaFormat: body.ethaFormat, mode: 'monthly' });
+      // Percurso aprovado (22 nov): a ativação informa a periodicidade e não cobra nada hoje.
+      const isContractFlow = body.billing === 'monthly' || body.billing === 'permanent';
+      if (isContractFlow) {
+        const contract = buildContractSummary({ products: body.products, ethaFormat: body.ethaFormat, billing: body.billing });
+        quote.billing = contract.billing;
+        quote.contract = contract;
+        quote.dueTodayCents = 0;
+        quote.chargedTodayCents = 0;
+        await writeAccountSelection(db, auth.account.id, contract);
+      }
       const simulatedOutcome = ['approved', 'pending', 'declined'].includes(body.simulatedOutcome) ? body.simulatedOutcome : 'approved';
       const methodUsed = body.method === 'simulated_card' ? 'simulated_card' : 'simulated_pix';
 
@@ -2041,7 +2179,7 @@ async function activateOrderEntitlementsTx(db, accountId, quote) {
         current_period_end = excluded.current_period_end,
         cancelled_at = NULL,
         updated_at = excluded.updated_at
-    `, randomId('ent'), accountId, prod, prod === 'etha' ? 'one_time_plus_hosting' : 'monthly', periodEnd, now));
+    `, randomId('ent'), accountId, prod, prod === 'etha' ? 'one_time_plus_hosting' : (quote.billing === 'permanent' ? 'permanent_hypothesis' : 'monthly'), periodEnd, now));
     if (prod === 'etha') {
       await ensureEthaProject(db, accountId, quote.ethaFormat || 'one_page');
     }
