@@ -52,7 +52,7 @@ h1{font:400 clamp(32px,6vw,44px)/1.15 'Bodoni Moda',serif;margin:8px 0 4px}h2{fo
 a{color:var(--accent)}.legal-note{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:16px 0}
 .legal-table{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:15px}th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
 li{margin:4px 0}footer{max-width:760px;margin:0 auto;padding:0 16px 40px;color:var(--muted);font-size:14px}
-</style></head><body><header><a href="/">enomera</a><nav><a href="/termos">Termos</a> · <a href="/privacidade">Privacidade</a></nav></header><main>${body}</main><footer>Enomera · Atendimento remoto nacional</footer></body></html>`;
+</style></head><body><header><a href="/">enomera</a><nav><a href="/termos">Termos</a> · <a href="/privacidade">Privacidade</a></nav></header><main>${body}</main><footer>Enomera · Atendimento remoto nacional</footer><script src="/piloto/uso.js" data-produto="enomera" defer></script></body></html>`;
 }
 
 export async function buildLegalPages(outDir = 'dist') {

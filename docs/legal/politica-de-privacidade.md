@@ -28,6 +28,21 @@ Encarregado pelo tratamento de dados (DPO): Marcos Martins · mrsaocwork@gmail.c
 **Visitantes do site**
 
 - Não usamos cookies de publicidade nem de rastreamento. Usamos apenas um cookie de sessão, necessário para manter você conectado.
+- Durante o piloto, as páginas guardam no seu navegador um identificador aleatório do aparelho, usado só pelo registro de uso do piloto (veja abaixo). Se o aparelho não pertencer a um participante convidado, os eventos ligados a ele são apagados em até 24 horas.
+
+<a id="piloto"></a>
+
+**Registro de uso do piloto (participantes convidados)**
+
+Quem entra no piloto por convite concorda, no cadastro, com um registro de uso em Enomera, Ambo, Minne, Etha e no site publicado pela Etha. Registramos:
+
+- telas abertas, tempo de uso ativo, rolagem e quando a pessoa volta;
+- onde toca ou clica: posição relativa na tela e o nome do botão ou link (por exemplo, "Confirmar horário");
+- campos usados e envio de formulário, **sem o conteúdo digitado**;
+- erros técnicos, chamadas que falharam e tempo de carregamento;
+- tipo de aparelho, sistema e navegador (sem endereço IP no registro).
+
+Não registramos o que é escrito: prontuário, nomes ou dados de pacientes, mensagens e valores de campos ficam fora. Os textos de botões passam por um filtro que retira e-mails, números e nomes próprios antes do envio. Base legal: consentimento (art. 7º, I, da LGPD). Só a administração da Enomera vê esses dados, guardados na mesma infraestrutura da plataforma (Vercel e Neon). Eles são apagados até 90 dias depois do fim do piloto ou na hora em que o participante pedir para sair, por e-mail para mrsaocwork@gmail.com.
 
 ## 3. Para que usamos e com qual base legal
 
@@ -67,6 +82,7 @@ Parte dos fornecedores guarda dados fora do Brasil. Fazemos essa transferência 
 - Prontuário e registros clínicos: pelo tempo que o profissional determinar. As normas do Conselho Federal de Psicologia pedem guarda mínima de 5 anos (Resolução CFP nº 1/2009) e as do CFM, de 20 anos para prontuário médico. Antes de apagar a conta, o profissional recebe a exportação completa para cumprir esse dever.
 - Dados de cobrança: 5 anos, por exigência fiscal.
 - Registros de acesso: 6 meses.
+- Registro de uso do piloto: até 90 dias após o fim do piloto, ou até o participante pedir para sair. Eventos de aparelhos não identificados: até 24 horas.
 
 ## 7. Como protegemos
 

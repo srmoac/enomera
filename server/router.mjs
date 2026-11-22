@@ -44,6 +44,7 @@ import {
   reserveSlotByInvitation,
 } from './scheduling.mjs';
 import { seedDatabase } from './seed.mjs';
+import { handlePilotRoutes } from './pilot.mjs';
 import {
   getStorageBackendStatus,
   readPrivateFileBinary,
@@ -138,7 +139,13 @@ function parseCookies(req) {
 }
 
 async function readJsonBody(req) {
-  if (req.body && typeof req.body === 'object') return req.body;
+  if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) return req.body;
+  // sendBeacon/text-plain (rastreador do piloto): a Vercel entrega o corpo já lido como texto.
+  if (typeof req.body === 'string' || Buffer.isBuffer(req.body)) {
+    const rawBody = String(req.body).trim();
+    if (!rawBody) return {};
+    try { return JSON.parse(rawBody); } catch { throw Object.assign(new Error('JSON inválido no corpo da requisição.'), { status: 400, code: 'INVALID_JSON' }); }
+  }
   const chunks = [];
   let total = 0;
   for await (const chunk of req) {
@@ -525,6 +532,8 @@ export async function handleApiRequest(req, res, customDb = null) {
     const db = (customDb && !customDb.closed) ? customDb : await getDb(customDb ? process.env.ENOMERA_DB_PATH : undefined);
     await seedDatabase(db);
     const auth = await getSessionFromRequest(db, req);
+
+    if (await handlePilotRoutes({ db, req, res, method, pathname, url, auth, json, readJsonBody, createProfessionalUser, issueSession, writeAudit })) return;
 
     if (method === 'GET' && pathname === '/api/v1/catalog') {
       return json(res, 200, COMMERCIAL_CATALOG);

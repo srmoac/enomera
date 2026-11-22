@@ -29,6 +29,8 @@ export function createEnomeraServer(customDb = null) {
       }
       let file = path.resolve(root, '.' + decodeURIComponent(url.pathname));
       if (!file.startsWith(root + path.sep) && file !== root) throw new Error('Forbidden');
+      if (url.pathname.startsWith('/convite/')) file = path.join(root, 'piloto', 'convite.html');
+      else if (/^\/piloto\/painel\/?$/.test(url.pathname)) file = path.join(root, 'piloto', 'painel.html');
       if (!path.extname(file)) file = path.join(root, 'index.html');
       const data = await readFile(file);
       res.writeHead(200, { 'Content-Type': mime[path.extname(file)] || 'application/octet-stream' });

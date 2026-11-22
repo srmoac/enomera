@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { nowIso, randomId, sanitizeAuditMeta } from './crypto.mjs';
+import { applyPilotMigration } from './pilot.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MIGRATION_001_SQLITE = path.join(__dirname, 'migrations', '001_init.sql');
@@ -252,6 +253,12 @@ async function applyMigrations(db) {
       )`);
       await tx.run('INSERT INTO schema_migrations (version, description, applied_at) VALUES (?, ?, ?) ON CONFLICT(version) DO NOTHING',
         '003_approved_preview', 'Approved profile metadata and server checkout selection', nowIso());
+    }
+
+    if (!applied.has('004_pilot_usage')) {
+      await applyPilotMigration(tx);
+      await tx.run('INSERT INTO schema_migrations (version, description, applied_at) VALUES (?, ?, ?) ON CONFLICT(version) DO NOTHING',
+        '004_pilot_usage', 'Pilot invites, participants and usage events', nowIso());
     }
 
     await tx.run(

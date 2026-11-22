@@ -1,0 +1,103 @@
+/* Piloto · convite e painel. Usa /motion-tokens.css e /glass/liquid-glass.css (carregados antes). */
+:root {
+  --bg: #F0F4FE; --ink: #1C2240; --muted: #56607F; --faint: #8A93B2; --line: rgb(28 34 64 / .1);
+  --accent: #3B4FB8; --accent-ink: #fff; --accent-soft: rgb(59 79 184 / .1);
+  --bad: #C2384A; --bad-soft: rgb(194 56 74 / .1); --warn: #A86A00; --good: #1F7A4D;
+  --viz: 59 79 184; --surface: rgb(255 255 255 / .72);
+  --radius: 22px; --radius-sm: 14px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0F1226; --ink: #EEF1FC; --muted: #A9B1CE; --faint: #7B84A6; --line: rgb(238 241 252 / .12);
+    --accent: #9AA8F0; --accent-ink: #10132A; --accent-soft: rgb(154 168 240 / .14);
+    --bad: #F08A97; --bad-soft: rgb(240 138 151 / .14); --warn: #E7B24C; --good: #6CD3A0;
+    --viz: 154 168 240; --surface: rgb(23 27 56 / .7); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0F1226; --ink: #EEF1FC; --muted: #A9B1CE; --faint: #7B84A6; --line: rgb(238 241 252 / .12);
+  --accent: #9AA8F0; --accent-ink: #10132A; --accent-soft: rgb(154 168 240 / .14);
+  --bad: #F08A97; --bad-soft: rgb(240 138 151 / .14); --warn: #E7B24C; --good: #6CD3A0;
+  --viz: 154 168 240; --surface: rgb(23 27 56 / .7); color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; min-height: 100dvh; background: var(--bg); color: var(--ink); font: 16px/1.55 Manrope, system-ui, sans-serif; overflow-x: hidden; }
+h1, .display { font: 400 clamp(30px, 6vw, 44px)/1.12 'Bodoni Moda', Georgia, serif; letter-spacing: -.01em; margin: 0; }
+h2 { font-size: 18px; line-height: 1.3; margin: 0; font-weight: 700; }
+h3 { font-size: 15px; margin: 0; font-weight: 700; }
+p { margin: 0; }
+a { color: var(--accent); }
+.muted { color: var(--muted); }
+.small { font-size: 14px; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* Fundo com as pétalas suaves da Direção A (estático: o vidro precisa de algo atrás). */
+.pl-backdrop { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+.pl-backdrop i { position: absolute; border-radius: 50%; filter: blur(48px); opacity: .55; }
+.pl-backdrop i:nth-child(1) { width: 46vmax; height: 46vmax; left: -12vmax; top: -16vmax; background: radial-gradient(circle, #B8C4FF, transparent 70%); }
+.pl-backdrop i:nth-child(2) { width: 38vmax; height: 38vmax; right: -10vmax; top: 18vh; background: radial-gradient(circle, #FFD3C2, transparent 70%); }
+.pl-backdrop i:nth-child(3) { width: 40vmax; height: 40vmax; left: 20vw; bottom: -20vmax; background: radial-gradient(circle, #BFE8DA, transparent 70%); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .pl-backdrop i { opacity: .22; } }
+
+/* Botões */
+.pl-btn { appearance: none; border: 0; font: 600 15px/1 Manrope, system-ui, sans-serif; min-height: var(--eno-btn-lg, 52px); padding: 0 22px; border-radius: 999px;
+  background: var(--accent); color: var(--accent-ink); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  transition: transform var(--eno-t-press) var(--eno-ease-out), background-color var(--eno-t-fast) var(--eno-ease-out), opacity var(--eno-t-fast) var(--eno-ease-out); }
+.pl-btn:active { transform: scale(var(--eno-press-scale)); }
+.pl-btn[aria-busy="true"] { opacity: .85; cursor: progress; }
+.pl-btn.is-quiet { background: var(--accent-soft); color: var(--accent); min-height: var(--eno-btn-md, 44px); padding: 0 16px; font-size: 14px; }
+.pl-btn.is-ghost { background: transparent; color: var(--ink); min-height: var(--eno-btn-md, 44px); padding: 0 14px; font-size: 14px; }
+.pl-btn:focus-visible, .pl-field input:focus-visible, .pl-seg button:focus-visible, .pl-check input:focus-visible + span, .pl-chip:focus-visible, .pl-row:focus-visible, select:focus-visible {
+  outline: var(--eno-focus-width) solid var(--accent); outline-offset: var(--eno-focus-offset); }
+.pl-spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: plSpin 640ms linear infinite; }
+@keyframes plSpin { to { transform: rotate(360deg); } }
+
+/* Campos */
+.pl-field { display: grid; gap: 6px; }
+.pl-field label { font-size: 14px; font-weight: 600; }
+.pl-field .hint { font-size: 13px; color: var(--muted); }
+.pl-field input, .pl-select { font: 16px Manrope, system-ui, sans-serif; color: var(--ink); background: rgb(255 255 255 / .82); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  min-height: 52px; padding: 0 16px; width: 100%; transition: border-color var(--eno-t-fast) var(--eno-ease-out), box-shadow var(--eno-t-fast) var(--eno-ease-out); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .pl-field input, :root:not([data-theme="light"]) .pl-select { background: rgb(16 19 42 / .8); } }
+.pl-field input[aria-invalid="true"] { border-color: var(--bad); box-shadow: 0 0 0 3px var(--bad-soft); }
+.pl-err { color: var(--bad); font-size: 14px; font-weight: 600; min-height: 0; }
+.pl-err:not(:empty) { animation: plNote var(--eno-t-base) var(--eno-ease-out); }
+@keyframes plNote { from { opacity: 0; transform: translateY(calc(var(--eno-shift-small) * -1)); } }
+.pl-pass { position: relative; }
+.pl-pass input { padding-right: 96px; }
+.pl-pass button { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); }
+
+.pl-seg { display: inline-grid; grid-auto-flow: column; gap: 4px; padding: 4px; border-radius: 999px; background: var(--accent-soft); position: relative; }
+.pl-seg button { appearance: none; border: 0; background: transparent; font: 600 14px Manrope, sans-serif; color: var(--muted); min-height: 44px; padding: 0 18px; border-radius: 999px; cursor: pointer; position: relative; z-index: 1;
+  transition: color var(--eno-t-fast) var(--eno-ease-out), transform var(--eno-t-press) var(--eno-ease-out); }
+.pl-seg button:active { transform: scale(var(--eno-press-scale)); }
+.pl-seg button[aria-pressed="true"] { color: var(--ink); }
+.pl-seg .pl-lens { position: absolute; top: 4px; bottom: 4px; left: 0; border-radius: 999px; background: rgb(255 255 255 / .92); box-shadow: 0 2px 10px rgb(28 34 64 / .12);
+  transition: transform var(--eno-t-base) var(--eno-ease-move), width var(--eno-t-base) var(--eno-ease-move); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .pl-seg .pl-lens { background: rgb(60 68 120 / .9); } }
+
+.pl-check { display: grid; grid-template-columns: 24px 1fr; gap: 12px; align-items: start; cursor: pointer; min-height: 44px; padding: 4px 0; }
+.pl-check input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.pl-check span.box { width: 24px; height: 24px; border-radius: 8px; border: 2px solid var(--faint); display: grid; place-items: center; transition: background-color var(--eno-t-fast) var(--eno-ease-out), border-color var(--eno-t-fast) var(--eno-ease-out); }
+.pl-check span.box svg { width: 14px; height: 14px; stroke: var(--accent-ink); stroke-width: 3; fill: none; stroke-dasharray: 20; stroke-dashoffset: 20; transition: stroke-dashoffset var(--eno-t-base) var(--eno-ease-out); }
+.pl-check input:checked + span.box { background: var(--accent); border-color: var(--accent); }
+.pl-check input:checked + span.box svg { stroke-dashoffset: 0; }
+.pl-check input[aria-invalid="true"] + span.box { border-color: var(--bad); }
+
+/* Entradas (uma por troca; cascata curta) */
+.pl-in { animation: plMaterialize var(--eno-t-route) var(--eno-ease-out) both; }
+@keyframes plMaterialize { from { opacity: 0; transform: scale(.97); filter: blur(9px); } }
+.pl-stagger > * { animation: plRise 220ms var(--eno-ease-out) both; }
+.pl-stagger > *:nth-child(2) { animation-delay: 40ms; } .pl-stagger > *:nth-child(3) { animation-delay: 80ms; }
+.pl-stagger > *:nth-child(4) { animation-delay: 120ms; } .pl-stagger > *:nth-child(5) { animation-delay: 160ms; }
+.pl-stagger > *:nth-child(n+6) { animation-delay: 200ms; }
+@keyframes plRise { from { opacity: 0; transform: translateY(var(--eno-shift-small)); } }
+.pl-out { animation: plOut var(--eno-t-step-out) var(--eno-ease-out) both; }
+@keyframes plOut { to { opacity: 0; transform: scale(.985); } }
+@media (prefers-reduced-motion: reduce) {
+  .pl-in, .pl-stagger > *, .pl-out { animation-name: plFade !important; animation-duration: 120ms !important; animation-delay: 0ms !important; }
+  @keyframes plFade { from { opacity: 0; } }
+}
+.eno-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

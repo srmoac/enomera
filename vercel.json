@@ -7,10 +7,52 @@
     }
   },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/[...route].mjs" },
-    { "source": "/portal", "destination": "/index.html" },
-    { "source": "/portal/", "destination": "/index.html" },
-    { "source": "/conta", "destination": "/index.html" },
-    { "source": "/checkout", "destination": "/index.html" }
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/[...route].mjs"
+    },
+    {
+      "source": "/convite/:token",
+      "destination": "/piloto/convite.html"
+    },
+    {
+      "source": "/piloto/painel",
+      "destination": "/piloto/painel.html"
+    },
+    {
+      "source": "/piloto/painel/",
+      "destination": "/piloto/painel.html"
+    },
+    {
+      "source": "/portal",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/portal/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/conta",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/checkout",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/piloto/uso.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=300"
+        },
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        }
+      ]
+    }
   ]
 }

@@ -31,6 +31,14 @@ Ao criar uma conta ou usar qualquer serviço, você declara que leu e aceita est
 - Os pagamentos são processados pelo Asaas (Pix, boleto ou cartão). A Enomera não recebe nem guarda dados do seu cartão.
 - Podemos mudar preços com aviso de pelo menos 30 dias por e-mail. A mudança só vale a partir do ciclo seguinte ao aviso.
 
+<a id="piloto"></a>
+
+**Participação por convite e registro de uso**
+
+- Parte do piloto acontece com profissionais convidados por um link pessoal, que cria a conta uma única vez. Quem entra por convite concorda, no próprio cadastro, com o registro de uso descrito na [Política de Privacidade](/privacidade#piloto).
+- O registro serve só para entender o que funciona e o que atrapalha nos produtos e corrigir erros. Ele não é vendido, não é usado para publicidade e não avalia você como profissional.
+- Você pode sair do registro quando quiser, pedindo por e-mail. Seus registros de uso são apagados, e sua conta continua funcionando normalmente.
+
 ## 5. Cancelamento
 
 - Você pode cancelar a qualquer momento pelo portal ou por e-mail. O cancelamento vale ao fim do período já pago; não há multa.
