@@ -1,10 +1,71 @@
 import { addDaysIso, hashPassword, nowIso, randomId } from './crypto.mjs';
 import { getDb, runTransaction } from './db.mjs';
 
+// Contas fictícias de homologação (Preview). Só existem quando o ambiente define
+// ENOMERA_HOMOLOG_PASSWORD; a senha nunca fica no repositório.
+const HOMOLOG_ACCOUNTS = [
+  { key: 'sofia', email: 'sofia.mendes@homolog.enomera.invalid', name: 'Sofia Mendes', slug: 'sofia-mendes', crp: 'CRP 06/000001', city: 'Campinas, SP', products: ['etha', 'ambo'],
+    bio: 'Psicóloga clínica. Atendimento de adultos, online e presencial.' },
+  { key: 'paulo', email: 'paulo.ribeiro@homolog.enomera.invalid', name: 'Paulo Ribeiro', slug: 'paulo-ribeiro', crp: 'CRP 06/000002', city: 'Curitiba, PR', products: ['etha'],
+    bio: 'Psicólogo clínico. Atendimento de adultos e casais.' },
+  { key: 'beatriz', email: 'beatriz.lima@homolog.enomera.invalid', name: 'Beatriz Lima', slug: 'beatriz-lima', crp: 'CRP 06/000003', city: 'Recife, PE', products: ['minne', 'ambo'],
+    bio: 'Psicóloga clínica. Atendimento de adolescentes e adultos.' },
+];
+let homologSeedDone = false;
+
+export async function seedHomologAccounts(db) {
+  const password = process.env.ENOMERA_HOMOLOG_PASSWORD || '';
+  if (homologSeedDone || password.length < 12 || process.env.ENOMERA_SEED_DEMO !== 'true') return { seeded: false };
+  let created = 0;
+  for (const acc of HOMOLOG_ACCOUNTS) {
+    if (await db.get('SELECT id FROM users WHERE email = ?', acc.email)) continue;
+    await runTransaction(db, async (tx) => {
+      if (await tx.get('SELECT id FROM users WHERE email = ?', acc.email)) return;
+      const now = nowIso();
+      const userId = `usr_homolog_${acc.key}`;
+      const accountId = `acc_homolog_${acc.key}`;
+      const pwd = hashPassword(password);
+      await tx.run(
+        `INSERT INTO users (id, email, password_hash, password_salt, full_name, role, email_verified_at, mfa_enabled, is_demo, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 'professional', ?, 1, 1, ?, ?)`,
+        userId, acc.email, pwd.hash, pwd.salt, acc.name, now, now, now
+      );
+      await tx.run(
+        `INSERT INTO professional_accounts (id, owner_user_id, slug, display_name, crp_or_crm, specialty, bio, city, is_demo_sandbox, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 'Psicologia', ?, ?, 1, ?, ?)`,
+        accountId, userId, acc.slug, acc.name, acc.crp, acc.bio, acc.city, now, now
+      );
+      await tx.run(
+        `INSERT INTO account_memberships (id, account_id, user_id, role, can_access_clinical, created_at)
+         VALUES (?, ?, ?, 'owner', 1, ?)`,
+        `mem_homolog_${acc.key}`, accountId, userId, now
+      );
+      for (const prod of acc.products) {
+        await tx.run(
+          `INSERT INTO entitlements (id, account_id, product, status, billing_mode, current_period_end, updated_at)
+           VALUES (?, ?, ?, 'active', ?, ?, ?)`,
+          randomId('ent'), accountId, prod, prod === 'etha' ? 'one_time_plus_hosting' : 'monthly', addDaysIso(30), now
+        );
+      }
+      for (const weekday of [1, 2, 3, 4, 5]) {
+        await tx.run(
+          `INSERT INTO availability_rules (id, account_id, weekday, start_time, end_time, modality, active, created_at)
+           VALUES (?, ?, ?, '09:00', '18:00', 'both', 1, ?)`,
+          randomId('avr'), accountId, weekday, now
+        );
+      }
+      created += 1;
+    }, `seed_homolog_${acc.key}`);
+  }
+  homologSeedDone = true;
+  return { seeded: created > 0, created };
+}
+
 export async function seedDatabase(db) {
   // On Postgres (shared preview/production), demo seeding is strictly opt-in via ENOMERA_SEED_DEMO=true
   // In local SQLite dev/tests, demo seeding runs unless ENOMERA_SEED_DEMO=false
   const targetDb = db || await getDb();
+  await seedHomologAccounts(targetDb);
   if (process.env.ENOMERA_SEED_DEMO === 'false') {
     return { seeded: false, reason: 'disabled_by_env' };
   }
