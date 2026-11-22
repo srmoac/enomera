@@ -282,6 +282,28 @@ function safeEqual(a, b) {
   return x.length === y.length && x.length > 0 && crypto.timingSafeEqual(x, y);
 }
 
+/**
+ * Reconciliação ao abrir a Cobrança: se um pagamento foi confirmado e o aviso não chegou
+ * (webhook ainda não cadastrado ou fora do ar), ativa os serviços do mesmo jeito.
+ */
+async function syncSubscriptionFromAsaas(db, cfg, row) {
+  if (!row || row.provider_mode !== cfg.mode || row.status === 'cancelled') return;
+  try {
+    const list = await asaasRequest(cfg, 'GET', `/subscriptions/${encodeURIComponent(row.provider_subscription_id)}/payments`);
+    const paid = (list?.data || [])
+      .filter((p) => ['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH'].includes(p.status))
+      .sort((a, b) => String(b.dueDate).localeCompare(String(a.dueDate)))[0];
+    if (!paid) return;
+    const periodEnd = addDays(String(paid.dueDate).slice(0, 10), row.cycle === 'annual' ? 365 : 30);
+    if (row.status === 'active' && row.current_period_end >= periodEnd) return;
+    await db.run('UPDATE billing_subscriptions SET status = ?, current_period_end = ?, next_due_date = ?, updated_at = ? WHERE id = ?',
+      'active', periodEnd, periodEnd, nowIso(), row.id);
+    await upsertEntitlements(db, row.account_id, JSON.parse(row.products_json || '[]'), 'active', periodEnd);
+  } catch (err) {
+    console.error('[asaas] reconciliação falhou:', err.message);
+  }
+}
+
 /** Situação real do pagamento no Asaas → evento equivalente. */
 function paymentStatusToEvent(status, fallback) {
   if (['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH'].includes(status)) return 'PAYMENT_RECEIVED';
@@ -387,7 +409,10 @@ export async function handleBillingRoutes({ db, req, res, method, pathname, auth
     await requireProfessional(db, auth);
     await ensureBillingTables(db);
     const cfg = getAsaasConfig();
-    if (cfg.configured) await ensureWebhook(cfg);
+    if (cfg.configured) {
+      await ensureWebhook(cfg);
+      await syncSubscriptionFromAsaas(db, cfg, await getCurrentSubscription(db, auth.account.id));
+    }
     json(res, 200, { ...getAsaasStatus(), subscription: publicSubscription(await getCurrentSubscription(db, auth.account.id)) });
     return true;
   }
