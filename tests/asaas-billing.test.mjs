@@ -48,6 +48,7 @@ test('checkout cria assinatura com 30 dias grátis; webhook ativa e é idempoten
     if (url.endsWith('/webhooks')) return r({ id: 'wh_1' });
     if (url.endsWith('/customers')) return r({ id: 'cus_1' });
     if (url.endsWith('/subscriptions')) return r({ id: 'sub_asaas_1' });
+    if (url.endsWith('/payments/pay_1')) return r({ id: 'pay_1', subscription: 'sub_asaas_1', status: 'PENDING', dueDate: '2026-12-22' });
     if (url.includes('/payments')) return r({ data: [{ id: 'pay_1', invoiceUrl: 'https://sandbox.asaas.com/i/abc' }] });
     return { ok: false, status: 404, json: async () => ({}) };
   });
@@ -79,7 +80,9 @@ test('checkout cria assinatura com 30 dias grátis; webhook ativa e é idempoten
     const again = await createCheckout(db, { account, user, products: ['ambo'], cycle: 'monthly', cpfCnpj: '52998224725' });
     assert.equal(again.reused, true);
 
-    await assert.rejects(handleAsaasWebhook(db, { 'asaas-access-token': 'errado' }, { id: 'evt_1', event: 'PAYMENT_RECEIVED' }), (e) => e.status === 401);
+    // Sem token válido: o corpo é ignorado e vale a situação real consultada no Asaas (aqui, PENDING).
+    const forged = await handleAsaasWebhook(db, { 'asaas-access-token': 'errado' }, { id: 'evt_forjado', event: 'PAYMENT_RECEIVED', payment: { id: 'pay_1', subscription: 'sub_asaas_1' } });
+    assert.notEqual(forged.status, 'active');
     const evt = { id: 'evt_1', event: 'PAYMENT_RECEIVED', payment: { id: 'pay_1', subscription: 'sub_asaas_1', dueDate: '2026-12-22' } };
     const ok = await handleAsaasWebhook(db, { 'asaas-access-token': 'tok_test_123' }, evt);
     assert.equal(ok.status, 'active');

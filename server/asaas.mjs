@@ -63,6 +63,7 @@ export function getAsaasStatus() {
     mode: cfg.mode,
     configured: cfg.configured,
     webhookTokenConfigured: Boolean(getWebhookToken()),
+    webhookRegistrationError: webhookLastError,
     realPayments: cfg.mode === 'production',
     trialDays: PILOT_TRIAL_DAYS,
   };
@@ -107,6 +108,7 @@ export function getWebhookToken() {
 }
 
 let webhookEnsured = false;
+let webhookLastError = null;
 /** Registra o webhook no Asaas uma vez (URL do Core + token secreto), sem expor o token. */
 async function ensureWebhook(cfg) {
   if (webhookEnsured) return;
@@ -120,7 +122,7 @@ async function ensureWebhook(cfg) {
       await asaasRequest(cfg, 'POST', '/webhooks', {
         name: 'Enomera Core',
         url,
-        email: process.env.ASAAS_WEBHOOK_EMAIL || undefined,
+        email: process.env.ASAAS_WEBHOOK_EMAIL || process.env.SMTP_USER || 'mrsaocwork@gmail.com',
         enabled: true,
         interrupted: false,
         authToken: token,
@@ -129,7 +131,9 @@ async function ensureWebhook(cfg) {
       });
     }
     webhookEnsured = true;
+    webhookLastError = null;
   } catch (err) {
+    webhookLastError = err.message;
     console.error('[asaas] webhook não registrado:', err.message);
   }
 }
@@ -278,6 +282,14 @@ function safeEqual(a, b) {
   return x.length === y.length && x.length > 0 && crypto.timingSafeEqual(x, y);
 }
 
+/** Situação real do pagamento no Asaas → evento equivalente. */
+function paymentStatusToEvent(status, fallback) {
+  if (['CONFIRMED', 'RECEIVED', 'RECEIVED_IN_CASH'].includes(status)) return 'PAYMENT_RECEIVED';
+  if (status === 'OVERDUE') return 'PAYMENT_OVERDUE';
+  if (status === 'PENDING') return 'PAYMENT_CREATED';
+  return fallback === 'PAYMENT_DELETED' ? 'IGNORED' : 'IGNORED';
+}
+
 /**
  * Webhook do Asaas. Idempotente pelo id do evento.
  * Pagamento confirmado/recebido → serviços ativos até o próximo vencimento.
@@ -285,24 +297,39 @@ function safeEqual(a, b) {
  * Assinatura removida/inativada → cancelled (serviço passa a somente leitura).
  */
 export async function handleAsaasWebhook(db, headers, payload) {
-  const expected = getWebhookToken();
-  if (!expected) throw Object.assign(new Error('Webhook sem token configurado.'), { status: 503, code: 'WEBHOOK_TOKEN_MISSING' });
-  if (!safeEqual(headers['asaas-access-token'], expected)) {
-    throw Object.assign(new Error('Token do webhook inválido.'), { status: 401, code: 'WEBHOOK_UNAUTHORIZED' });
-  }
   await ensureBillingTables(db);
   const eventId = String(payload?.id || '');
-  const event = String(payload?.event || '');
-  if (!eventId || !event) throw Object.assign(new Error('Evento inválido.'), { status: 400, code: 'INVALID_EVENT' });
+  const rawEvent = String(payload?.event || '');
+  if (!eventId || !rawEvent) throw Object.assign(new Error('Evento inválido.'), { status: 400, code: 'INVALID_EVENT' });
+
+  // Autenticidade: com o token certo no cabeçalho, confiamos no corpo. Sem token (webhook
+  // cadastrado à mão no painel do Asaas), consultamos o Asaas com a nossa chave e usamos
+  // só o que ele responder; um evento forjado não muda nada.
+  const expected = getWebhookToken();
+  const trusted = Boolean(expected) && safeEqual(headers['asaas-access-token'], expected);
+  let payment = payload.payment || null;
+  let event = rawEvent;
+  if (!trusted) {
+    const cfg = getAsaasConfig();
+    if (!cfg.configured) throw Object.assign(new Error('Pagamentos não configurados.'), { status: 503, code: 'PAYMENTS_NOT_CONFIGURED' });
+    if (payment?.id) {
+      payment = await asaasRequest(cfg, 'GET', `/payments/${encodeURIComponent(payment.id)}`);
+      event = paymentStatusToEvent(payment.status, rawEvent);
+    } else if (payload.subscription?.id) {
+      const sub = await asaasRequest(cfg, 'GET', `/subscriptions/${encodeURIComponent(payload.subscription.id)}`);
+      event = sub.deleted || sub.status === 'INACTIVE' ? 'SUBSCRIPTION_DELETED' : 'IGNORED';
+    } else {
+      return { ok: true, ignored: true };
+    }
+  }
 
   const seen = await db.get('SELECT id FROM billing_webhook_events WHERE id = ?', eventId);
   if (seen) return { ok: true, duplicate: true };
 
-  const payment = payload.payment || null;
   const subId = payment?.subscription || payload.subscription?.id || null;
   await db.run(
     'INSERT INTO billing_webhook_events (id, provider, event, payment_id, subscription_id, received_at) VALUES (?, ?, ?, ?, ?, ?)',
-    eventId, 'asaas', event, payment?.id || null, subId, nowIso()
+    eventId, 'asaas', rawEvent, payment?.id || null, subId, nowIso()
   );
   if (!subId) return { ok: true, ignored: true };
   const row = await db.get('SELECT * FROM billing_subscriptions WHERE provider_subscription_id = ?', subId);
@@ -310,7 +337,7 @@ export async function handleAsaasWebhook(db, headers, payload) {
   const products = JSON.parse(row.products_json || '[]');
   const now = nowIso();
 
-  if (event === 'PAYMENT_CONFIRMED' || event === 'PAYMENT_RECEIVED') {
+  if (event === 'PAYMENT_CONFIRMED' || event === 'PAYMENT_RECEIVED' || event === 'PAYMENT_RECEIVED_IN_CASH') {
     const due = String(payment?.dueDate || row.next_due_date || todaySaoPaulo()).slice(0, 10);
     const periodEnd = addDays(due, row.cycle === 'annual' ? 365 : 30);
     await db.run('UPDATE billing_subscriptions SET status = ?, current_period_end = ?, next_due_date = ?, updated_at = ? WHERE id = ?',
@@ -359,6 +386,8 @@ export async function handleBillingRoutes({ db, req, res, method, pathname, auth
   if (method === 'GET' && pathname === '/api/v1/billing/status') {
     await requireProfessional(db, auth);
     await ensureBillingTables(db);
+    const cfg = getAsaasConfig();
+    if (cfg.configured) await ensureWebhook(cfg);
     json(res, 200, { ...getAsaasStatus(), subscription: publicSubscription(await getCurrentSubscription(db, auth.account.id)) });
     return true;
   }
