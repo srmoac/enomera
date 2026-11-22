@@ -755,8 +755,23 @@ export async function mountEnomeraPlatform(rootEl) {
   // Cada re-render passa pelo FLIP: o que mudou na mesma tela anima do estado antigo ao novo.
   function render() {
     const snap = motionSnapshot(rootEl);
+    const prevH = rootEl.offsetHeight;
     renderInner();
-    motionPlay(rootEl, snap, { route: Boolean(motionTracker.lastRouteDir) });
+    const route = Boolean(motionTracker.lastRouteDir);
+    // Na mesma tela a página nunca encolhe durante a interação: se encolhesse, quem rolou até
+    // o fim veria a tela "tremer" (o navegador puxa o scroll a cada quadro da animação de altura).
+    // Troca de tela libera a altura.
+    if (route) rootEl.style.minHeight = '';
+    else if (snap) rootEl.style.minHeight = `${Math.max(prevH, parseFloat(rootEl.style.minHeight) || 0)}px`;
+    motionPlay(rootEl, snap, { route });
+    // Quando a animação termina, devolvemos a altura natural sem mexer no scroll atual.
+    clearTimeout(motionTracker.heightTimer);
+    if (!route && snap) motionTracker.heightTimer = setTimeout(() => {
+      const needed = window.scrollY + window.innerHeight - (rootEl.getBoundingClientRect().top + window.scrollY);
+      rootEl.style.minHeight = '';
+      const natural = rootEl.offsetHeight;
+      if (needed > natural + 1) rootEl.style.minHeight = `${Math.ceil(needed)}px`;
+    }, 420);
   }
   function renderInner() {
     const active = document.activeElement;

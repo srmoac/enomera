@@ -176,3 +176,7 @@ button.eno-pc:active { transform: scale(.985); }
 
 /* Números que trocam não pulam de largura. */
 .eno-pc-price, .eno-sum-lines dd, .eno-sum-total, #billing-summary { font-variant-numeric: tabular-nums; }
+
+/* Re-render não pode puxar o scroll: sem ancoragem automática e com a calha da barra reservada. */
+#portal { overflow-anchor: none; }
+html:has(#portal:not([hidden])) { scrollbar-gutter: stable; }
