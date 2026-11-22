@@ -931,9 +931,9 @@ export async function handleApiRequest(req, res, customDb = null) {
       if (!auth.user.email_verified_at) throw Object.assign(new Error('Confirme seu e-mail antes de iniciar o teste.'), { status: 403, code: 'EMAIL_VERIFICATION_REQUIRED' });
       const body = await readJsonBody(req);
       const products = (Array.isArray(body.products) ? body.products : ['ambo', 'minne']).filter((p) => ['ambo', 'minne'].includes(p));
-      if (products.length === 0) throw Object.assign(new Error('Selecione Ambo e/ou Minne para o teste de 7 dias.'), { status: 400, code: 'INVALID_TRIAL_PRODUCTS' });
+      if (products.length === 0) throw Object.assign(new Error('Selecione Ambo e/ou Minne para os 30 dias grátis.'), { status: 400, code: 'INVALID_TRIAL_PRODUCTS' });
       const now = nowIso();
-      const trialEndsAt = addDaysIso(7);
+      const trialEndsAt = addDaysIso(COMMERCIAL_CATALOG.trialDays);
       await runTransaction(db, async (db) => {
         for (const p of products) {
           (await db.run(`
@@ -960,7 +960,7 @@ export async function handleApiRequest(req, res, customDb = null) {
         INSERT INTO pilot_applications (id, user_id, full_name, email, specialty, notes, status, created_at)
         VALUES (?, ?, ?, ?, ?, ?, 'received', ?)
       `, id, auth?.user?.id || null, fullName, email, String(body.specialty || 'Psicologia'), String(body.notes || ''), nowIso()));
-      return json(res, 201, { id, status: 'received', pilotWeeks: 2, message: 'Interesse no piloto acompanhado de 2 semanas registrado sem cobrança.' });
+      return json(res, 201, { id, status: 'received', pilotDays: COMMERCIAL_CATALOG.trialDays, message: 'Interesse no piloto de 30 dias grátis registrado sem cobrança.' });
     }
 
     if (method === 'POST' && pathname === '/api/v1/commercial/orders') {
@@ -1127,7 +1127,7 @@ export async function handleApiRequest(req, res, customDb = null) {
         : null;
       const pendingSyncs = (await db.all("SELECT * FROM sync_events WHERE account_id = ? AND status != 'synced' ORDER BY created_at DESC LIMIT 10", auth.account.id));
 
-      let nextAction = { label: 'Escolher serviços ou iniciar teste de 7 dias', product: 'enomera' };
+      let nextAction = { label: 'Escolher serviços ou começar 30 dias grátis', product: 'enomera' };
       if (hasAmbo && !hasMinne) nextAction = { label: 'Configurar disponibilidade e link no Ambo', product: 'ambo' };
       else if (hasMinne && pendingRequests > 0) nextAction = { label: `Responder ${pendingRequests} solicitação(ões) no Minne`, product: 'minne' };
       else if (hasAmbo && hasMinne) nextAction = { label: 'Abrir Ambo para compartilhar perfil ou Minne para agenda', product: 'ambo' };
@@ -2361,7 +2361,7 @@ async function activateOrderEntitlementsTx(db, accountId, quote) {
         current_period_end = excluded.current_period_end,
         cancelled_at = NULL,
         updated_at = excluded.updated_at
-    `, randomId('ent'), accountId, prod, prod === 'etha' ? 'one_time_plus_hosting' : (quote.billing === 'permanent' ? 'permanent_hypothesis' : 'monthly'), periodEnd, now));
+    `, randomId('ent'), accountId, prod, quote.billing === 'permanent' ? 'annual' : 'monthly', periodEnd, now));
     if (prod === 'etha') {
       await ensureEthaProject(db, accountId, quote.ethaFormat || 'one_page');
     }

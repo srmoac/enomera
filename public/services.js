@@ -21,7 +21,7 @@ export const services = [
     id: 'ambo',
     name: 'ambo',
     description: 'Agendamento e área do paciente',
-    billing: 'Mensal ou licença permanente',
+    billing: 'Mensal ou anual',
     section: '#ambo',
     destination: ecosystem.ambo || '#ambo',
     externalDestination: ecosystem.ambo,
@@ -34,7 +34,7 @@ export const services = [
     id: 'minne',
     name: 'minne',
     description: 'Gestão clínica e continuidade',
-    billing: 'Mensal ou licença permanente',
+    billing: 'Mensal ou anual',
     section: '#minne',
     destination: ecosystem.minne,
     externalDestination: ecosystem.minne,
@@ -46,7 +46,7 @@ export const services = [
     id: 'etha',
     name: 'etha',
     description: 'Site exclusivo para o profissional',
-    billing: 'Projeto + hospedagem e painel separados',
+    billing: 'Mensal ou anual · site, hospedagem e painel',
     section: '#etha',
     destination: ecosystem.etha,
     externalDestination: ecosystem.etha,
@@ -62,15 +62,25 @@ export function serviceById(id) {
   return services.find(s => s.id === id);
 }
 
+// Preços aprovados em 22/11/2026. Anual = 10 mensalidades. Espelha server/catalog.mjs.
+export const MONTHLY = { ambo: 39, etha: 49, minne: 59 };
+const COMBO = { 'ambo+minne': 79, 'ambo+etha': 69, 'etha+minne': 89, 'ambo+etha+minne': 99 };
+const brl = n => `R$ ${n.toLocaleString('pt-BR')}`;
+
+export function comboPrice(ids, mode) {
+  const key = ['ambo', 'etha', 'minne'].filter(p => ids.includes(p)).join('+');
+  const list = ids.reduce((t, id) => t + (MONTHLY[id] || 0), 0);
+  const monthly = COMBO[key] ?? list;
+  const mult = mode === 'license' ? 10 : 1;
+  return { total: brl(monthly * mult) + (mult === 10 ? '/ano' : '/mês'), savings: list > monthly ? brl((list - monthly) * mult) : '' };
+}
+
 export function billingFor(ids, mode) {
+  const annual = mode === 'license';
   return services
     .filter(s => ids.includes(s.id))
     .map(s => ({
       id: s.id,
-      text: s.id === 'etha'
-        ? 'Criação: pagamento único. Hospedagem e painel: recorrência separada. Identidade visual essencial: adicional.'
-        : mode === 'license'
-          ? 'Licença: pagamento único, com atualizações futuras incluídas. Hospedagem e suporte separados.'
-          : 'Assinatura mensal: hospedagem, atualizações e suporte de uso incluídos.'
+      text: `${brl(MONTHLY[s.id] * (annual ? 10 : 1))}${annual ? '/ano' : '/mês'} · ${s.id === 'etha' ? 'site exclusivo, hospedagem e painel' : 'hospedagem, atualizações e suporte incluídos'}`
     }));
 }

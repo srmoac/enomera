@@ -134,7 +134,7 @@ test('1. Auth lifecycle: signup, real email verification, login, recovery + sess
   assert.equal(oldMe.status, 401);
 });
 
-test('2. Commercial simulation catalog (R$ 89 combo, Etha 50/50), idempotent checkout, declined->retry->approved, partial cancel', async () => {
+test('2. Commercial simulation catalog (R$ 79 combo Ambo + Minne), idempotent checkout, declined->retry->approved, partial cancel', async () => {
   const login = await api('/api/v1/auth/login', { method: 'POST', body: { email: 'clara.teste@exemplo.invalid', password: 'NovaSenhaSegura!2026' } });
   assert.equal(login.status, 200);
   const token = login.data.sessionToken;
@@ -143,8 +143,8 @@ test('2. Commercial simulation catalog (R$ 89 combo, Etha 50/50), idempotent che
   const quote = await api('/api/v1/catalog/quote', { method: 'POST', body: { products: ['ambo', 'minne'] } });
   assert.equal(quote.status, 200);
   assert.equal(quote.data.dueTodayCents, 0);
-  assert.equal(quote.data.referenceDueTodayCents, 8900);
-  assert.equal(quote.data.recurringMonthlyCents, 8900);
+  assert.equal(quote.data.referenceDueTodayCents, 7900);
+  assert.equal(quote.data.recurringMonthlyCents, 7900);
   assert.equal(quote.data.discountCents, 1900);
 
   // Declined checkout preserves order without activating entitlements

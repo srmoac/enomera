@@ -126,7 +126,7 @@ try {
     await sleep(450);
     await page.selectOption('#eno-etha-fmt', 'multi_page'); actions++;
     await sleep(500);
-    await page.click('#cb-etha'); actions++; // back to Ambo + Minne (R$ 89)
+    await page.click('#cb-etha'); actions++; // back to Ambo + Minne (R$ 79)
     await sleep(450);
 
     await page.screenshot({ path: path.join(SHOTS_DIR, '01-enomera-plans-desktop.png') });

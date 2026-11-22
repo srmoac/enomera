@@ -47,9 +47,9 @@ test('Resumo aprovado: produtos, desconto como linha, periodicidade e cobrança 
   const combo = buildContractSummary({ products: ['minne', 'ambo'] });
   assert.equal(combo.label, 'Ambo + Minne');
   assert.equal(combo.billingLabel, 'Mensal');
-  assert.deepEqual(combo.lines.map((l) => l.amountCents), [3900, 6900]);
+  assert.deepEqual(combo.lines.map((l) => l.amountCents), [3900, 5900]);
   assert.equal(combo.discount.amountCents, -1900);
-  assert.equal(n(combo.total), 'R$ 89,00/mês');
+  assert.equal(n(combo.total), 'R$ 79,00/mês');
   assert.equal(combo.chargedTodayCents, 0);
   assert.ok(!JSON.stringify(combo).includes('sim-v2'), 'versão interna do catálogo não aparece');
 
@@ -59,14 +59,16 @@ test('Resumo aprovado: produtos, desconto como linha, periodicidade e cobrança 
   assert.equal(n(solo.total), 'R$ 39,00/mês');
 
   const lic = buildContractSummary({ products: ['ambo', 'minne'], billing: 'permanent' });
-  assert.equal(lic.totalCents, 218000);
-  assert.equal(lic.totalLabel, 'Total da licença');
-  assert.equal(lic.discount, null);
-  assert.ok(lic.notes.some((n) => /em definição/.test(n)));
+  assert.equal(lic.totalCents, 79000, 'anual = 10 mensalidades do combo');
+  assert.equal(lic.totalLabel, 'Total anual');
+  assert.equal(lic.billingLabel, 'Anual');
+  assert.equal(lic.discount.amountCents, -19000);
 
   const etha = buildContractSummary({ products: ['etha', 'ambo', 'minne'] });
-  assert.equal(etha.totalCents, 8900, 'Etha não entra no combo mensal');
-  assert.equal(etha.etha.projectCents, 119000);
+  assert.equal(etha.totalCents, 9900, 'os três por R$ 99/mês');
+  assert.equal(buildContractSummary({ products: ['etha'] }).totalCents, 4900);
+  assert.equal(buildContractSummary({ products: ['ambo', 'etha'] }).totalCents, 6900);
+  assert.equal(buildContractSummary({ products: ['etha', 'minne'] }).totalCents, 8900);
 });
 
 test('Combinação segue por conta: e-mail → código → checkout → retorno → portal', async () => {
@@ -98,12 +100,12 @@ test('Combinação segue por conta: e-mail → código → checkout → retorno 
   const replay = await api('/api/v1/auth/email-code/verify', { method: 'POST', body: { email, code } });
   assert.notEqual(replay.status, 200);
 
-  // Retorno: altera para licença do combo, a conta continua verificada.
+  // Retorno: altera para anual do combo, a conta continua verificada.
   const put = await api('/api/v1/commercial/selection', { method: 'PUT', token, body: { products: ['ambo', 'minne'], billing: 'permanent' } });
   assert.equal(put.status, 200);
   const get = await api('/api/v1/commercial/selection', { token });
   assert.equal(get.data.selection.billing, 'permanent');
-  assert.equal(n(get.data.contract.total), 'R$ 2.180,00');
+  assert.equal(n(get.data.contract.total), 'R$ 790,00/ano');
 
   // Checkout: ativa sem cobrança hoje, com a periodicidade escolhida.
   const order = await api('/api/v1/commercial/orders', {
@@ -114,7 +116,7 @@ test('Combinação segue por conta: e-mail → código → checkout → retorno 
   assert.equal(order.status, 201);
   assert.equal(order.data.order.due_today_cents, 0);
   assert.equal(order.data.summary.contract.billing, 'permanent');
-  assert.equal(order.data.entitlements.ambo.billingMode, 'permanent_hypothesis');
+  assert.equal(order.data.entitlements.ambo.billingMode, 'annual');
   assert.equal(order.data.entitlements.minne.status, 'active');
 
   // Novo login no mesmo e-mail (outro dispositivo) recupera a combinação da conta.

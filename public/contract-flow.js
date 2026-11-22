@@ -6,9 +6,9 @@ import { otpFieldHTML } from './otp-field.js';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 export const PRODUCT_INFO = {
-  ambo: { name: 'Ambo', description: 'Agendamento e área do paciente', monthly: 'R$ 39/mês', permanent: 'R$ 790' },
-  minne: { name: 'Minne', description: 'Gestão clínica, agenda e prontuários', monthly: 'R$ 69/mês', permanent: 'R$ 1.390' },
-  etha: { name: 'Etha', description: 'Site exclusivo · hospedagem R$ 39/mês após publicar', project: 'R$ 1.190', projectMulti: 'R$ 2.190' },
+  ambo: { name: 'Ambo', description: 'Agendamento e área do paciente', monthly: 'R$ 39', annual: 'R$ 390' },
+  minne: { name: 'Minne', description: 'Gestão clínica, agenda e prontuários', monthly: 'R$ 59', annual: 'R$ 590' },
+  etha: { name: 'Etha', description: 'Site exclusivo, hospedagem e painel', monthly: 'R$ 49', annual: 'R$ 490' },
 };
 
 const ORDER = ['ambo', 'minne', 'etha'];
@@ -24,7 +24,7 @@ export function comboLabel(products = []) {
 }
 
 export function billingLabel(billing) {
-  return billing === 'permanent' ? 'Licença permanente' : 'Mensal';
+  return billing === 'permanent' ? 'Anual' : 'Mensal';
 }
 
 function flower() {
@@ -47,12 +47,9 @@ export function renderFlowStepper(step) {
 
 function priceFor(product, billing, ethaFormat) {
   const info = PRODUCT_INFO[product];
-  if (product === 'etha') {
-    return { price: ethaFormat === 'multi_page' ? info.projectMulti : info.project, cadence: 'projeto · 50% + 50%' };
-  }
   return billing === 'permanent'
-    ? { price: info.permanent, cadence: 'licença permanente' }
-    : { price: info.monthly, cadence: 'assinatura mensal' };
+    ? { price: info.annual, cadence: 'por ano' }
+    : { price: info.monthly, cadence: 'por mês' };
 }
 
 export function renderProductCard(product, { selected, billing, ethaFormat, interactive = true, notIncluded = false }) {
@@ -64,7 +61,7 @@ export function renderProductCard(product, { selected, billing, ethaFormat, inte
     <span class="eno-pc-dot" aria-hidden="true"></span>
     <span class="eno-pc-body">
       <span class="eno-pc-name">${info.name}</span>
-      <span class="eno-pc-desc">${notIncluded ? 'Não incluído nesta combinação' : product === 'etha' ? 'Site exclusivo<span class="eno-hide-sm"> · hospedagem R$ 39/mês após publicar</span>' : esc(info.description)}</span>
+      <span class="eno-pc-desc">${notIncluded ? 'Não incluído nesta combinação' : esc(info.description)}</span>
     </span>
     <span class="eno-pc-price">
       <b>${esc(price)}</b>
@@ -93,22 +90,20 @@ export function renderSummary(contract, { billing, withToggle = false, cta = '',
       ${showTitle ? '<h2 class="eno-sum-title">Sua combinação</h2>' : ''}
       <p class="eno-sum-label"><span>${esc(contract.label)}</span><span class="eno-sum-label-billing"> · ${esc(contract.billingLabel)}</span></p>
       ${withToggle && hasSaas ? `
-        <div class="eno-flow-seg" role="radiogroup" aria-label="Periodicidade de Ambo e Minne">
+        <div class="eno-flow-seg" role="radiogroup" aria-label="Periodicidade">
           <button type="button" role="radio" data-viewmode="monthly" aria-checked="${billing !== 'permanent'}">Mensal</button>
-          <button type="button" role="radio" data-viewmode="permanent" aria-checked="${billing === 'permanent'}">Licença permanente</button>
+          <button type="button" role="radio" data-viewmode="permanent" aria-checked="${billing === 'permanent'}">Anual</button>
         </div>
       ` : `<p class="eno-sum-billing">${hasSaas ? esc(contract.billingLabel) : 'Projeto'}</p>`}
       <dl class="eno-sum-lines">
         ${contract.lines.map((l) => `<div><dt>${esc(l.label)}</dt><dd>${esc(l.amount)}</dd></div>`).join('')}
         ${contract.discount ? `<div class="is-discount"><dt>${esc(contract.discount.label)}</dt><dd>${esc(contract.discount.amount)}</dd></div>` : ''}
-        ${contract.etha && hasSaas ? `<div class="is-etha"><dt>${esc(contract.etha.label)} <small>projeto · 50% + 50%</small></dt><dd>${esc(contract.etha.project)}</dd></div>` : ''}
       </dl>
       ${contract.discountHint ? `<p class="eno-sum-hint">${esc(contract.discountHint)}</p>` : ''}
       ${contract.notes.map((n) => `<p class="eno-sum-hint">${esc(n)}</p>`).join('')}
       <div class="eno-sum-total">
         <span>${esc(contract.totalLabel)}</span>
         <strong>${esc(contract.total)}</strong>
-        ${!hasSaas && contract.etha ? `<small>${esc(contract.etha.split)} · ${esc(contract.etha.hostingAfterPublish)}</small>` : ''}
       </div>
       <p class="eno-sum-today">Cobrado hoje: ${esc(contract.chargedToday)} · <span class="eno-hide-sm">${esc(contract.chargedTodayNote)}</span><span class="eno-show-sm">sem cartão</span></p>
     </div>
@@ -130,8 +125,8 @@ function renderCompactSummary(contract) {
 function footerNotes() {
   return `
     <footer class="eno-flow-foot">
-      <p>Ambo e Minne: mensal ou licença permanente. Na licença, hospedagem e suporte são separados.</p>
-      <small>Demonstração comercial · nenhuma cobrança real está disponível.</small>
+      <p>Mensal ou anual (10 mensalidades). Os primeiros 30 dias são grátis.</p>
+      <small>Nenhuma cobrança real é feita agora.</small>
     </footer>
   `;
 }
@@ -151,13 +146,6 @@ export function renderChoice({ combo, contract, signedIn, returnedFromReview }) 
           : '<p class="eno-flow-lead">Contrate um serviço ou combine. <span class="eno-hide-sm">O desconto aparece no resumo.</span></p>'}
         <div class="eno-pc-list" role="group" aria-label="Serviços">
           ${ORDER.map((p) => renderProductCard(p, { selected: sel(p), billing, ethaFormat: combo.ethaFormat })).join('')}
-          ${sel('etha') ? `
-            <label class="eno-etha-format">Formato do site
-              <select id="eno-etha-fmt" class="eno-select">
-                <option value="one_page" ${combo.ethaFormat !== 'multi_page' ? 'selected' : ''}>Página única · R$ 1.190</option>
-                <option value="multi_page" ${combo.ethaFormat === 'multi_page' ? 'selected' : ''}>Até quatro páginas · R$ 2.190</option>
-              </select>
-            </label>` : ''}
         </div>
       </div>
       <aside class="eno-flow-side">
@@ -226,8 +214,7 @@ export function renderReview({ combo, contract, me, activating }) {
   const chosen = combo.products;
   const names = namesWithE(chosen);
   // Mostra Ambo e Minne sempre; o que não foi escolhido aparece como "não incluído".
-  const saasCards = ['ambo', 'minne'].filter((p) => chosen.includes(p) || chosen.includes(p === 'ambo' ? 'minne' : 'ambo'));
-  const cards = [...saasCards, ...(chosen.includes('etha') ? ['etha'] : [])];
+  const cards = ORDER.filter((p) => chosen.includes(p));
   const cta = `
     <button type="button" class="eno-btn eno-flow-cta" id="eno-checkout-submit" ${activating ? 'aria-disabled="true" aria-busy="true"' : ''}>${activating ? '<span class="eno-spinner" aria-hidden="true"></span> Ativando…' : 'Ativar sem cobrança hoje'}</button>
     ${activating ? '<p class="eno-flow-note" role="status">Leva alguns segundos. Os controles seguem disponíveis; se você sair, a ativação continua.</p>' : ''}
@@ -244,8 +231,8 @@ export function renderReview({ combo, contract, me, activating }) {
         <div class="eno-flow-card eno-glass eno-flow-info eno-hide-sm">
           <h2>Ao ativar</h2>
           <p>${esc(names)} ${chosen.length > 1 ? 'aparecem' : 'aparece'} no seu portal na mesma hora.<br>
-          Nenhum cartão é solicitado: ativação simulada do piloto.<br>
-          ${billing === 'permanent' ? 'Hospedagem e suporte da licença: valor em definição.' : 'A periodicidade pode ser trocada depois em Outros serviços.'}</p>
+          Os primeiros 30 dias são grátis e nenhum cartão é solicitado.<br>
+          A periodicidade pode ser trocada depois em Outros serviços.</p>
         </div>
         <button type="button" class="eno-link eno-flow-change" data-flow-go="choice" id="eno-review-change">Alterar combinação</button>
       </div>

@@ -1,4 +1,4 @@
-import { services, billingFor, serviceById } from './services.js';
+import { services, billingFor, serviceById, comboPrice } from './services.js';
 import { mountEnomeraPlatform } from './platform.js';
 
 const $ = s => document.querySelector(s);
@@ -180,6 +180,7 @@ function renderCombination() {
   }
   $('#billing-summary').innerHTML = state.selected.length
     ? billingFor(state.selected, state.billing).map(row => `<div class="billing-row" data-service="${row.id}"><b>${row.id}</b><span>${row.text}</span></div>`).join('')
+      + (() => { const c = comboPrice(state.selected, state.billing); return `<div class="billing-row billing-total"><b>Total</b><span>${c.total}${c.savings ? ` · economia de ${c.savings}` : ''}</span></div>`; })()
     : '<p>Selecione um serviço para conhecer a estrutura de contratação.</p>';
   $$('[data-billing]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.billing === state.billing)));
 }
@@ -302,7 +303,7 @@ if (isPortal) {
   $('#combo-continue-cta')?.addEventListener('click', (e) => {
     const sel = state.selected.length ? state.selected.join(',') : 'ambo,minne';
     // A combinação e a periodicidade escolhidas no site seguem para o percurso de contratação.
-    const periodicidade = state.billing === 'license' ? 'licenca' : 'mensal';
+    const periodicidade = state.billing === 'license' ? 'anual' : 'mensal';
     e.currentTarget.href = `/checkout?selecao=${encodeURIComponent(sel)}&periodicidade=${periodicidade}`;
   });
 }

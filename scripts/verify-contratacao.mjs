@@ -46,14 +46,14 @@ async function run(browserType, label, viewport, scenario) {
     await page.click('[data-viewmode="permanent"]');
     await page.waitForFunction(() => /2\.180,00/.test(document.querySelector('.eno-sum-total strong')?.textContent || ''));
     const t = await page.textContent('.eno-sum');
-    check(`${tag}: licença mostra R$ 790 + R$ 1.390 e pendências em definição`, /790,00/.test(t) && /1\.390,00/.test(t) && /em definição/.test(t));
+    check(`${tag}: anual mostra R$ 390 + R$ 590 e total R$ 790/ano`, /390,00/.test(t) && /590,00/.test(t) && /790,00\/ano/.test(t));
     await shot('2-escolha-licenca');
   }
 
   await page.click('#eno-flow-continue');
   await page.waitForSelector('#eno-email');
   check(`${tag}: conta não mostra nome antes da verificação`, !/Helena|Bem-vind/.test(await page.innerText('#portal-content')));
-  const expectedLabel = scenario === 'soambo' ? 'Ambo · Mensal' : scenario === 'licenca' ? 'Ambo + Minne · Licença permanente' : 'Ambo + Minne · Mensal';
+  const expectedLabel = scenario === 'soambo' ? 'Ambo · Mensal' : scenario === 'licenca' ? 'Ambo + Minne · Anual' : 'Ambo + Minne · Mensal';
   const summaryText = (await page.textContent(viewport.width < 600 ? '.eno-sum-compact' : '.eno-flow-side .eno-sum')).replace(/\s+/g, ' ');
   check(`${tag}: conta mantém a combinação escolhida`, summaryText.includes(expectedLabel.split(' · ')[0]) && (viewport.width >= 600 || summaryText.includes(expectedLabel)), summaryText);
   await page.fill('#eno-email', email);
@@ -77,7 +77,7 @@ async function run(browserType, label, viewport, scenario) {
   const review = (await page.innerText('#portal-content')).replace(/\s+/g, ' ');
   check(`${tag}: revisão diz conta verificada`, /Conta verificada/.test(review));
   if (scenario === 'soambo') check(`${tag}: revisão mostra Minne como não incluído e total R$ 39`, /Não incluído/.test(review) && /39,00\/mês/.test(review), review.slice(0, 400));
-  else if (scenario === 'licenca') check(`${tag}: revisão mantém licença`, /Licença permanente|licença permanente/.test(review) && /2\.180,00/.test(review));
+  else if (scenario === 'licenca') check(`${tag}: revisão mantém anual`, /Anual/.test(review) && /790,00/.test(review));
   else check(`${tag}: revisão mantém combo mensal`, /89,00\/mês/.test(review));
   await shot('6-revisao');
 
@@ -120,7 +120,7 @@ async function run(browserType, label, viewport, scenario) {
     ? ents.ambo?.status === 'active' && !ents.minne
     : ents.ambo?.status === 'active' && ents.minne?.status === 'active';
   check(`${tag}: direitos ativados conforme a escolha`, okEnts, JSON.stringify(ents));
-  if (scenario === 'licenca') check(`${tag}: licença registrada como licença`, ents.ambo?.billingMode === 'permanent_hypothesis');
+  if (scenario === 'licenca') check(`${tag}: anual registrado como anual`, ents.ambo?.billingMode === 'annual');
 
   const hscroll = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
   check(`${tag}: sem rolagem horizontal`, !hscroll);
