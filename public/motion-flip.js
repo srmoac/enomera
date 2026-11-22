@@ -148,7 +148,7 @@ function ghost(html, rect, radius) {
   g.querySelectorAll('[id]').forEach((n) => n.removeAttribute('id'));
   Object.assign(g.style, {
     position: 'fixed', left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px`,
-    margin: '0', pointerEvents: 'none', zIndex: '60', boxSizing: 'border-box', borderRadius: radius || '',
+    margin: '0', pointerEvents: 'none', zIndex: '2147483000', boxSizing: 'border-box', borderRadius: radius || '',
   });
   document.body.appendChild(g);
   return g;
@@ -299,7 +299,7 @@ export function motionAutoInnerHTML() {
     enumerable: desc.enumerable,
     get() { return desc.get.call(this); },
     set(v) {
-      if (busy || !this.isConnected || !this.firstElementChild || !this.closest('[data-m-auto]') || reduced()) { desc.set.call(this, v); return; }
+      if (busy || !this.isConnected || !this.firstElementChild || this.hasAttribute('data-m-noauto') || !this.closest('[data-m-auto]') || reduced()) { desc.set.call(this, v); return; }
       busy = true;
       try {
         const snap = motionSnapshot(this);
