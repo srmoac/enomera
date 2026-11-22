@@ -180,12 +180,12 @@ export function renderAccount({ mode, email, contract, codeDigits, codeError, co
       <div class="eno-flow-main">
         ${flowLogin ? '' : renderFlowStepper('account')}
         ${isCode ? `
-          <h1 class="eno-flow-title">Digite o código<br> enviado ao seu e-mail.</h1>
+          <h1 class="eno-flow-title">Digite o código.</h1>
           <p class="eno-flow-lead">Enviado para <b>${esc(email)}</b></p>
           <form id="eno-code-form" class="eno-flow-card eno-glass" novalidate>
             ${otpFieldHTML({ value: (codeDigits || []).join(''), error: Boolean(codeError), describedBy: codeError ? 'eno-code-err' : 'eno-code-status', state: verified ? 'verified' : (busy ? 'verifying' : '') })}
             ${codeError ? `<p class="eno-flow-err" id="eno-code-err" role="alert">${esc(codeError)}</p>` : ''}
-            <p class="eno-flow-note eno-otp-status" id="eno-code-status" role="status" aria-live="polite">${verified ? 'Código confirmado. Abrindo…' : busy ? '<span class="eno-spinner" aria-hidden="true"></span> Verificando…' : codeError ? '' : 'Cole ou digite. Verificamos sozinhos ao completar.'}</p>
+            <p class="eno-flow-note eno-otp-status" id="eno-code-status" role="status" aria-live="polite">${verified ? 'Pronto. Abrindo…' : busy ? '<span class="eno-spinner" aria-hidden="true"></span> Verificando…' : codeError ? '' : 'Verificamos ao completar.'}</p>
             ${!codeError ? `<p class="eno-flow-note">${cooldown > 0
               ? `Reenviar código em ${mm}:${ss} · <button type="button" class="eno-link" id="eno-change-email">Trocar e-mail</button>`
               : `<button type="button" class="eno-link" id="eno-resend-code">Reenviar código</button> · <button type="button" class="eno-link" id="eno-change-email">Trocar e-mail</button>`}</p>` : ''}
@@ -216,7 +216,7 @@ export function renderAccount({ mode, email, contract, codeDigits, codeError, co
         ${renderSummary(contract, { billing: contract?.billing })}
         <button type="button" class="eno-link eno-flow-change" data-flow-go="choice">Alterar combinação</button>
       </aside>
-      ${footerNotes()}`}
+      `}
     </section>
   `;
 }
@@ -254,7 +254,7 @@ export function renderReview({ combo, contract, me, activating }) {
         ${renderSummary(contract, { billing, cta, busy: activating })}
         <p class="eno-flow-note eno-show-sm">Ativação simulada do piloto. ${esc(names)} ${chosen.length > 1 ? 'aparecem' : 'aparece'} no portal na mesma hora.</p>
       </aside>
-      ${footerNotes()}
+      
     </section>
   `;
 }

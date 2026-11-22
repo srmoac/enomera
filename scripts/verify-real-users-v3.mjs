@@ -204,7 +204,7 @@ try {
     await page.waitForSelector('text=Aprovado (simulação)');
     await sleep(700);
     await page.click('button:has-text("Ir para o Portal")');
-    await page.waitForSelector('text=Seus produtos prontos para uso');
+    await page.waitForSelector('text=Seus serviços');
     await sleep(750);
 
     // Capture Sofia's real slug from Portal
@@ -221,7 +221,7 @@ try {
     await page.fill('#l-email', sofiaEmail);
     await page.fill('#l-pwd', sofiaPass);
     await page.click('#eno-login-form button[type="submit"]');
-    await page.waitForSelector('text=Seus produtos prontos para uso');
+    await page.waitForSelector('text=Seus serviços');
     await sleep(700);
     await page.screenshot({ path: path.join(SHOTS_DIR, '01-sofia-portal-persisted.png') });
     report.screenshots.push('shots/01-sofia-portal-persisted.png');
@@ -240,7 +240,7 @@ try {
     await otherPage.fill('#l-email', sofiaEmail);
     await otherPage.fill('#l-pwd', sofiaPass);
     await otherPage.click('#eno-login-form button[type="submit"]');
-    await otherPage.waitForSelector('text=Seus produtos prontos para uso');
+    await otherPage.waitForSelector('text=Seus serviços');
     const otherDeviceHasAll3 = await otherPage.evaluate(() =>
       document.body.innerText.includes('Ambo · active') &&
       document.body.innerText.includes('Minne · active') &&

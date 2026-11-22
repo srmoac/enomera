@@ -210,7 +210,7 @@ try {
     await sleep(700);
 
     await page.click('button:has-text("Ir para o Portal")'); actions++;
-    await page.waitForSelector('text=Seus produtos prontos para uso');
+    await page.waitForSelector('text=Seus serviços');
     await sleep(900);
     await page.screenshot({ path: path.join(SHOTS_DIR, '04-enomera-portal-unlocked.png') });
     metrics.screenshots.push('shots/04-enomera-portal-unlocked.png');

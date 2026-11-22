@@ -486,7 +486,7 @@ export async function mountEnomeraPlatform(rootEl) {
       }[prod];
       const actions = {
         ambo: `<button type="button" class="eno-btn eno-btn-ambo" data-launch="ambo" data-path="/?pro=${encodeURIComponent(s.account.slug)}">Ver perfil público ↗</button>
-               <button type="button" class="eno-btn eno-btn-sec" data-launch="ambo" data-path="/operacao">Abrir solicitações ↗</button>`,
+               <button type="button" class="eno-btn eno-btn-sec" data-launch="ambo" data-path="/operacao">Abrir agenda do Ambo ↗</button>`,
         minne: `<button type="button" class="eno-btn eno-btn-minne" data-launch="minne" data-path="/?modo=ao-vivo">Abrir Minne ↗</button>
                 <button type="button" class="eno-btn eno-btn-sec" data-launch="minne" data-path="/?modo=ao-vivo&aba=importar">Importar prontuários ↗</button>`,
         etha: `<button type="button" class="eno-btn eno-btn-etha" data-launch="etha" data-path="/?modo=ao-vivo">Abrir Etha ↗</button>
@@ -509,13 +509,11 @@ export async function mountEnomeraPlatform(rootEl) {
         <div class="eno-card eno-card-highlight">
           <div class="eno-row" style="background:transparent;border:0;padding:0">
             <div>
-              <span class="eno-pill">PORTAL PROFISSIONAL · ${esc(s.account.displayName)} ${s.account.crpOrCrm ? `· ${esc(s.account.crpOrCrm)}` : ''}</span>
-              <h1 class="eno-h1" style="margin-top:8px">${activeCount ? 'Seus produtos prontos para uso' : 'Bem-vinda! Escolha seu ponto de partida'}</h1>
-              <p class="eno-muted">Primeira ação recomendada agora: <b>${esc(s.nextAction.label)}</b></p>
+              <h1 class="eno-h1">${activeCount ? 'Seus serviços' : 'Escolha seu ponto de partida'}</h1>
               ${chosen ? `<p class="eno-muted" data-portal-combo>${activeProducts.length ? 'Seus serviços' : 'Sua combinação'}: <b>${esc(chosen)}</b> · <button type="button" class="eno-link" data-tab="plans">${activeProducts.length ? 'Ver outros serviços' : 'Alterar'}</button></p>` : ''}
             </div>
             <div class="eno-btn-row">
-              ${!state.me.user.emailVerified ? `<button type="button" class="eno-btn eno-btn-sec" id="eno-go-verify">Verificar e-mail pendente</button>` : `<span class="eno-pill eno-pill-ok">E-mail verificado</span>`}
+              ${!state.me.user.emailVerified ? `<button type="button" class="eno-btn eno-btn-sec" id="eno-go-verify">Verificar e-mail pendente</button>` : ''}
               <button type="button" class="eno-btn eno-btn-sec" data-tab="profile">Configurar disponibilidade</button>
             </div>
           </div>
@@ -696,6 +694,20 @@ export async function mountEnomeraPlatform(rootEl) {
     motionTracker.prevViewMode = state.combo.viewMode;
 
     const flowTab = ['plans', 'auth', 'review'].includes(state.tab);
+    // Troca de tela ou de etapa: o conteúdo novo entra em cascata, na direção do percurso.
+    const ROUTE_ORDER = ['plans', 'auth:email', 'auth:signup', 'auth:code', 'review', 'portal', 'profile', 'billing', 'pilot'];
+    const routeKey = state.tab === 'auth' ? `auth:${state.authMode === 'code' ? 'code' : 'email'}` : state.tab;
+    const prevRoute = motionTracker.prevRoute;
+    motionTracker.prevRoute = routeKey;
+    const routeDir = !prevRoute || prevRoute === routeKey ? '' : ROUTE_ORDER.indexOf(routeKey) < ROUTE_ORDER.indexOf(prevRoute) ? 'back' : 'fwd';
+    const markRoute = () => {
+      if (!routeDir) return;
+      const c = rootEl.querySelector('#portal-content');
+      if (!c) return;
+      c.dataset.routeIn = routeDir;
+      clearTimeout(motionTracker.routeTimer);
+      motionTracker.routeTimer = setTimeout(() => { if (c.isConnected) delete c.dataset.routeIn; }, 700);
+    };
     if (flowTab) {
       const contract = state.combo.products.length ? state.quote?.contract || null : null;
       const flowView = state.tab === 'auth'
@@ -711,11 +723,13 @@ export async function mountEnomeraPlatform(rootEl) {
           devCode: state.devCode,
           deliveryNote: '',
           fieldError: state.fieldError?.field === 'email' ? state.fieldError.text : '',
-          login: !['review', 'plans'].includes(state.returnAfterAuth) && !location.pathname.startsWith('/conta'),
+          // "Entrar" é só login: nem etapas nem preço, inclusive depois de enviar o código (a URL vira /conta).
+          login: !['review', 'plans'].includes(state.returnAfterAuth),
         })
         : state.tab === 'review'
           ? renderReview({ combo: state.combo, contract, me: state.me, activating: state.activating })
           : renderChoice({ combo: state.combo, contract, signedIn: Boolean(state.me), returnedFromReview: state.returnedFromReview && Boolean(state.me) });
+      queueMicrotask(markRoute);
       rootEl.innerHTML = `<div class="eno-shell eno-flow-shell"><header class="eno-flow-top"><a class="eno-brand" href="/"><img src="/assets/brand.svg" width="32" height="27" alt="">enomera</a>${state.me ? `<button type="button" class="eno-link" data-tab="portal">Ir ao portal</button>` : '<a class="eno-link" href="/">Voltar ao site</a>'}</header><main class="eno-container" id="portal-content" tabindex="-1">${renderInfraAlert()}${state.feedback && state.feedback.tone === 'err' ? renderFeedback() : ''}${flowView}</main></div>`;
       bindEvents();
       // Troca de etapa: foco no título da etapa nova e anúncio "Etapa N de 4".
@@ -750,6 +764,7 @@ export async function mountEnomeraPlatform(rootEl) {
       : renderPortalView();
 
     rootEl.innerHTML = `<div class="eno-shell"><img class="eno-flower-watermark" src="/assets/flower.svg" alt="" aria-hidden="true">${renderTopbar()}<div class="eno-container" id="portal-content" tabindex="-1">${renderInfraAlert()}${renderFeedback()}${view}</div></div>`;
+    markRoute();
     animateSegmentedIndicators();
     bindEvents();
 

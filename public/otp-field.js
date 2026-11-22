@@ -10,7 +10,7 @@ export function otpFieldHTML({ id = 'otp-0', value = '', error = false, describe
   if (state === 'verifying') cls.push('is-verifying');
   if (state === 'verified') cls.push('is-verified');
   const slots = [0, 1, 2, 3, 4, 5]
-    .map((i) => `<span class="eno-otp-digit${v[i] ? ' is-filled' : ''}" data-slot="${i}" aria-hidden="true">${esc(v[i] || '')}</span>`)
+    .map((i) => `<span class="eno-otp-digit${v[i] ? ' is-filled' : ''}" data-slot="${i}" data-d="${esc(v[i] || '')}" style="--slot-i:${i}" aria-hidden="true">${v[i] ? `<span class="eno-otp-d">${esc(v[i])}</span>` : ''}</span>`)
     .join('');
   return `<div class="${cls.join(' ')}" id="eno-otp-group">
     <input id="${esc(id)}" name="code" class="eno-otp-input" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" enterkeyhint="done" maxlength="6" spellcheck="false" autocapitalize="off" value="${esc(v)}" aria-label="${esc(label)}" aria-invalid="${error ? 'true' : 'false'}"${describedBy ? ` aria-describedby="${esc(describedBy)}"` : ''}${state === 'verifying' || state === 'verified' ? ' readonly' : ''}>
@@ -36,7 +36,11 @@ export function bindOtpField(root, { onChange, onComplete, lastAuto } = {}) {
     const focused = document.activeElement === input;
     const activeIdx = focused && !input.readOnly ? Math.min(v.length, 5) : -1;
     slots.forEach((s, i) => {
-      s.textContent = v[i] || '';
+      // Só recria o dígito quando ele muda: assim a entrada anima uma vez por dígito.
+      if ((s.dataset.d || '') !== (v[i] || '')) {
+        s.dataset.d = v[i] || '';
+        s.innerHTML = v[i] ? `<span class="eno-otp-d">${v[i]}</span>` : '';
+      }
       s.classList.toggle('is-filled', Boolean(v[i]));
       s.classList.toggle('is-active', i === activeIdx);
       s.classList.toggle('is-caret', i === activeIdx && !v[i]);
