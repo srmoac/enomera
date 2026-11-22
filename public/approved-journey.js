@@ -9,10 +9,10 @@ export function approvedSummary(s) {
   const q = s.quote;
   return `<aside class="eno-card eno-contract-summary" aria-label="Sua combinação">
     <h2 class="eno-h2">Sua combinação</h2><p class="eno-summary-products">${escape(combination(s) || 'Escolha um serviço')}</p>
-    ${s.combo.products.includes('ambo') && s.combo.products.includes('minne') ? '<p class="eno-muted eno-summary-discount"><span class="eno-summary-reference">Ambo R$ 39 + Minne R$ 69<br></span>Desconto do combo: −R$ 19/mês</p>' : ''}
+    ${s.combo.products.includes('ambo') && s.combo.products.includes('minne') ? '<p class="eno-muted eno-summary-discount"><span class="eno-summary-reference">Ambo R$ 39 + Minne R$ 59<br></span>Desconto do combo: −R$ 19/mês</p>' : ''}
     ${q ? `<p class="eno-summary-total" aria-live="polite">${s.quotePending ? 'Calculando…' : `${money(q.recurringMonthlyCents)} <span>/ mês</span>`}</p>
-      ${s.combo.products.includes('etha') ? `<p class="eno-muted">Site: ${money(q.referenceDueTodayCents - q.recurringMonthlyCents)} de entrada prevista + ${money(q.balanceOnApprovalCents)} na entrega.<br>Hospedagem: R$ 39/mês após publicar.</p>` : ''}
-      <p class="eno-muted eno-summary-simulation">Assinatura mensal · valores de simulação</p><p class="eno-today">Cobrado hoje: <strong>R$ 0,00</strong></p>` : '<p class="eno-muted">Selecione os produtos para ver os valores.</p>'}
+      
+      <p class="eno-muted eno-summary-simulation">Assinatura mensal · 30 dias grátis</p><p class="eno-today">Cobrado hoje: <strong>R$ 0,00</strong></p>` : '<p class="eno-muted">Selecione os produtos para ver os valores.</p>'}
   </aside>`;
 }
 
@@ -66,10 +66,10 @@ export function approvedPlans(s) {
       </div>${approvedSummary(s)}</div></section>`;
   }
   return `<section class="eno-approved-main"><h1 class="eno-h1" tabindex="-1">O que sua prática precisa agora?</h1><div class="eno-grid-2"><div class="eno-list eno-product-selection">
-    ${[['ambo','R$ 39/mês','Agendamento e acompanhamento do paciente.'],['minne','R$ 69/mês','Agenda e organização da rotina profissional.']].map(([id,price,description]) => `<label class="eno-check-card" data-prod="${id}" data-selected="${selected(id)}"><span><strong>${selected(id) ? 'Selecionado' : 'Selecionar'} · ${names[id]}</strong><span class="eno-product-price">${price}</span><span class="eno-product-description">${description}</span></span><input type="checkbox" data-toggle-prod="${id}" aria-label="Selecionar ${names[id]}" ${selected(id) ? 'checked' : ''}></label>`).join('')}
+    ${[['ambo','R$ 39/mês','Agendamento e acompanhamento do paciente.'],['minne','R$ 59/mês','Agenda e organização da rotina profissional.']].map(([id,price,description]) => `<label class="eno-check-card" data-prod="${id}" data-selected="${selected(id)}"><span><strong>${selected(id) ? 'Selecionado' : 'Selecionar'} · ${names[id]}</strong><span class="eno-product-price">${price}</span><span class="eno-product-description">${description}</span></span><input type="checkbox" data-toggle-prod="${id}" aria-label="Selecionar ${names[id]}" ${selected(id) ? 'checked' : ''}></label>`).join('')}
     <div class="eno-summary-mobile">${approvedSummary(s)}</div>
-    <article class="eno-etha-offer"><button class="eno-text-button" type="button" id="eno-etha-info" aria-expanded="${Boolean(s.showEtha)}"><strong>Conhecer · Etha</strong><span>R$ 1.190 · 50/50 + hospedagem após publicar</span><span>Site exclusivo · Conhecer o serviço</span></button>
-      ${s.showEtha || selected('etha') ? `<div class="eno-list eno-etha-details"><p>Um site autoral para sua prática, com briefing, edição, prévia e publicação.</p><label class="eno-field" for="eno-etha-fmt">Formato do site<select id="eno-etha-fmt" class="eno-select"><option value="one_page" ${s.combo.ethaFormat === 'one_page' ? 'selected' : ''}>Página única · R$ 1.190</option><option value="multi_page" ${s.combo.ethaFormat === 'multi_page' ? 'selected' : ''}>Até quatro páginas · R$ 2.190</option></select></label><p class="eno-muted">50% na entrada e 50% na entrega. Hospedagem de R$ 39/mês somente após publicação. Nesta homologação, o valor cobrado é R$ 0.</p><label class="eno-check-card" data-selected="${selected('etha')}"><span>Incluir Etha nesta contratação</span><input type="checkbox" data-toggle-prod="etha" aria-label="Selecionar Etha" ${selected('etha') ? 'checked' : ''}></label></div>` : ''}
+    <article class="eno-etha-offer"><button class="eno-text-button" type="button" id="eno-etha-info" aria-expanded="${Boolean(s.showEtha)}"><strong>Conhecer · Etha</strong><span>R$ 49/mês · site, hospedagem e painel</span><span>Site exclusivo · Conhecer o serviço</span></button>
+      ${s.showEtha || selected('etha') ? `<div class="eno-list eno-etha-details"><p>Um site autoral para sua prática, com briefing, edição, prévia e publicação.</p><p class="eno-muted">R$ 49/mês com site, hospedagem e painel. Nesta homologação, o valor cobrado é R$ 0.</p><label class="eno-check-card" data-selected="${selected('etha')}"><span>Incluir Etha nesta contratação</span><input type="checkbox" data-toggle-prod="etha" aria-label="Selecionar Etha" ${selected('etha') ? 'checked' : ''}></label></div>` : ''}
     </article>
     <button class="eno-btn" type="button" id="eno-continue-selection" ${!s.combo.products.length || !q || s.quotePending ? 'disabled' : ''}>Continuar com esta combinação</button>
     </div><div class="eno-summary-desktop">${approvedSummary(s)}</div></div></section>`;

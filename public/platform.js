@@ -49,7 +49,7 @@ const STATUS_LABELS = {
   published: 'Site publicado', confirmed: 'Confirmado',
 };
 const statusLabel = (status) => STATUS_LABELS[status] || 'Em andamento';
-const BILLING_LABELS = { monthly: 'Mensal', subscription: 'Mensal', permanent: 'Licença permanente', license: 'Licença permanente', trial: 'Teste de 7 dias' };
+const BILLING_LABELS = { monthly: 'Mensal', subscription: 'Mensal', permanent: 'Anual', annual: 'Anual', license: 'Anual', trial: '30 dias grátis' };
 const SYNC_LABELS = {};
 const loadingSkeleton = (label, cards = 3) => `<div class="eno-skeleton" role="status" aria-busy="true"><span class="eno-sr-only">${label}</span>${Array.from({ length: cards }, () => '<div class="eno-skeleton-card" aria-hidden="true"><span class="eno-skeleton-line is-title"></span><span class="eno-skeleton-line"></span><span class="eno-skeleton-line is-short"></span></div>').join('')}</div>`;
 
@@ -187,7 +187,7 @@ export async function mountEnomeraPlatform(rootEl) {
     if (prods.length) { state.combo.products = prods; state.comboDirty = true; saveCombo(state.combo); }
   }
   if (qs.get('periodicidade')) {
-    state.combo.viewMode = qs.get('periodicidade') === 'licenca' ? 'permanent' : 'monthly';
+    state.combo.viewMode = ['anual', 'licenca'].includes(qs.get('periodicidade')) ? 'permanent' : 'monthly';
     state.comboDirty = true;
     saveCombo(state.combo);
   }
@@ -472,7 +472,7 @@ export async function mountEnomeraPlatform(rootEl) {
     const chosen = activeProducts.length
       ? comboLabel(activeProducts)
       : state.combo.products.length
-        ? `${comboLabel(state.combo.products)} · ${state.combo.viewMode === 'permanent' ? 'Licença permanente' : 'Mensal'}`
+        ? `${comboLabel(state.combo.products)} · ${state.combo.viewMode === 'permanent' ? 'Anual' : 'Mensal'}`
         : '';
     const productCard = (prod, owned) => {
       const ent = e[prod];
@@ -492,7 +492,7 @@ export async function mountEnomeraPlatform(rootEl) {
         etha: `<button type="button" class="eno-btn eno-btn-etha" data-launch="etha" data-path="/?modo=ao-vivo">Abrir Etha ↗</button>
                <button type="button" class="eno-btn eno-btn-sec" data-launch="helena" data-path="/?site=${encodeURIComponent(s.account.slug)}">Ver site publicado ↗</button>`,
       }[prod];
-      const offer = prod === 'etha' ? 'Adicionar site Etha' : 'Contratar ou testar 7 dias';
+      const offer = prod === 'etha' ? 'Adicionar site Etha' : 'Contratar ou testar 30 dias grátis';
       return `
         <article class="eno-card ${ent?.canReadExport ? `eno-card-${prod}` : ''}">
           ${pill}
@@ -626,7 +626,7 @@ export async function mountEnomeraPlatform(rootEl) {
       <section class="eno-card eno-panel-enter" style="max-width:760px">
         <span class="eno-pill eno-pill-etha">PILOTO ACOMPANHADO · 2 SEMANAS</span>
         <h1 class="eno-h1">Solicitar participação no piloto acompanhado</h1>
-        <p class="eno-muted">Duas semanas gratuitas com acompanhamento próximo (2 a 3 profissionais, sem cobrança). Distinto do teste comercial de 7 dias sem cartão.</p>
+        <p class="eno-muted">30 dias grátis com acompanhamento próximo, sem cartão e sem cobrança.</p>
         <form id="eno-pilot-form" class="eno-list">
           <div class="eno-field"><label for="pl-name">Nome completo</label><input id="pl-name" name="fullName" class="eno-input" required value="${esc(state.me?.user?.fullName || '')}"></div>
           <div class="eno-field"><label for="pl-email">E-mail</label><input id="pl-email" name="email" type="email" class="eno-input" required value="${esc(state.me?.user?.email || '')}"></div>
@@ -1321,7 +1321,7 @@ export async function mountEnomeraPlatform(rootEl) {
       const res = await apiFetch('/api/v1/commercial/trial/start', { method: 'POST', body: { products: state.combo.products } });
       state.busyAction = null;
       if (!res.ok) { state.feedback = { tone: 'err', text: res.data.error }; render(); return; }
-      state.feedback = { tone: 'ok', text: `Teste comercial de 7 dias ativado até ${res.data.trialEndsAt.slice(0, 10)} (sem cartão).` };
+      state.feedback = { tone: 'ok', text: `30 dias grátis ativados até ${res.data.trialEndsAt.slice(0, 10)} (sem cartão).` };
       state.tab = 'portal';
       await refreshSessionAndData();
     });

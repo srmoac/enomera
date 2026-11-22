@@ -47,7 +47,7 @@ export async function seedHomologAccounts(db) {
         await tx.run(
           `INSERT INTO entitlements (id, account_id, product, status, billing_mode, current_period_end, updated_at)
            VALUES (?, ?, ?, 'active', ?, ?, ?)`,
-          randomId('ent'), accountId, prod, prod === 'etha' ? 'one_time_plus_hosting' : 'monthly', addDaysIso(30), now
+          randomId('ent'), accountId, prod, 'monthly', addDaysIso(30), now
         );
       }
       for (const weekday of [1, 2, 3, 4, 5]) {
@@ -133,7 +133,7 @@ export async function seedDatabase(db) {
       await tx.run(
         `INSERT INTO entitlements (id, account_id, product, status, billing_mode, current_period_end, updated_at)
          VALUES (?, ?, ?, 'active', ?, ?, ?)`,
-        randomId('ent'), helenaAccId, prod, prod === 'etha' ? 'one_time_plus_hosting' : 'monthly', addDaysIso(30), now
+        randomId('ent'), helenaAccId, prod, 'monthly', addDaysIso(30), now
       );
     }
 
