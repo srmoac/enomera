@@ -57,53 +57,54 @@ export function renderProductCard(product, { selected, billing, ethaFormat, inte
   const { price, cadence } = priceFor(product, billing, ethaFormat);
   const mark = selected ? '✓' : '○';
   const inner = `
-    <span class="eno-pc-mark" aria-hidden="true">${mark}</span>
+    <span class="eno-pc-mark m-pop" aria-hidden="true">${mark}</span>
     <span class="eno-pc-dot" aria-hidden="true"></span>
     <span class="eno-pc-body">
       <span class="eno-pc-name">${info.name}</span>
       <span class="eno-pc-desc">${notIncluded ? 'Não incluído nesta combinação' : esc(info.description)}</span>
     </span>
     <span class="eno-pc-price">
-      <b>${esc(price)}</b>
-      <small>${esc(cadence)}</small>
+      <b data-m-key="pc-price-${product}" data-m-num>${esc(price)}</b>
+      <small data-m-key="pc-cad-${product}" data-m-num>${esc(cadence)}</small>
     </span>
   `;
   if (!interactive) {
-    return `<div class="eno-pc eno-pc-${product} ${selected ? 'is-selected' : ''} ${notIncluded ? 'is-excluded' : ''}" data-prod="${product}">${inner}</div>`;
+    return `<div class="eno-pc eno-pc-${product} ${selected ? 'is-selected' : ''} ${notIncluded ? 'is-excluded' : ''}" data-prod="${product}" data-m-key="pc-${product}" data-m-state="${selected ? 'on' : 'off'}">${inner}</div>`;
   }
-  return `<button type="button" class="eno-pc eno-pc-${product} ${selected ? 'is-selected' : ''}" data-toggle-prod="${product}" aria-pressed="${selected}" aria-label="${info.name}, ${esc(price)} ${esc(cadence)}">${inner}</button>`;
+  return `<button type="button" class="eno-pc eno-pc-${product} ${selected ? 'is-selected' : ''}" data-toggle-prod="${product}" data-m-key="pc-${product}" data-m-state="${selected ? 'on' : 'off'}" aria-pressed="${selected}" aria-label="${info.name}, ${esc(price)} ${esc(cadence)}">${inner}</button>`;
 }
 
 export function renderSummary(contract, { billing, withToggle = false, cta = '', showTitle = true, busy = false } = {}) {
   if (!contract) {
     return `
-      <div class="eno-sum eno-glass" aria-live="polite">
+      <div class="eno-sum eno-glass" aria-live="polite" data-m-key="sum" data-m-size>
         ${showTitle ? '<h2 class="eno-sum-title">Sua combinação</h2>' : ''}
-        <p class="eno-sum-empty">Escolha ao menos um serviço para ver o resumo.</p>
+        <p class="eno-sum-empty" data-m-key="sum-empty">Escolha ao menos um serviço para ver o resumo.</p>
       </div>
       ${cta}
     `;
   }
   const hasSaas = contract.lines.length > 0;
   return `
-    <div class="eno-sum eno-glass ${busy ? 'is-busy' : ''}" aria-live="polite">
+    <div class="eno-sum eno-glass ${busy ? 'is-busy' : ''}" aria-live="polite" data-m-key="sum" data-m-size>
       ${showTitle ? '<h2 class="eno-sum-title">Sua combinação</h2>' : ''}
-      <p class="eno-sum-label"><span>${esc(contract.label)}</span><span class="eno-sum-label-billing"> · ${esc(contract.billingLabel)}</span></p>
+      <p class="eno-sum-label" data-m-key="sum-label"><span data-m-key="sum-label-text" data-m-num>${esc(contract.label)}</span><span class="eno-sum-label-billing"> · ${esc(contract.billingLabel)}</span></p>
       ${withToggle && hasSaas ? `
-        <div class="eno-flow-seg" role="radiogroup" aria-label="Periodicidade">
-          <button type="button" role="radio" data-viewmode="monthly" aria-checked="${billing !== 'permanent'}">Mensal</button>
-          <button type="button" role="radio" data-viewmode="permanent" aria-checked="${billing === 'permanent'}">Anual</button>
+        <div class="eno-flow-seg" role="radiogroup" aria-label="Periodicidade" data-m-key="seg">
+          <span class="eno-seg-pill" data-m-key="seg-pill" data-active="${billing === 'permanent' ? '1' : '0'}" aria-hidden="true"></span>
+          <button type="button" role="radio" data-viewmode="monthly" data-m-key="seg-m" data-m-state="${billing !== 'permanent'}" aria-checked="${billing !== 'permanent'}">Mensal</button>
+          <button type="button" role="radio" data-viewmode="permanent" data-m-key="seg-a" data-m-state="${billing === 'permanent'}" aria-checked="${billing === 'permanent'}">Anual</button>
         </div>
       ` : `<p class="eno-sum-billing">${hasSaas ? esc(contract.billingLabel) : 'Projeto'}</p>`}
       <dl class="eno-sum-lines">
-        ${contract.lines.map((l) => `<div><dt>${esc(l.label)}</dt><dd>${esc(l.amount)}</dd></div>`).join('')}
-        ${contract.discount ? `<div class="is-discount"><dt>${esc(contract.discount.label)}</dt><dd>${esc(contract.discount.amount)}</dd></div>` : ''}
+        ${contract.lines.map((l) => `<div data-m-key="line-${esc(l.product)}"><dt>${esc(l.label)}</dt><dd data-m-key="line-amt-${esc(l.product)}" data-m-num>${esc(l.amount)}</dd></div>`).join('')}
+        ${contract.discount ? `<div class="is-discount" data-m-key="line-discount"><dt>${esc(contract.discount.label)}</dt><dd data-m-key="line-amt-discount" data-m-num>${esc(contract.discount.amount)}</dd></div>` : ''}
       </dl>
-      ${contract.discountHint ? `<p class="eno-sum-hint">${esc(contract.discountHint)}</p>` : ''}
-      ${contract.notes.map((n) => `<p class="eno-sum-hint">${esc(n)}</p>`).join('')}
-      <div class="eno-sum-total">
-        <span>${esc(contract.totalLabel)}</span>
-        <strong>${esc(contract.total)}</strong>
+      ${contract.discountHint ? `<p class="eno-sum-hint" data-m-key="sum-hint" data-m-num>${esc(contract.discountHint)}</p>` : ''}
+      ${contract.notes.map((n, i) => `<p class="eno-sum-hint" data-m-key="sum-note-${i}">${esc(n)}</p>`).join('')}
+      <div class="eno-sum-total" data-m-key="sum-total">
+        <span data-m-key="sum-total-label" data-m-num>${esc(contract.totalLabel)}</span>
+        <strong data-m-key="sum-total-value" data-m-num>${esc(contract.total)}</strong>
       </div>
       <p class="eno-sum-today">Cobrado hoje: ${esc(contract.chargedToday)} · <span class="eno-hide-sm">${esc(contract.chargedTodayNote)}</span><span class="eno-show-sm">sem cartão</span></p>
     </div>
@@ -135,7 +136,7 @@ export function renderChoice({ combo, contract, signedIn, returnedFromReview }) 
   const billing = combo.viewMode === 'permanent' ? 'permanent' : 'monthly';
   const sel = (p) => combo.products.includes(p);
   const ctaLabel = returnedFromReview ? 'Voltar à revisão' : signedIn ? 'Continuar · revisar e ativar' : 'Continuar · verificar conta';
-  const cta = `<button type="button" class="eno-btn eno-flow-cta" id="eno-flow-continue" ${combo.products.length ? '' : 'disabled'}>${ctaLabel}</button>`;
+  const cta = `<button type="button" class="eno-btn eno-flow-cta" id="eno-flow-continue" data-m-key="flow-cta" data-m-state="${combo.products.length ? 'on' : 'off'}" ${combo.products.length ? '' : 'disabled'}>${ctaLabel}</button>`;
   return `
     <section class="eno-flow eno-flow-choice" data-flow-step="choice">
       <div class="eno-flow-main">

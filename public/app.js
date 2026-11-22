@@ -1,5 +1,8 @@
 import { services, billingFor, serviceById, comboPrice } from './services.js';
 import { mountEnomeraPlatform } from './platform.js';
+import { motionAutoInnerHTML } from './motion-flip.js';
+
+motionAutoInnerHTML();
 
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];

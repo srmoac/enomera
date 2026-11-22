@@ -1,3 +1,4 @@
+import { motionSnapshot, motionPlay } from './motion-flip.js';
 import {
   comboLabel,
   namesWithE,
@@ -751,7 +752,13 @@ export async function mountEnomeraPlatform(rootEl) {
     requestAnimationFrame(() => { live.textContent = text; });
   }
 
+  // Cada re-render passa pelo FLIP: o que mudou na mesma tela anima do estado antigo ao novo.
   function render() {
+    const snap = motionSnapshot(rootEl);
+    renderInner();
+    motionPlay(rootEl, snap, { route: Boolean(motionTracker.lastRouteDir) });
+  }
+  function renderInner() {
     const active = document.activeElement;
     const focusKey = active?.id
       ? { by: 'id', val: active.id }
@@ -778,6 +785,7 @@ export async function mountEnomeraPlatform(rootEl) {
     motionTracker.prevRoute = routeKey;
     // Primeira pintura (vinda de outra página): entra para a frente. Re-render da mesma tela: nada anima.
     const routeDir = !prevRoute ? 'fwd' : prevRoute === routeKey ? '' : ROUTE_ORDER.indexOf(routeKey) < ROUTE_ORDER.indexOf(prevRoute) ? 'back' : 'fwd';
+    motionTracker.lastRouteDir = routeDir;
     const markRoute = () => {
       if (!routeDir) return;
       const c = rootEl.querySelector('#portal-content');

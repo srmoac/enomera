@@ -140,3 +140,36 @@ dialog, [role="dialog"], .eno-flow-side, .eno-sheet { overscroll-behavior: conta
 .eno-legal-note { font-size: 13px; opacity: .8; }
 .eno-legal-note .eno-link { display: inline; min-height: 0; padding: 0; }
 .foot-legal a { display: inline; padding: 0; min-height: 0; }
+
+/* ---------- Seletores e cartões da contratação (22 nov, 19h50) ---------- */
+.eno-flow-seg { position: relative; isolation: isolate; }
+.eno-flow-seg button, .eno-flow-seg button[aria-checked="true"] { background: transparent; position: relative; z-index: 1; }
+.eno-flow-seg button[aria-checked="true"] { color: #fff; }
+.eno-seg-pill { position: absolute; z-index: 0; top: 4px; bottom: 4px; left: 4px; width: calc(50% - 6px); border-radius: 999px;
+  background: var(--flow-accent); box-shadow: 0 6px 16px -8px rgb(40 60 140 / .55), inset 0 1px 0 rgb(255 255 255 / .25); }
+.eno-seg-pill[data-active="1"] { transform: translateX(calc(100% + 4px)); }
+button.eno-pc { transition: transform 140ms var(--eno-ease-out), box-shadow 220ms var(--eno-ease-out); }
+button.eno-pc:active { transform: scale(.985); }
+.eno-pc-mark { display: inline-block; }
+.eno-sum-lines > div, .eno-pc-price b, .eno-pc-price small, .eno-sum-total strong, .eno-sum-total span { will-change: auto; }
+.eno-sum-total strong { display: inline-block; }
+.eno-pc-price b, .eno-pc-price small { display: inline-block; }
+.eno-flow-seg button:active { transform: scale(.97); transition: transform 120ms var(--eno-ease-out); }
+
+/* Re-render da mesma tela não reanima nada: a entrada é da cascata de rota e o resto
+   (estados, números, alturas, itens que entram/saem) é do motion-flip.js. */
+.eno-panel-enter { animation: none; }
+
+/* Toda peça interativa responde: estado muda com transição de cor e o toque afunda de leve. */
+@media (prefers-reduced-motion: no-preference) {
+  button, .button, .eno-btn, .eno-link, .eno-tab, .text-link, [role="button"], [role="radio"], [role="tab"], select, input, textarea, .service-option, .stat {
+    transition-property: background-color, color, border-color, box-shadow, opacity, transform, filter;
+    transition-duration: 180ms;
+    transition-timing-function: cubic-bezier(.23, 1, .32, 1);
+  }
+  button:not(:disabled):active, .button:active, .eno-btn:not(:disabled):active, [role="button"]:active, .service-option:active, .stat:active { transform: scale(.97); transition-duration: 90ms; }
+  .eno-link:active, .text-link:active { opacity: .7; }
+  input:focus-visible, select:focus-visible, textarea:focus-visible { transition-duration: 140ms; }
+  .choice-group button[aria-pressed="true"], .billing-toggle button[aria-pressed="true"] { animation: enoPressPop 320ms cubic-bezier(.34, 1.56, .64, 1); }
+}
+@keyframes enoPressPop { 0% { transform: scale(.94); } 100% { transform: none; } }
