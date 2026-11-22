@@ -7,6 +7,7 @@ import {
   renderActivationBanner,
   renderChoice,
   renderReview,
+  setPilotFree,
 } from './contract-flow.js';
 import { bindOtpField } from './otp-field.js';
 const TOKEN_KEY = 'enomera_session_token_v1';
@@ -51,7 +52,7 @@ const STATUS_LABELS = {
   published: 'Site publicado', confirmed: 'Confirmado',
 };
 const statusLabel = (status) => STATUS_LABELS[status] || 'Em andamento';
-const BILLING_LABELS = { monthly: 'Mensal', subscription: 'Mensal', permanent: 'Anual', annual: 'Anual', license: 'Anual', trial: '30 dias grátis' };
+const BILLING_LABELS = { monthly: 'Mensal', subscription: 'Mensal', permanent: 'Anual', annual: 'Anual', license: 'Anual', trial: '30 dias grátis', pilot: 'Grátis no piloto' };
 const SYNC_LABELS = {};
 const loadingSkeleton = (label, cards = 3) => `<div class="eno-skeleton" role="status" aria-busy="true"><span class="eno-sr-only">${label}</span>${Array.from({ length: cards }, () => '<div class="eno-skeleton-card" aria-hidden="true"><span class="eno-skeleton-line is-title"></span><span class="eno-skeleton-line"></span><span class="eno-skeleton-line is-short"></span></div>').join('')}</div>`;
 
@@ -239,6 +240,7 @@ export async function mountEnomeraPlatform(rootEl) {
     if (catRes.ok) state.catalog = catRes.data;
     if (meRes.ok) {
       state.me = meRes.data;
+      try { if (state.me?.pilot?.free) localStorage.setItem('eno_piloto_gratis', '1'); else localStorage.removeItem('eno_piloto_gratis'); } catch {}
       if (state.me.actorType === 'professional') {
         const [sumRes, ordRes, profRes] = await Promise.all([
           apiFetch('/api/v1/portal/summary'),
@@ -435,7 +437,7 @@ export async function mountEnomeraPlatform(rootEl) {
   function renderTopbar() {
     const authed = Boolean(state.me);
     const tabs = authed
-      ? [['portal', 'Portal'], ['profile', 'Perfil e agenda'], ['plans', 'Outros serviços'], ['billing', 'Cobrança'], ['pilot', 'Piloto']]
+      ? [['portal', 'Portal'], ['profile', 'Perfil e agenda'], ['plans', 'Outros serviços'], ['billing', isPilot() ? 'Plano' : 'Cobrança'], ['pilot', 'Piloto']]
       : [['auth', 'Entrar'], ['plans', 'Serviços e preços'], ['pilot', 'Piloto']];
     return `
       <header class="eno-topbar">
@@ -505,7 +507,7 @@ export async function mountEnomeraPlatform(rootEl) {
         etha: `<button type="button" class="eno-btn eno-btn-etha" data-launch="etha" data-path="/?modo=ao-vivo">Abrir Etha ↗</button>
                <button type="button" class="eno-btn eno-btn-sec" data-launch="helena" data-path="/?site=${encodeURIComponent(s.account.slug)}">Ver site publicado ↗</button>`,
       }[prod];
-      const offer = prod === 'etha' ? 'Adicionar site Etha' : 'Contratar ou testar 30 dias grátis';
+      const offer = isPilot() ? `Ativar ${name} grátis` : prod === 'etha' ? 'Adicionar site Etha' : 'Contratar ou testar 30 dias grátis';
       return `
         <article class="eno-card ${ent?.canReadExport ? `eno-card-${prod}` : ''}">
           ${pill}
@@ -600,7 +602,7 @@ export async function mountEnomeraPlatform(rootEl) {
                 <div class="eno-row">
                   <div>
                     <b>${PRODUCT_NAMES[prod]}</b> · <span class="eno-pill ${ent.canWrite ? 'eno-pill-ok' : 'eno-pill-warn'}">${esc(statusLabel(ent.status))}</span>
-                    <div class="eno-muted">${ent.trialEndsAt ? `Teste até ${esc(ent.trialEndsAt.slice(0, 10))}` : `Ciclo: ${esc(BILLING_LABELS[ent.billingMode] || 'Mensal')}`}</div>
+                    <div class="eno-muted">${isPilot() ? `Grátis no piloto até ${esc(pilotUntil())}` : ent.trialEndsAt ? `Teste até ${esc(ent.trialEndsAt.slice(0, 10))}` : `Ciclo: ${esc(BILLING_LABELS[ent.billingMode] || 'Mensal')}`}</div>
                   </div>
                   ${ent.canWrite
                     ? `<button type="button" class="eno-btn eno-btn-sec" data-ent-action="cancel" data-ent-prod="${prod}">Cancelar só ${PRODUCT_NAMES[prod]}</button>`
@@ -623,7 +625,7 @@ export async function mountEnomeraPlatform(rootEl) {
               <div class="eno-row">
                 <div>
                   <b>${esc(o.receipt_code)}</b> · ${esc(o.items.map((x) => PRODUCT_NAMES[x] || x).join(' + '))}
-                  <div class="eno-muted">Hoje: ${brl(o.due_today_cents)} · Recorrente: ${brl(o.recurring_monthly_cents)}/mês · Situação: <b>${esc(statusLabel(o.status))}</b></div>
+                  <div class="eno-muted">${isPilot() ? 'Grátis no piloto' : `Hoje: ${brl(o.due_today_cents)} · Recorrente: ${brl(o.recurring_monthly_cents)}/mês`} · Situação: <b>${esc(statusLabel(o.status))}</b></div>
                 </div>
                 ${o.status !== 'approved' ? `<button type="button" class="eno-btn eno-btn-sec" data-retry-order="${esc(o.id)}" ${state.busyAction === 'retryOrder' ? 'disabled' : ''}>Retomar</button>` : ''}
               </div>
@@ -656,6 +658,14 @@ export async function mountEnomeraPlatform(rootEl) {
   const SUB_STATUS = { trial: '30 dias grátis', active: 'Em dia', overdue: 'Pagamento pendente', cancelled: 'Cancelada' };
 
   function renderSubscribeCard() {
+    if (isPilot()) {
+      return `
+        <span class="eno-pill eno-pill-ok">PILOTO GRATUITO</span>
+        <h2 class="eno-h2">Tudo grátis até o lançamento</h2>
+        <p class="eno-muted">Como convidado do piloto, você usa todos os serviços sem custo até ${esc(pilotUntil())}: planos, combos, anual e a implantação Sob medida da Etha. Nenhum cartão é pedido e nenhuma fatura é gerada.</p>
+        <p class="eno-muted">Antes do lançamento avisamos com antecedência. Nada é cobrado sem você escolher.</p>
+      `;
+    }
     const st = state.billingStatus;
     const sub = st?.subscription;
     const fmtDate = (d) => (d ? new Date(`${d}T12:00:00`).toLocaleDateString('pt-BR') : '');
@@ -703,6 +713,15 @@ export async function mountEnomeraPlatform(rootEl) {
   }
 
   function renderPilotView() {
+    if (isPilot()) {
+      return `
+      <section class="eno-card eno-panel-enter" style="max-width:760px">
+        <span class="eno-pill eno-pill-ok">VOCÊ ESTÁ NO PILOTO</span>
+        <h1 class="eno-h1">Obrigado por testar a Enomera</h1>
+        <p class="eno-muted">Todos os serviços estão liberados sem custo até ${esc(pilotUntil())}. Use Ambo, Minne e Etha como usaria no dia a dia; o que te prende e o que te atrapalha é exatamente o que queremos aprender.</p>
+        <p class="eno-muted">Registramos só como você usa as telas (cliques, tempo e erros), nunca conteúdo clínico. Detalhes em <a class="eno-link" href="/privacidade#piloto">Privacidade</a>.</p>
+      </section>`;
+    }
     return `
       <section class="eno-card eno-panel-enter" style="max-width:760px">
         <span class="eno-pill eno-pill-etha">PILOTO ACOMPANHADO · 2 SEMANAS</span>
@@ -756,7 +775,11 @@ export async function mountEnomeraPlatform(rootEl) {
   }
 
   // Cada re-render passa pelo FLIP: o que mudou na mesma tela anima do estado antigo ao novo.
+  const isPilot = () => Boolean(state.me?.pilot?.free);
+  const pilotUntil = () => (state.me?.pilot?.until ? new Date(state.me.pilot.until).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '');
+
   function render() {
+    setPilotFree(isPilot());
     const snap = motionSnapshot(rootEl);
     const prevH = rootEl.offsetHeight;
     renderInner();
@@ -1447,7 +1470,7 @@ export async function mountEnomeraPlatform(rootEl) {
       const res = await apiFetch('/api/v1/commercial/trial/start', { method: 'POST', body: { products: state.combo.products } });
       state.busyAction = null;
       if (!res.ok) { state.feedback = { tone: 'err', text: res.data.error }; render(); return; }
-      state.feedback = { tone: 'ok', text: `30 dias grátis ativados até ${res.data.trialEndsAt.slice(0, 10)} (sem cartão).` };
+      state.feedback = { tone: 'ok', text: isPilot() ? `Ativado grátis no piloto até ${pilotUntil()} (sem cartão).` : `30 dias grátis ativados até ${res.data.trialEndsAt.slice(0, 10)} (sem cartão).` };
       state.tab = 'portal';
       await refreshSessionAndData();
     });

@@ -67,7 +67,13 @@ export const MONTHLY = { ambo: 39, etha: 49, minne: 59 };
 const COMBO = { 'ambo+minne': 79, 'ambo+etha': 69, 'etha+minne': 89, 'ambo+etha+minne': 99 };
 const brl = n => `R$ ${n.toLocaleString('pt-BR')}`;
 
+// Convidado do piloto (marcado pelo convite ou pelo portal): tudo grátis, sem preço a pagar.
+export function pilotFree() {
+  try { return typeof localStorage !== 'undefined' && localStorage.getItem('eno_piloto_gratis') === '1'; } catch { return false; }
+}
+
 export function comboPrice(ids, mode) {
+  if (pilotFree()) return { total: 'Grátis no piloto', savings: '' };
   const key = ['ambo', 'etha', 'minne'].filter(p => ids.includes(p)).join('+');
   const list = ids.reduce((t, id) => t + (MONTHLY[id] || 0), 0);
   const monthly = COMBO[key] ?? list;
@@ -81,6 +87,6 @@ export function billingFor(ids, mode) {
     .filter(s => ids.includes(s.id))
     .map(s => ({
       id: s.id,
-      text: `${brl(MONTHLY[s.id] * (annual ? 10 : 1))}${annual ? '/ano' : '/mês'} · ${s.id === 'etha' ? 'site, hospedagem e painel (Sob medida: + R$ 790 de implantação, até 3x)' : 'hospedagem, atualizações e suporte incluídos'}`
+      text: pilotFree() ? `Grátis no piloto · ${s.id === 'etha' ? 'site, hospedagem e painel (Sob medida incluída)' : 'hospedagem, atualizações e suporte incluídos'}` : `${brl(MONTHLY[s.id] * (annual ? 10 : 1))}${annual ? '/ano' : '/mês'} · ${s.id === 'etha' ? 'site, hospedagem e painel (Sob medida: + R$ 790 de implantação, até 3x)' : 'hospedagem, atualizações e suporte incluídos'}`
     }));
 }

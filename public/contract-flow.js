@@ -13,6 +13,12 @@ export const PRODUCT_INFO = {
 
 const ORDER = ['ambo', 'minne', 'etha'];
 
+// Piloto gratuito (22/11): para convidados do piloto, todos os serviços são grátis
+// (planos, combos, anual e implantação Sob medida). Nenhuma tela mostra preço a pagar.
+let PILOT_FREE = false;
+export function setPilotFree(v) { PILOT_FREE = Boolean(v); }
+export function isPilotFree() { return PILOT_FREE; }
+
 // Planos prontos (preços aprovados em 22/11: 39 · 79 · 99 por mês; anual = 10 mensalidades).
 // "Completo" é o recomendado: é o que mais economiza e cobre site, agenda e prontuário.
 export const PLANS = [
@@ -38,8 +44,8 @@ function renderEthaService(service) {
       <div class="eno-etha-svc-list">
         ${ETHA_SERVICES.map((o) => `
           <button type="button" role="radio" aria-checked="${cur === o.id}" class="eno-etha-opt${cur === o.id ? ' is-selected' : ''}" data-etha-service="${o.id}" data-m-key="etha-opt-${o.id}" data-m-state="${cur === o.id ? 'on' : 'off'}">
-            <span class="eno-etha-opt-head"><span class="eno-plan-radio m-pop" aria-hidden="true">${cur === o.id ? '✓' : ''}</span><b>${o.name}</b><span class="eno-etha-opt-price">${o.price}</span></span>
-            <span class="eno-etha-opt-detail">${o.detail}</span>
+            <span class="eno-etha-opt-head"><span class="eno-plan-radio m-pop" aria-hidden="true">${cur === o.id ? '✓' : ''}</span><b>${o.name}</b><span class="eno-etha-opt-price">${PILOT_FREE ? 'Grátis no piloto' : o.price}</span></span>
+            <span class="eno-etha-opt-detail">${PILOT_FREE && o.id === 'sob_medida' ? 'A equipe monta o site com você: textos, fotos e páginas. Sem custo no piloto.' : o.detail}</span>
           </button>`).join('')}
       </div>
     </div>`;
@@ -58,7 +64,7 @@ function renderPlanCard(plan, { selected, billing }) {
   return `
     <button type="button" role="radio" aria-checked="${selected}" class="eno-plan eno-plan-${plan.id}${plan.recommended ? ' is-recommended' : ''}${selected ? ' is-selected' : ''}"
       data-plan="${plan.id}" data-m-key="plan-${plan.id}" data-m-state="${selected ? 'on' : 'off'}"
-      aria-label="${plan.name}${plan.recommended ? ', recomendado' : ''}, ${brl(price)} ${annual ? 'por ano' : 'por mês'}">
+      aria-label="${plan.name}${plan.recommended ? ', recomendado' : ''}, ${PILOT_FREE ? 'grátis no piloto' : `${brl(price)} ${annual ? 'por ano' : 'por mês'}`}">
       <span class="eno-plan-head">
         <span class="eno-plan-radio m-pop" aria-hidden="true">${selected ? '✓' : ''}</span>
         <span class="eno-plan-name">${plan.name}</span>
@@ -67,9 +73,9 @@ function renderPlanCard(plan, { selected, billing }) {
       <span class="eno-plan-for">${plan.for}</span>
       <span class="eno-plan-dots" aria-hidden="true">${plan.products.map((p) => `<i class="eno-plan-dot eno-plan-dot-${p}"></i>`).join('')}<small>${plan.products.map((p) => PRODUCT_INFO[p].name).join(' + ')}</small></span>
       <span class="eno-plan-price">
-        <b data-m-key="plan-price-${plan.id}" data-m-num>${brl(price)}</b><small data-m-key="plan-cad-${plan.id}" data-m-num>${annual ? '/ano' : '/mês'}</small>
+        <b data-m-key="plan-price-${plan.id}" data-m-num>${PILOT_FREE ? 'Grátis' : brl(price)}</b><small data-m-key="plan-cad-${plan.id}" data-m-num>${PILOT_FREE ? ' no piloto' : annual ? '/ano' : '/mês'}</small>
       </span>
-      <span class="eno-plan-save" data-m-key="plan-save-${plan.id}" data-m-num>${save > 0
+      <span class="eno-plan-save" data-m-key="plan-save-${plan.id}" data-m-num>${PILOT_FREE ? 'Sem custo até o lançamento' : save > 0
         ? `<s>${brl(old)}</s> economiza ${brl(save)}${annual ? ' por ano' : ' por mês'}`
         : annual ? `${brl(plan.monthly * 10 / 12)} por mês, 2 meses grátis` : 'Sem fidelidade'}</span>
       <span class="eno-plan-items">${plan.items.map((i) => `<span>${i}</span>`).join('')}</span>
@@ -117,7 +123,7 @@ function priceFor(product, billing, ethaFormat) {
 
 export function renderProductCard(product, { selected, billing, ethaFormat, interactive = true, notIncluded = false }) {
   const info = PRODUCT_INFO[product];
-  const { price, cadence } = priceFor(product, billing, ethaFormat);
+  const { price, cadence } = PILOT_FREE ? { price: 'Grátis', cadence: 'no piloto' } : priceFor(product, billing, ethaFormat);
   const mark = selected ? '✓' : '○';
   const inner = `
     <span class="eno-pc-mark m-pop" aria-hidden="true">${mark}</span>
@@ -170,7 +176,9 @@ export function renderSummary(contract, { billing, withToggle = false, cta = '',
         <strong data-m-key="sum-total-value" data-m-num>${esc(contract.total)}</strong>
       </div>
       ${contract.setup ? `<div class="eno-sum-setup" data-m-key="sum-setup"><span><b>+ ${esc(contract.setup.label)}</b><small>${esc(contract.setup.note)}</small></span><strong data-m-key="sum-setup-amt" data-m-num>${esc(contract.setup.amount)}</strong></div>` : ''}
-      <p class="eno-sum-today">Cobrado hoje: ${esc(contract.chargedToday)} · <span class="eno-hide-sm">${esc(contract.chargedTodayNote)}</span><span class="eno-show-sm">sem cartão</span></p>
+      ${PILOT_FREE
+        ? '<p class="eno-sum-today">Nada a pagar · <span class="eno-hide-sm">piloto gratuito, nenhum cartão solicitado</span><span class="eno-show-sm">sem cartão</span></p>'
+        : `<p class="eno-sum-today">Cobrado hoje: ${esc(contract.chargedToday)} · <span class="eno-hide-sm">${esc(contract.chargedTodayNote)}</span><span class="eno-show-sm">sem cartão</span></p>`}
     </div>
     ${cta}
   `;
@@ -182,12 +190,18 @@ function renderCompactSummary(contract) {
     <div class="eno-sum-compact eno-glass">
       <div class="eno-sum-compact-top"><span>Sua combinação</span><button type="button" class="eno-link" data-flow-go="choice">Alterar</button></div>
       <b>${esc(contract.label)} · ${esc(contract.billingLabel)}</b>
-      <span>${esc(contract.total)} · cobrado hoje ${esc(contract.chargedToday)}</span>
+      <span>${PILOT_FREE ? 'Grátis no piloto · sem cartão' : `${esc(contract.total)} · cobrado hoje ${esc(contract.chargedToday)}`}</span>
     </div>
   `;
 }
 
 function footerNotes() {
+  if (PILOT_FREE) return `
+    <footer class="eno-flow-foot">
+      <p>Piloto gratuito: todos os planos, combos e a implantação da Etha sem custo até o lançamento.</p>
+      <small>Nenhum cartão e nenhuma cobrança.</small>
+    </footer>
+  `;
   return `
     <footer class="eno-flow-foot">
       <p>Mensal ou anual (10 mensalidades). Os primeiros 30 dias são grátis.</p>
@@ -201,12 +215,12 @@ export function renderChoice({ combo, contract, signedIn, returnedFromReview, cu
   const sel = (p) => combo.products.includes(p);
   const plan = planFor(combo.products);
   customOpen = customOpen || (!plan && combo.products.length > 0);
-  const ctaLabel = returnedFromReview ? 'Voltar à revisão' : 'Começar 30 dias grátis';
+  const ctaLabel = returnedFromReview ? 'Voltar à revisão' : PILOT_FREE ? 'Continuar grátis' : 'Começar 30 dias grátis';
   const cta = `<button type="button" class="eno-btn eno-flow-cta" id="eno-flow-continue" data-m-key="flow-cta" data-m-state="${combo.products.length ? 'on' : 'off'}" ${combo.products.length ? '' : 'disabled'}>${ctaLabel}</button>
-    <p class="eno-flow-reassure" data-m-key="reassure">Sem cartão agora · nenhuma cobrança hoje · cancele quando quiser</p>`;
+    <p class="eno-flow-reassure" data-m-key="reassure">${PILOT_FREE ? 'Piloto gratuito · sem cartão · nada é cobrado' : 'Sem cartão agora · nenhuma cobrança hoje · cancele quando quiser'}</p>`;
   const mobileBar = combo.products.length && contract ? `
     <div class="eno-plan-bar eno-show-sm" data-m-key="plan-bar">
-      <span><b data-m-key="bar-name" data-m-num>${esc(plan ? plan.name : comboLabel(combo.products))}</b><small data-m-key="bar-total" data-m-num>${esc(contract.total)}${contract.setup ? ' + R$ 790 único' : ''}</small></span>
+      <span><b data-m-key="bar-name" data-m-num>${esc(plan ? plan.name : comboLabel(combo.products))}</b><small data-m-key="bar-total" data-m-num>${PILOT_FREE ? 'Grátis no piloto' : `${esc(contract.total)}${contract.setup ? ' + R$ 790 único' : ''}`}</small></span>
       <button type="button" class="eno-btn" data-flow-continue>${returnedFromReview ? 'Voltar à revisão' : 'Começar grátis'}</button>
     </div>` : '';
   return `
@@ -216,11 +230,13 @@ export function renderChoice({ combo, contract, signedIn, returnedFromReview, cu
         <h1 class="eno-flow-title">Escolha seu plano.</h1>
         ${returnedFromReview
           ? `<p class="eno-flow-lead is-return" role="status">↻ Você voltou da revisão. ${esc(comboLabel(combo.products) || 'Sua escolha')} e ${esc(billingLabel(billing))} foram mantidos; a conta continua verificada.</p>`
-          : '<p class="eno-flow-lead">30 dias grátis em qualquer plano. Sem cartão, cancele quando quiser.</p>'}
+          : PILOT_FREE
+            ? '<p class="eno-flow-lead">Você está no piloto: todos os planos são gratuitos até o lançamento. Escolha o que quer testar.</p>'
+            : '<p class="eno-flow-lead">30 dias grátis em qualquer plano. Sem cartão, cancele quando quiser.</p>'}
         <div class="eno-flow-seg eno-plan-seg" role="radiogroup" aria-label="Periodicidade" data-m-key="seg">
           <span class="eno-seg-pill" data-m-key="seg-pill" data-active="${billing === 'permanent' ? '1' : '0'}" aria-hidden="true"></span>
           <button type="button" role="radio" data-viewmode="monthly" data-m-key="seg-m" data-m-state="${billing !== 'permanent'}" aria-checked="${billing !== 'permanent'}">Mensal</button>
-          <button type="button" role="radio" data-viewmode="permanent" data-m-key="seg-a" data-m-state="${billing === 'permanent'}" aria-checked="${billing === 'permanent'}">Anual <span class="eno-seg-badge">2 meses grátis</span></button>
+          <button type="button" role="radio" data-viewmode="permanent" data-m-key="seg-a" data-m-state="${billing === 'permanent'}" aria-checked="${billing === 'permanent'}">Anual${PILOT_FREE ? '' : ' <span class="eno-seg-badge">2 meses grátis</span>'}</button>
         </div>
         <div class="eno-plan-list" role="radiogroup" aria-label="Planos">
           ${PLANS.map((pl) => renderPlanCard(pl, { selected: plan?.id === pl.id, billing })).join('')}
@@ -306,7 +322,7 @@ export function renderReview({ combo, contract, me, activating }) {
   // Mostra Ambo e Minne sempre; o que não foi escolhido aparece como "não incluído".
   const cards = ORDER.filter((p) => chosen.includes(p));
   const cta = `
-    <button type="button" class="eno-btn eno-flow-cta" id="eno-checkout-submit" ${activating ? 'aria-disabled="true" aria-busy="true"' : ''}>${activating ? '<span class="eno-spinner" aria-hidden="true"></span> Ativando…' : 'Ativar sem cobrança hoje'}</button>
+    <button type="button" class="eno-btn eno-flow-cta" id="eno-checkout-submit" ${activating ? 'aria-disabled="true" aria-busy="true"' : ''}>${activating ? '<span class="eno-spinner" aria-hidden="true"></span> Ativando…' : PILOT_FREE ? 'Ativar grátis' : 'Ativar sem cobrança hoje'}</button>
     ${activating ? '<p class="eno-flow-note" role="status">Leva alguns segundos. Os controles seguem disponíveis; se você sair, a ativação continua.</p>' : ''}
   `;
   return `
@@ -321,7 +337,7 @@ export function renderReview({ combo, contract, me, activating }) {
         <div class="eno-flow-card eno-glass eno-flow-info eno-hide-sm">
           <h2>Ao ativar</h2>
           <p>${esc(names)} ${chosen.length > 1 ? 'aparecem' : 'aparece'} no seu portal na mesma hora.<br>
-          Os primeiros 30 dias são grátis e nenhum cartão é solicitado.<br>
+          ${PILOT_FREE ? 'No piloto tudo é gratuito, sem cartão e sem cobrança.' : 'Os primeiros 30 dias são grátis e nenhum cartão é solicitado.'}<br>
           A periodicidade pode ser trocada depois em Outros serviços.</p>
         </div>
         <button type="button" class="eno-link eno-flow-change" data-flow-go="choice" id="eno-review-change">Alterar combinação</button>
@@ -329,7 +345,7 @@ export function renderReview({ combo, contract, me, activating }) {
       <aside class="eno-flow-side">
         ${flower()}
         ${renderSummary(contract, { billing, cta, busy: activating })}
-        <p class="eno-flow-note eno-show-sm">Ativação simulada do piloto. ${esc(names)} ${chosen.length > 1 ? 'aparecem' : 'aparece'} no portal na mesma hora.</p>
+        <p class="eno-flow-note eno-show-sm">${PILOT_FREE ? 'Grátis no piloto.' : 'Ativação simulada do piloto.'} ${esc(names)} ${chosen.length > 1 ? 'aparecem' : 'aparece'} no portal na mesma hora.</p>
       </aside>
       
     </section>
@@ -338,5 +354,5 @@ export function renderReview({ combo, contract, me, activating }) {
 
 export function renderActivationBanner(activation) {
   if (!activation) return '';
-  return `<div class="eno-activation-banner eno-glass" role="status">✓ ${esc(activation.names)} ${activation.count > 1 ? 'ativos' : 'ativo'} · cobrado hoje ${esc(activation.chargedToday)}</div>`;
+  return `<div class="eno-activation-banner eno-glass" role="status">✓ ${esc(activation.names)} ${activation.count > 1 ? 'ativos' : 'ativo'} · ${PILOT_FREE ? 'grátis no piloto' : `cobrado hoje ${esc(activation.chargedToday)}`}</div>`;
 }

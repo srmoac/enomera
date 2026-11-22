@@ -60,7 +60,7 @@
       '<div class="pl-stagger" style="display:grid;gap:10px">' +
         '<p class="cv-eyebrow">' + (admin ? 'Acesso de administrador' : 'Você foi convidado para o piloto') + '</p>' +
         '<h1>' + (admin ? 'Seu painel do piloto' : 'Teste a Enomera de verdade') + '</h1>' +
-        '<p class="muted">' + (admin ? 'Crie o acesso que abre o painel com o uso de cada convidado. Este link funciona uma única vez.' : 'Crie sua conta e use o site, a agenda e a gestão como usaria no seu consultório. São 30 dias grátis, sem cartão e sem cobrança. Este link é seu e funciona uma única vez.') + '</p>' +
+        '<p class="muted">' + (admin ? 'Crie o acesso que abre o painel com o uso de cada convidado. Este link funciona uma única vez.' : 'Crie sua conta e use o site, a agenda e a gestão como usaria no seu consultório. No piloto tudo é gratuito: todos os planos, combos e serviços, sem cartão e sem cobrança. Este link é seu e funciona uma única vez.') + '</p>' +
       '</div>' +
       '<form class="cv-form pl-stagger" novalidate>' +
         '<div class="pl-field"><label for="f-name">' + (admin ? 'Seu nome' : 'Nome profissional') + '</label><input id="f-name" name="fullName" autocomplete="name" data-autofocus aria-describedby="e-name"><p class="pl-err" id="e-name"></p></div>' +
@@ -124,7 +124,7 @@
         document.getElementById('e-form').textContent = (res.d.error || 'Não deu certo agora.') + ' Nada foi criado; tente de novo.';
         return;
       }
-      try { sessionStorage.setItem('enomera_session_token_v1', res.d.sessionToken); if (KIND === 'admin') localStorage.setItem('eno_uso_off', '1'); } catch (err) {}
+      try { sessionStorage.setItem('enomera_session_token_v1', res.d.sessionToken); if (KIND === 'admin') localStorage.setItem('eno_uso_off', '1'); else localStorage.setItem('eno_piloto_gratis', '1'); } catch (err) {}
       swap(card('<div class="cv-done"><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="29"/><path d="M20 33l8 8 16-17"/></svg><h1>' + (KIND === 'admin' ? 'Acesso criado' : 'Conta criada') + '</h1><p class="muted">' + (KIND === 'admin' ? 'Abrindo o painel do piloto.' : 'Agora escolha os serviços que quer testar. Abrindo a contratação.') + '</p></div>'));
       setTimeout(function () { location.href = res.d.next || '/checkout'; }, 1300);
     }).catch(function () {

@@ -56,6 +56,27 @@ test('Piloto: convite único, consentimento, eventos ligados à pessoa e painel 
     assert.equal(r.data.identified, true);
     assert.equal(Number((await db.get('SELECT COUNT(*) AS c FROM pilot_events WHERE participant_id IS NULL')).c), 0);
 
+    // Piloto gratuito: planos, combos, anual e Sob medida saem a R$ 0, sem cartão nem fatura.
+    const sel = { products: ['ambo', 'minne', 'etha'], ethaService: 'sob_medida', billing: 'permanent', mode: 'monthly' };
+    const paid = await call('/api/v1/catalog/quote', sel);
+    assert.ok(paid.data.contract.totalCents > 0); assert.equal(paid.data.contract.setup.amountCents, 79000);
+    const free = await call('/api/v1/catalog/quote', sel, acc.data.sessionToken);
+    assert.equal(free.data.contract.totalCents, 0); assert.equal(free.data.contract.setup.amountCents, 0);
+    assert.equal(free.data.recurringMonthlyCents, 0); assert.equal(free.data.contract.pilotFree, true);
+    assert.ok(free.data.contract.lines.every((l) => l.amountCents === 0));
+    assert.equal((await call('/api/v1/auth/me', null, acc.data.sessionToken)).data.pilot.free, true);
+    const ord = await call('/api/v1/commercial/orders', { ...sel, idempotencyKey: 'piloto-gratis-1', simulatedOutcome: 'declined' }, acc.data.sessionToken);
+    assert.equal(ord.status, 201); assert.equal(ord.data.order.status, 'approved');
+    assert.equal(Number(ord.data.order.due_today_cents), 0); assert.equal(Number(ord.data.order.recurring_monthly_cents), 0);
+    for (const prodKey of ['ambo', 'minne', 'etha']) {
+      assert.equal(ord.data.entitlements[prodKey].status, 'active'); assert.equal(ord.data.entitlements[prodKey].billingMode, 'pilot');
+      assert.ok(ord.data.entitlements[prodKey].currentPeriodEnd.startsWith('2027-01-31'));
+    }
+    const bill = await call('/api/v1/billing/status', null, acc.data.sessionToken);
+    assert.equal(bill.status, 200); assert.equal(bill.data.mode, 'pilot'); assert.equal(bill.data.subscription, null);
+    const chk = await call('/api/v1/billing/checkout', { products: ['ambo'], cycle: 'monthly', cpfCnpj: '00000000000' }, acc.data.sessionToken);
+    assert.equal(chk.status, 409); assert.equal(chk.data.code, 'PILOT_FREE');
+
     // Painel: convidada não entra; administrador entra e não é rastreado.
     assert.equal((await call('/api/v1/pilot/admin/overview', null, acc.data.sessionToken)).status, 403);
     const adm = await call(`/api/v1/pilot/invites/${A}/accept`, { fullName: 'Admin Teste', email: 'admin@exemplo.invalid', password: 'senha-ficticia-2', consent: true });
