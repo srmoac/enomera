@@ -40,7 +40,7 @@
   .cf-meta { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 13px; color: var(--muted); }
   .cf-pill { font: 700 11px/1 Manrope, sans-serif; letter-spacing: .06em; padding: 5px 10px; border-radius: 999px; color: rgb(var(--eg-c)); background: rgb(var(--eg-c) / .14); transition: color 420ms linear, background-color 420ms linear; }
   .cf-stage { position: relative; margin-top: 18px; }
-  .cf-step { display: grid; gap: 14px; }
+  .cf-step { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); }
   .cf-step.in-next { animation: cfInNext 320ms cubic-bezier(.23,1,.32,1) both; }
   .cf-step.in-prev { animation: cfInPrev 320ms cubic-bezier(.23,1,.32,1) both; }
   .cf-step.out-next { position: absolute; inset: 0 0 auto; animation: cfOutNext 160ms cubic-bezier(.23,1,.32,1) both; pointer-events: none; }
@@ -51,7 +51,7 @@
   @keyframes cfOutPrev { to { opacity: 0; transform: translateX(24px); } }
   .cf-step h1 { font-size: clamp(28px, 7vw, 36px); }
   .cf-step .lead { color: var(--muted); }
-  .cf-card { padding: 20px; display: grid; gap: 16px; }
+  .cf-card { padding: 20px; display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
   .cf-row { display: flex; flex-wrap: wrap; gap: 8px; }
   .cf-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .cf-label { font-size: 13px; font-weight: 600; }
@@ -72,13 +72,15 @@
   .cf-day { display: grid; gap: 8px; }
   .cf-day[hidden] { display: none; }
   .cf-link { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 16px; border-radius: 18px; }
-  .cf-link code { font: 600 15px Manrope, sans-serif; color: rgb(var(--eg-c)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+  .cf-link code { min-width: 0; font: 600 15px Manrope, sans-serif; color: rgb(var(--eg-c)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
   .cf-ok { border-radius: 18px; padding: 12px 14px; background: #dff4e8; color: #1b653e; font-weight: 600; font-size: 14px; }
   .cf-warn { border-radius: 18px; padding: 12px 14px; background: #f8edd3; color: #7d5112; font-weight: 600; font-size: 14px; }
   .cf-sum { display: grid; grid-template-columns: 40px 1fr auto; gap: 12px; align-items: center; padding: 12px; border-radius: 20px; }
   .cf-sum .dot { width: 40px; height: 40px; border-radius: 50%; background: rgb(var(--eg-c)); }
   .cf-sum b { display: block; } .cf-sum span { font-size: 13px; color: var(--muted); }
   .cf-list { display: grid; gap: 8px; }
+  .cf-list .cf-x::before { content: ""; position: absolute; inset: -6px; }
+  .cf-step .eg-btn { max-width: 100%; white-space: normal; text-align: center; }
   .cf-list div { display: flex; justify-content: space-between; gap: 8px; padding: 10px 14px; border-radius: 14px; background: rgb(255 255 255 / .55); font-weight: 600; font-size: 14px; }
   .cf-dock { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(14px + env(safe-area-inset-bottom)); width: min(568px, calc(100vw - 32px)); padding: 12px; border-radius: 34px; display: flex; gap: 12px; z-index: 10; }
   .cf-dock .eg-btn:last-child { flex: 1; }
@@ -95,7 +97,7 @@
   @keyframes cfDrift1 { to { transform: translate(8vmax, 6vmax) scale(1.08); } }
   @keyframes cfDrift2 { to { transform: translate(-10vmax, 8vmax) scale(.94); } }
   @keyframes cfDrift3 { to { transform: translate(6vmax, -8vmax) scale(1.06); } }
-  .cf-dayall { appearance: none; display: flex; align-items: baseline; gap: 10px; min-height: 40px; padding: 0 4px; border: 0; background: none; cursor: pointer; color: var(--ink); font: inherit; text-align: left; border-radius: 12px; }
+  .cf-dayall { appearance: none; display: flex; align-items: baseline; gap: 10px; min-height: 44px; padding: 0 4px; border: 0; background: none; cursor: pointer; color: var(--ink); font: inherit; text-align: left; border-radius: 12px; align-items: center; }
   .cf-dayall b { font-size: 15px; }
   .cf-dayall span { font-size: 12px; font-weight: 600; color: var(--muted); transition: color 160ms linear; }
   .cf-dayall[aria-pressed="true"] span { color: rgb(var(--eg-c)); }
@@ -105,7 +107,7 @@
   .cf-blocks-head .eg-btn[hidden] { display: none; }
   .cf-bnew { display: grid; gap: 12px; padding: 14px; border-radius: 22px; background: rgb(255 255 255 / .5); border: 1px solid rgb(255 255 255 / .9); }
   .cf-bnew[hidden] { display: none; }
-  .cf-list .cf-x { appearance: none; width: 32px; height: 32px; margin: -6px -8px -6px 0; border-radius: 50%; border: 0; background: rgb(var(--eg-c) / .08); color: var(--muted); font: 600 18px/1 Manrope, sans-serif; cursor: pointer; flex: none; transition: background-color 160ms linear, transform 100ms cubic-bezier(.23,1,.32,1); }
+  .cf-list .cf-x { appearance: none; width: 32px; height: 32px; margin: -6px -8px -6px 0; position: relative; border-radius: 50%; border: 0; background: rgb(var(--eg-c) / .08); color: var(--muted); font: 600 18px/1 Manrope, sans-serif; cursor: pointer; flex: none; transition: background-color 160ms linear, transform 100ms cubic-bezier(.23,1,.32,1); }
   .cf-list .cf-x:hover { background: rgb(var(--eg-c) / .16); }
   .cf-list .cf-x:active { transform: scale(.9); }
   .cf-list div { align-items: center; }

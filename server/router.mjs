@@ -95,6 +95,36 @@ async function notifyPatientOfConfirmation(db, account, out) {
   }
 }
 
+// Aviso ao paciente quando a profissional cancela uma consulta (feedback do piloto, 23 nov):
+// mesmo formato da confirmação. Falha no envio não desfaz o cancelamento.
+async function notifyPatientOfCancellation(db, account, out) {
+  const appt = out?.appointment;
+  if (!appt || out?.idempotentReplay) return { sent: false, reason: 'already_notified' };
+  let recipient = '';
+  try {
+    const pat = appt.patient_id ? await db.get('SELECT email FROM operational_patients WHERE id = ? AND account_id = ?', appt.patient_id, account.id) : null;
+    recipient = String(pat?.email || '').trim();
+  } catch {}
+  if (!recipient || /@patient\.enomera\.invalid$/i.test(recipient)) return { sent: false, recipient: null, reason: 'no_email' };
+  const tz = account.timezone || 'America/Sao_Paulo';
+  const when = new Date(appt.start_at).toLocaleString('pt-BR', { timeZone: tz, weekday: 'long', day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit' });
+  const amboBase = String(process.env.ENOMERA_AMBO_URL || '').replace(/\/+$/, '');
+  const link = amboBase ? `${amboBase}/?pro=${encodeURIComponent(account.slug)}` : '';
+  const escHtml = (v) => String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  try {
+    const delivery = await sendTransactionalEmail(db, {
+      recipient,
+      subject: `Consulta cancelada com ${account.display_name} · Ambo`,
+      textBody: `${account.display_name} cancelou a consulta de ${when}.${link ? ` Para escolher outro horário, abra ${link}` : ''}`,
+      htmlBody: `<p><b>${escHtml(account.display_name)}</b> cancelou a consulta de <b>${escHtml(when)}</b>.</p>${link ? `<p><a href="${escHtml(link)}">Escolher outro horário no Ambo</a></p>` : ''}<p>Este e-mail serve como comprovante do cancelamento.</p>`,
+      purpose: 'ambo_appointment_cancelled',
+    });
+    return { sent: Boolean(delivery.sentExternally), recipient, reason: delivery.sentExternally ? null : delivery.deliveryStatus };
+  } catch (err) {
+    return { sent: false, recipient, reason: err.code || 'delivery_failed' };
+  }
+}
+
 // A própria origem do deployment é sempre aceita (alias de branch, URL do deployment ou domínio atribuído).
 function isRequestOriginAllowed(req) {
   const origin = req.headers.origin;
@@ -1222,7 +1252,7 @@ export async function handleApiRequest(req, res, customDb = null) {
 
       let nextAction = { label: 'Escolher serviços ou começar 30 dias grátis', product: 'enomera' };
       if (hasAmbo && !hasMinne) nextAction = { label: 'Configurar disponibilidade e link no Ambo', product: 'ambo' };
-      else if (hasMinne && pendingRequests > 0) nextAction = { label: `Responder ${pendingRequests} solicitação(ões) no Minne`, product: 'minne' };
+      else if (hasMinne && pendingRequests > 0) nextAction = { label: `Responder ${pendingRequests} ${pendingRequests === 1 ? 'solicitação' : 'solicitações'} no Minne`, product: 'minne' };
       else if (hasAmbo && hasMinne) nextAction = { label: 'Abrir Ambo para compartilhar perfil ou Minne para agenda', product: 'ambo' };
       else if (hasEtha && !hasAmbo && !hasMinne) nextAction = { label: 'Acompanhar seu site na Etha', product: 'etha' };
 
@@ -1966,7 +1996,8 @@ export async function handleApiRequest(req, res, customDb = null) {
         actorUserId: auth.user.id,
         reason: body.reason || '',
       });
-      return json(res, 200, out);
+      const patientNotice = await notifyPatientOfCancellation(db, auth.account, out);
+      return json(res, 200, { ...out, patientNotice });
     }
 
     // Clinical Notes, Drafts & Version History

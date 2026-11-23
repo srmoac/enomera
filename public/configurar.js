@@ -74,6 +74,7 @@ function initForm() {
     days: new Set(Object.keys(byDay).map(Number)),
     hours: Object.fromEntries(Object.entries(byDay).map(([d, set]) => [d, set])),
     open: Boolean(st.open),
+    meetUrl: p.onlineMeetingUrl || '',
   };
 }
 
@@ -100,6 +101,9 @@ const VIEWS = {
         <div class="cf-two"><div class="cf-field"><label class="cf-label" for="f-district">Bairro</label><input class="cf-input" id="f-district" value="${esc(f.district)}"></div>
           <div class="cf-field"><label class="cf-label" for="f-city">Cidade</label><input class="cf-input" id="f-city" value="${esc(f.city ? f.city + (f.uf ? ', ' + f.uf : '') : '')}"></div></div>
       </div>
+      <div id="meet" ${f.modalities.has('online') ? '' : 'hidden'} style="display:${f.modalities.has('online') ? 'grid' : 'none'};gap:12px">
+        <div class="cf-field"><label class="cf-label" for="f-meet">Link da sua sala online <span class="muted">(opcional)</span></label><input class="cf-input" id="f-meet" type="url" inputmode="url" autocomplete="off" placeholder="meet.google.com/abc-defg-hij" value="${esc(f.meetUrl)}"><span class="cf-hint" id="h-meet">Use o link fixo do seu Google Meet, Zoom ou Jitsi. O paciente vê no Ambo 15 minutos antes de cada consulta online.</span></div>
+      </div>
       <span class="cf-label">Duração da sessão</span>
       <div class="cf-row" role="group" aria-label="Duração">${[30, 45, 50, 60].map((d) => chip(`data-dur="${d}"`, `${d} min`, Number(f.duration) === d)).join('')}</div>
       <div class="cf-field"><label class="cf-label" for="f-price">Valor da sessão (R$)</label><input class="cf-input" id="f-price" inputmode="numeric" placeholder="Ex.: 220" value="${esc(f.price)}"><span class="cf-hint" id="h-price"></span></div>` };
@@ -121,13 +125,13 @@ const VIEWS = {
     const mods = [...S.form.modalities].map((m) => (m === 'online' ? 'online' : 'presencial')).join(' e ');
     return { title: 'Seu link do Ambo', lead: 'É por aqui que o paciente pede consulta. Compartilhe no WhatsApp ou no Instagram.', body: `
       <div class="cf-link eg-surface"><code>${esc(url.replace(/^https?:\/\//, ''))}</code><button type="button" class="eg-btn is-glass is-sm" id="copy" data-url="${esc(url)}">Copiar</button></div>
-      <div class="cf-row"><a class="eg-btn is-glass is-sm" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent('Agende sua consulta comigo: ' + url)}">WhatsApp</a><a class="eg-btn is-glass is-sm" target="_blank" rel="noopener" href="${esc(url)}">Ver como o paciente vê</a></div>
+      <div class="cf-row"><a class="eg-btn is-glass is-sm" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent('Agende sua consulta comigo: ' + url)}">WhatsApp</a><a class="eg-btn is-glass is-sm" target="_blank" rel="noopener" href="${esc(url)}&visao=profissional">Ver como o paciente vê ↗</a></div>
       ${S.form.open ? '<p class="cf-ok">✓ Sua agenda está aberta para pedidos.</p>' : `<p class="cf-ok">✓ Pronto para abrir: ${total} ${total === 1 ? 'horário' : 'horários'} na semana, ${esc(mods)}, ${S.form.price ? 'R$ ' + esc(S.form.price) : 'valor a combinar'}.</p>`}
       <p class="muted small">${has('minne') ? 'Os pedidos chegam no Ambo, na aba Pedidos, e quando você confirma o paciente entra no Minne.' : 'Os pedidos chegam no próprio Ambo, na aba Pedidos, e você confirma por lá.'}</p>` };
   },
   pacientes() {
     return { title: 'Seus pacientes', lead: 'Traga quem você já atende. Cada pedido confirmado no Ambo também vira paciente aqui.', body: `
-      <button type="button" class="eg-btn is-glass" data-launch="minne" data-path="/?modo=ao-vivo&aba=importar">Importar planilha ou prontuários no Minne</button>
+      <button type="button" class="eg-btn is-glass" data-launch="minne" data-path="/?modo=ao-vivo&aba=importar">Importar planilha ou prontuários</button>
       <span class="cf-label">Ou adicione um por um</span>
       <div class="cf-field"><label class="cf-label" for="p-name">Nome do paciente</label><input class="cf-input" id="p-name" autocomplete="off" placeholder="Nome completo"></div>
       <div class="cf-field"><label class="cf-label" for="p-phone">WhatsApp <span class="muted">(opcional)</span></label><input class="cf-input" id="p-phone" inputmode="tel" autocomplete="off" placeholder="(11) 9 0000-0000"></div>
@@ -226,6 +230,7 @@ function wire(root) {
     if (!on && f.modalities.size === 1) { window.EnoFeedback?.flash(b.parentElement); return; }
     on ? f.modalities.add(m) : f.modalities.delete(m); toggle(b, on);
     if (m === 'presencial') revealAddr(root.querySelector('#addr'), on);
+    if (m === 'online') revealAddr(root.querySelector('#meet'), on, '#f-meet');
   }));
   root.querySelectorAll('[data-dur]').forEach((b) => b.addEventListener('click', () => { f.duration = Number(b.dataset.dur); root.querySelectorAll('[data-dur]').forEach((x) => toggle(x, x === b)); }));
   root.querySelectorAll('[data-day]').forEach((b) => b.addEventListener('click', () => {
@@ -275,10 +280,10 @@ function syncDayAll(root, d) {
   b.setAttribute('aria-pressed', String(on));
   b.querySelector('span').textContent = on ? 'Dia inteiro marcado' : 'Toque para marcar o dia inteiro';
 }
-function revealAddr(el, on) {
+function revealAddr(el, on, focusSel = '#f-cep') {
   if (!el) return;
   if (reduce()) { el.style.display = on ? 'grid' : 'none'; el.hidden = !on; return; }
-  if (on) { el.hidden = false; el.style.display = 'grid'; el.animate([{ opacity: 0, transform: 'translateY(-6px)', filter: 'blur(4px)' }, { opacity: 1, transform: 'none', filter: 'none' }], { duration: 220, easing: 'cubic-bezier(.23,1,.32,1)' }); setTimeout(() => el.querySelector('#f-cep')?.focus({ preventScroll: true }), 60); }
+  if (on) { el.hidden = false; el.style.display = 'grid'; el.animate([{ opacity: 0, transform: 'translateY(-6px)', filter: 'blur(4px)' }, { opacity: 1, transform: 'none', filter: 'none' }], { duration: 220, easing: 'cubic-bezier(.23,1,.32,1)' }); setTimeout(() => el.querySelector(focusSel)?.focus({ preventScroll: true }), 60); }
   else { const a = el.animate([{ opacity: 1 }, { opacity: 0, transform: 'translateY(-4px)' }], { duration: 160, easing: 'cubic-bezier(.23,1,.32,1)' }); a.onfinish = () => { el.hidden = true; el.style.display = 'none'; }; }
 }
 function revealRow(el, on) {
@@ -507,6 +512,14 @@ async function save(key) {
     const priceStr = q('#f-price').replace(/[^\d]/g, ''); f.price = priceStr;
     if (pres && (!f.street || !f.number)) return invalid(f.street ? 'f-number' : (f.cep ? 'f-street' : 'f-cep'), 'Precisamos do endereço completo para quem vai ao consultório.');
     if (!priceStr) return invalid('f-price', 'Informe o valor. Se for a combinar, digite 0.');
+    let meet = q('#f-meet');
+    if (meet && !/^https?:\/\//i.test(meet)) meet = 'https://' + meet;
+    if (meet && !/^https:\/\/[^\s.]+\.[^\s]{2,}/i.test(meet)) return invalid('f-meet', 'Cole o endereço completo da sala, como meet.google.com/abc-defg-hij.');
+    if (f.modalities.has('online') && meet !== (f.meetUrl || '')) {
+      const pr = await api('/api/v1/professional/profile', { method: 'PATCH', body: { onlineMeetingUrl: meet } });
+      if (!pr.ok) { toast({ tone: 'err', text: pr.data.error || 'Não deu para salvar o link da sala agora.' }); return false; }
+      f.meetUrl = meet;
+    }
     const address = pres ? { cep: f.cep, street: f.street, number: f.number, complement: f.complement, district: f.district, city: f.city, uf: f.uf } : null;
     const line = pres ? `${f.street}, ${f.number}${f.complement ? ' · ' + f.complement : ''} · ${f.district ? f.district + ' · ' : ''}${f.city}${f.uf ? '/' + f.uf : ''}` : '';
     const r = await api('/api/v1/ambo/pro/setup', { method: 'PUT', body: { modalities: [...f.modalities], address, inPersonAddress: line, city: f.city || (pres ? '' : 'Online'), sessionDurationMin: f.duration, sessionPriceCents: Number(priceStr) * 100 } });

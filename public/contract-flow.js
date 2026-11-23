@@ -8,7 +8,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 export const PRODUCT_INFO = {
   ambo: { name: 'Ambo', description: 'Agendamento e área do paciente', monthly: 'R$ 39', annual: 'R$ 390' },
   minne: { name: 'Minne', description: 'Gestão clínica, agenda e prontuários', monthly: 'R$ 59', annual: 'R$ 590' },
-  etha: { name: 'Etha', description: 'Site exclusivo, hospedagem e painel', monthly: 'R$ 49', annual: 'R$ 490' },
+  etha: { name: 'Etha', description: 'Site profissional e hospedagem', monthly: 'R$ 49', annual: 'R$ 490' },
 };
 
 const ORDER = ['ambo', 'minne', 'etha'];
@@ -27,12 +27,12 @@ export const PLANS = [
   { id: 'consultorio', name: 'Consultório', products: ['ambo', 'minne'], monthly: 79, separate: 98, for: 'Agenda e prontuário no mesmo lugar.',
     items: ['Tudo do Agenda', 'Prontuários e evolução clínica (Minne)', 'Agenda do dia ligada aos pedidos'] },
   { id: 'completo', name: 'Completo', products: ['ambo', 'minne', 'etha'], monthly: 99, separate: 147, recommended: true, for: 'Site, agenda e prontuário: a prática inteira.',
-    items: ['Tudo do Consultório', 'Site profissional (Etha)', 'Hospedagem e painel para editar'] },
+    items: ['Tudo do Consultório', 'Site profissional (Etha)', 'Hospedagem e atualizações'] },
 ];
 
 // Etha em dois níveis (22/11): Essencial sem taxa; Sob medida com implantação única.
 export const ETHA_SERVICES = [
-  { id: 'essencial', name: 'Essencial', price: 'Incluído', detail: 'Você preenche o briefing guiado e o site sai de um modelo pronto, no seu tom.' },
+  { id: 'essencial', name: 'Essencial', price: 'Incluído', detail: 'Você responde 6 perguntas e o site sai do nosso modelo, com as suas informações.' },
   { id: 'sob_medida', name: 'Sob medida', price: '+ R$ 790 único', detail: 'A equipe monta o site com você: textos, fotos e páginas. Até 3x, cobrado só quando você aprovar o site.' },
 ];
 

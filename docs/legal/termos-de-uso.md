@@ -8,7 +8,7 @@ Versão piloto · 22 de novembro de 2026
 
 A Enomera é um conjunto de serviços digitais para profissionais independentes de psicologia e psiquiatria, criado e conduzido por Marcos Martins ("Enomera", "nós"). Os serviços são:
 
-- **Etha**: site profissional com painel para editar textos e fotos.
+- **Etha**: site profissional montado a partir das suas respostas a perguntas guiadas (Essencial) ou feito pela nossa equipe com o seu material (Sob medida).
 - **Ambo**: agendamento e área do paciente.
 - **Minne**: gestão clínica, com agenda, pacientes, registros e prontuário.
 
@@ -26,8 +26,9 @@ Ao criar uma conta ou usar qualquer serviço, você declara que leu e aceita est
 
 ## 4. Piloto, teste e preços
 
-- Durante o piloto, os primeiros **30 dias são gratuitos**. Nenhuma cobrança é feita nesse período.
-- Ao fim dos 30 dias, se você tiver escolhido continuar, a assinatura passa a ser cobrada pelo plano escolhido. Valores mensais do piloto: Ambo R$ 39; Etha R$ 49; Minne R$ 59; Ambo + Minne R$ 79; Ambo + Etha R$ 69; Etha + Minne R$ 89; os três R$ 99. O plano anual custa o equivalente a 10 mensalidades.
+- Quem entra no piloto **por convite** usa todos os serviços, planos e a implantação Sob medida da Etha **sem custo até 31 de janeiro de 2027**, sem cadastrar cartão. Nenhuma cobrança é feita nesse período e nada passa a ser cobrado sem um aviso por e-mail com antecedência e a sua confirmação.
+- Fora do convite, os primeiros **30 dias são gratuitos**. Nenhuma cobrança é feita nesse período.
+- Ao fim do período gratuito, se você tiver escolhido continuar, a assinatura passa a ser cobrada pelo plano escolhido. Valores mensais do piloto: Ambo R$ 39; Etha R$ 49; Minne R$ 59; Ambo + Minne R$ 79; Ambo + Etha R$ 69; Etha + Minne R$ 89; os três R$ 99. O plano anual custa o equivalente a 10 mensalidades.
 - Os pagamentos são processados pelo Asaas (Pix, boleto ou cartão). A Enomera não recebe nem guarda dados do seu cartão.
 - Podemos mudar preços com aviso de pelo menos 30 dias por e-mail. A mudança só vale a partir do ciclo seguinte ao aviso.
 
