@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { nowIso, randomId, sanitizeAuditMeta } from './crypto.mjs';
+import { applyPilotDigestMigration } from './pilot-digest.mjs';
 import { applyPilotMigration, applyPilotSelfTestMigration, applyPilotFriendInvitesMigration } from './pilot.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -272,6 +273,12 @@ async function applyMigrations(db) {
     if (!applied.has('006_pilot_friend_invites')) {
       await tx.run('INSERT INTO schema_migrations (version, description, applied_at) VALUES (?, ?, ?) ON CONFLICT(version) DO NOTHING',
         '006_pilot_friend_invites', 'Three more pilot tester invites (friends of the administrator)', nowIso());
+    }
+
+    if (!applied.has('007_pilot_daily_digest')) {
+      await applyPilotDigestMigration(tx);
+      await tx.run('INSERT INTO schema_migrations (version, description, applied_at) VALUES (?, ?, ?) ON CONFLICT(version) DO NOTHING',
+        '007_pilot_daily_digest', 'Daily pilot usage digest for the administrator', nowIso());
     }
 
     await tx.run(
