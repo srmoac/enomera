@@ -67,7 +67,12 @@ a { color: var(--accent); }
 @keyframes plNote { from { opacity: 0; transform: translateY(calc(var(--eno-shift-small) * -1)); } }
 .pl-pass { position: relative; }
 .pl-pass input { padding-right: 96px; }
-.pl-pass button { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); }
+/* Mostrar/Ocultar preso dentro do campo: sem translateY (o :active trocava o transform e o botão caía para fora). */
+.pl-pass button { position: absolute; right: 6px; top: 6px; bottom: 6px; min-height: 0; min-width: 84px; padding: 0 14px; transform: none; }
+.pl-pass button:active { transform: scale(var(--eno-press-scale)); }
+.pl-pass button.is-swap { animation: plPassSwap .26s cubic-bezier(.23,1,.32,1); }
+@keyframes plPassSwap { 0% { opacity: .2; filter: blur(2px); transform: translateY(3px); } 100% { opacity: 1; filter: none; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .pl-pass button.is-swap { animation: none; } }
 
 .pl-seg { display: inline-grid; grid-auto-flow: column; gap: 4px; padding: 4px; border-radius: 999px; background: var(--accent-soft); position: relative; }
 .pl-seg button { appearance: none; border: 0; background: transparent; font: 600 14px Manrope, sans-serif; color: var(--muted); min-height: 44px; padding: 0 18px; border-radius: 999px; cursor: pointer; position: relative; z-index: 1;
