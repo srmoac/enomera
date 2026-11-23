@@ -125,7 +125,7 @@ const VIEWS = {
     const mods = [...S.form.modalities].map((m) => (m === 'online' ? 'online' : 'presencial')).join(' e ');
     return { title: 'Seu link do Ambo', lead: 'É por aqui que o paciente pede consulta. Compartilhe no WhatsApp ou no Instagram.', body: `
       <div class="cf-link eg-surface"><code>${esc(url.replace(/^https?:\/\//, ''))}</code><button type="button" class="eg-btn is-glass is-sm" id="copy" data-url="${esc(url)}">Copiar</button></div>
-      <div class="cf-row"><a class="eg-btn is-glass is-sm" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent('Agende sua consulta comigo: ' + url)}">WhatsApp</a><a class="eg-btn is-glass is-sm" target="_blank" rel="noopener" href="${esc(url)}">Ver como o paciente vê</a></div>
+      <div class="cf-row"><a class="eg-btn is-glass is-sm" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent('Agende sua consulta comigo: ' + url)}">WhatsApp</a><a class="eg-btn is-glass is-sm" target="_blank" rel="noopener" href="${esc(url)}&visao=profissional">Ver como o paciente vê ↗</a></div>
       ${S.form.open ? '<p class="cf-ok">✓ Sua agenda está aberta para pedidos.</p>' : `<p class="cf-ok">✓ Pronto para abrir: ${total} ${total === 1 ? 'horário' : 'horários'} na semana, ${esc(mods)}, ${S.form.price ? 'R$ ' + esc(S.form.price) : 'valor a combinar'}.</p>`}
       <p class="muted small">${has('minne') ? 'Os pedidos chegam no Ambo, na aba Pedidos, e quando você confirma o paciente entra no Minne.' : 'Os pedidos chegam no próprio Ambo, na aba Pedidos, e você confirma por lá.'}</p>` };
   },
