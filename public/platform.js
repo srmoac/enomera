@@ -439,6 +439,10 @@ export async function mountEnomeraPlatform(rootEl) {
     `;
   }
 
+  // Um nome e uma foto só: os do perfil profissional (os mesmos do Ambo, Minne e Etha).
+  function profileName() { return state.profileData?.profile?.displayName || state.me?.account?.displayName || state.me?.user?.fullName || ''; }
+  function profilePhoto() { return state.profileData?.profile?.photoUrl || ''; }
+
   function renderTopbar() {
     const authed = Boolean(state.me);
     const tabs = authed
@@ -453,7 +457,7 @@ export async function mountEnomeraPlatform(rootEl) {
             : `<button type="button" class="eno-tab" data-tab="${id}" aria-current="${state.tab === id ? 'page' : 'false'}">${label}</button>`).join('')}
         </nav>
         <div class="eno-btn-row">
-          ${authed ? `<a class="eno-pill eno-user-link" href="/configurar?etapa=voce" aria-label="Seu perfil: ${esc(state.me.user.fullName)}"><span class="eno-user-ava" aria-hidden="true">${esc((state.me.user.fullName || '?').trim().charAt(0).toUpperCase())}</span>${esc(state.me.user.fullName)}</a><button type="button" class="eno-btn eno-btn-sec" id="eno-logout">Sair</button>` : `<a class="eno-btn eno-btn-sec" href="/">Voltar ao site</a>`}
+          ${authed ? `<a class="eno-pill eno-user-link" href="/configurar?etapa=voce" aria-label="Seu perfil: ${esc(profileName())}"><span class="eno-user-ava" aria-hidden="true" ${profilePhoto() ? `style="background-image:url('${esc(profilePhoto())}');background-size:cover;background-position:center;color:transparent"` : ''}>${esc((profileName() || '?').trim().charAt(0).toUpperCase())}</span>${esc(profileName())}</a><button type="button" class="eno-btn eno-btn-sec" id="eno-logout">Sair</button>` : `<a class="eno-btn eno-btn-sec" href="/">Voltar ao site</a>`}
         </div>
       </header>
     `;

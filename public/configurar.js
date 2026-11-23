@@ -58,15 +58,12 @@ function computeSteps() {
 // ---------- Estado do formulário (vem do servidor; nada de valores de exemplo) ----------
 function initForm() {
   const p = S.profile || {}; const st = S.setup || {};
-  const email = S.me?.user?.email || '';
-  const local = email.split('@')[0] || '';
-  const looksFromEmail = (n) => !n || n.toLowerCase().replace(/\s+/g, '') === local.toLowerCase() || n.toLowerCase() === local.toLowerCase().replace(/[._-]+/g, ' ');
   const name = p.displayName || S.me?.user?.fullName || '';
   const addr = st.address || {};
   const byDay = {};
   for (const r of (st.rules || [])) { const h = Number(String(r.startTime).slice(0, 2)); (byDay[r.weekday] = byDay[r.weekday] || new Set()).add(h); }
   S.form = {
-    displayName: looksFromEmail(name) ? '' : name,
+    displayName: name,
     crpOrCrm: p.crpOrCrm || '',
     specialty: p.specialty || 'Psicologia',
     photoUrl: p.photoUrl || '',
