@@ -453,6 +453,12 @@ test('7. Ambo Solo -> later Minne adoption + Patient Invitation single-use + Min
   });
   assert.equal(closedReq.status, 409);
   assert.equal(closedReq.data.code, 'AMBO_NOT_OPEN');
+  // Salvar sem informar valor/cidade não publica o exemplo das colunas (R$ 220, São Paulo).
+  const draft = await api('/api/v1/ambo/pro/setup', { method: 'PUT', token: soloTok, body: { modalities: ['online'] } });
+  assert.equal(draft.status, 200);
+  assert.equal(draft.data.setup.sessionPriceCents, null);
+  assert.equal(draft.data.setup.city, '');
+  assert.equal(draft.data.setup.inPersonAddress, '');
   const opened = await api('/api/v1/ambo/pro/setup', {
     method: 'PUT', token: soloTok,
     body: { modalities: ['online'], sessionDurationMin: 50, sessionPriceCents: 20000, rules: [1, 2, 3, 4, 5].map((weekday) => ({ weekday, startTime: '08:00', endTime: '18:00' })), open: true,
