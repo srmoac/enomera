@@ -1212,3 +1212,16 @@ body:has(.eno-flow-shell) .journey-petal { display: none !important; }
 .eno-sub-form .eno-btn { justify-self: start; min-width: 160px; }
 .eno-sub-history { margin-top: 28px; }
 @media (max-width: 640px) { .eno-sub-form .eno-btn { justify-self: stretch; } }
+
+/* Auditoria 23 nov: botões dos cartões de serviço alinhados na base (cartões da mesma linha
+   têm a mesma altura; a fila de botões desce até o fim) e link do Ambo legível, sem estourar. */
+.eno-grid-3 > .eno-card > .eno-btn-row:last-child { margin-top: auto; }
+.eno-link-line { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .82rem; }
+@media (max-width: 760px) {
+  /* Abas do portal numa linha só, com rolagem lateral, em vez de quebrar em duas dentro da pílula */
+  .eno-topbar .eno-nav-tabs { order: 3; flex: 1 0 100%; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; scroll-snap-type: x proximity; }
+  .eno-topbar .eno-nav-tabs::-webkit-scrollbar { display: none; }
+  .eno-topbar .eno-nav-tabs .eno-tab { flex: none; scroll-snap-align: start; }
+}
+.eno-grid-3 > .eno-card > .eno-btn-row:last-child { flex-direction: column; align-items: stretch; }
+.eno-grid-3 > .eno-card > .eno-btn-row:last-child > .eno-btn { width: 100%; justify-content: center; }

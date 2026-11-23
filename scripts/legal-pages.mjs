@@ -42,17 +42,17 @@ export function markdownToHtml(md) {
 }
 
 function page(title, body) {
-  return `<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>${title} | Enomera</title><link rel="icon" type="image/svg+xml" href="/assets/brand.svg"><link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet"><style>
+  return `<!doctype html><html lang="pt-BR" data-theme="light"><head><meta charset="UTF-8"><meta name="color-scheme" content="light only"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>${title} | Enomera</title><link rel="icon" type="image/svg+xml" href="/assets/brand.svg"><link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet"><style>
 :root{--bg:#F0F4FE;--ink:#1C2240;--muted:#56607F;--line:#D6DDF2;--card:#fff;--accent:#3B4FB8}
-@media (prefers-color-scheme:dark){:root{--bg:#10132A;--ink:#EEF1FC;--muted:#A9B1CE;--line:#2A3157;--card:#171B38;--accent:#9AA8F0}}
+:root{color-scheme:light}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 Manrope,system-ui,sans-serif}
 header{max-width:760px;margin:0 auto;padding:20px 16px;display:flex;justify-content:space-between;align-items:center}
-header a{color:var(--ink);text-decoration:none;font-weight:600}main{max-width:760px;margin:0 auto;padding:8px 16px 64px}
+header a{color:var(--ink);text-decoration:none;font-weight:600;display:inline-flex;align-items:center;min-height:44px;padding:0 6px}header nav{display:flex;align-items:center;gap:2px}main{max-width:760px;margin:0 auto;padding:8px 16px 64px}
 h1{font:500 clamp(30px,6vw,42px)/1.18 Manrope,system-ui,sans-serif;letter-spacing:-.03em;margin:8px 0 4px}h2{font-size:20px;margin:36px 0 8px}
 a{color:var(--accent)}.legal-note{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:16px 0}
 .legal-table{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:15px}th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
 li{margin:4px 0}footer{max-width:760px;margin:0 auto;padding:0 16px 40px;color:var(--muted);font-size:14px}
-</style></head><body><header><a href="/">enomera</a><nav><a href="/termos">Termos</a> · <a href="/privacidade">Privacidade</a></nav></header><main>${body}</main><footer>Enomera · Atendimento remoto nacional</footer><script src="/piloto/uso.js" data-produto="enomera" defer></script></body></html>`;
+</style></head><body><header><a href="/" style="gap:8px"><img src="/assets/brand.svg" width="28" height="24" alt="">enomera</a><nav aria-label="Documentos"><a href="/termos">Termos</a><span aria-hidden="true">·</span><a href="/privacidade">Privacidade</a></nav></header><main>${body}</main><footer>Enomera · Atendimento remoto nacional</footer><script src="/piloto/uso.js" data-produto="enomera" defer></script></body></html>`;
 }
 
 export async function buildLegalPages(outDir = 'dist') {

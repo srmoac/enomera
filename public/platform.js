@@ -497,6 +497,12 @@ export async function mountEnomeraPlatform(rootEl) {
     `;
   }
 
+  // Link do Ambo legível (sem "?pro=" cru): mesmo texto do /configurar.
+  function amboLinkLabel(slug) {
+    const base = APP_ORIGINS.ambo.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+    return `${base}/?pro=${slug}`;
+  }
+
   function renderPortalView() {
     const s = state.summary;
     if (!s) return loadingSkeleton('Carregando seu portal…', 3);
@@ -517,12 +523,12 @@ export async function mountEnomeraPlatform(rootEl) {
       const status = prod === 'etha' && ent ? (s.routine.ethaProject?.status || ent.status) : ent?.status;
       const pill = `<span class="eno-pill ${ent?.canWrite ? 'eno-pill-ok' : `eno-pill-${prod}`}">${name} · ${owned ? esc(statusLabel(status)) : 'Disponível'}</span>`;
       const body = {
-        ambo: ent?.canReadExport ? `Seu endereço no Ambo: <code>?pro=${esc(s.account.slug)}</code><br>Solicitações aguardando resposta: <b>${s.routine.pendingRequests ?? 0}</b>` : 'Agendamento online e área do paciente.',
-        minne: ent?.canReadExport ? `Consultas confirmadas: <b>${s.routine.confirmedAppointments ?? 0}</b> · Rascunhos: <b>${s.routine.clinicalDrafts ?? 0}</b>` : 'Agenda clínica, prontuários e importação dos seus registros.',
-        etha: 'Site exclusivo com briefing, uma revisão e painel para editar textos e fotos.',
+        ambo: ent?.canReadExport ? `${(() => { const n = s.routine.pendingRequests ?? 0; return n ? `<b>${n}</b> ${n === 1 ? 'pedido aguardando' : 'pedidos aguardando'} sua resposta` : 'Nenhum pedido aguardando resposta'; })()}<br><span class="eno-link-line">Seu link: ${esc(amboLinkLabel(s.account.slug))}</span>` : 'Agendamento online e área do paciente.',
+        minne: ent?.canReadExport ? `${(() => { const c = s.routine.confirmedAppointments ?? 0; const d = s.routine.clinicalDrafts ?? 0; return `<b>${c}</b> ${c === 1 ? 'consulta confirmada' : 'consultas confirmadas'} · <b>${d}</b> ${d === 1 ? 'rascunho' : 'rascunhos'}`; })()}` : 'Agenda clínica, prontuários e importação dos seus registros.',
+        etha: 'Seu site profissional, montado a partir de 6 perguntas. Você atualiza respondendo de novo.',
       }[prod];
       const actions = {
-        ambo: `<button type="button" class="eno-btn eno-btn-ambo" data-launch="ambo" data-path="/?pro=${encodeURIComponent(s.account.slug)}">Ver perfil público ↗</button>
+        ambo: `<button type="button" class="eno-btn eno-btn-ambo" data-launch="ambo" data-path="/?pro=${encodeURIComponent(s.account.slug)}&visao=profissional">Ver como o paciente vê ↗</button>
                <button type="button" class="eno-btn eno-btn-sec" data-launch="ambo" data-path="/operacao">Abrir agenda do Ambo ↗</button>`,
         minne: `<button type="button" class="eno-btn eno-btn-minne" data-launch="minne" data-path="/?modo=ao-vivo">Abrir Minne ↗</button>
                 <button type="button" class="eno-btn eno-btn-sec" data-launch="minne" data-path="/?modo=ao-vivo&aba=importar">Importar prontuários ↗</button>`,
@@ -546,7 +552,7 @@ export async function mountEnomeraPlatform(rootEl) {
           <div class="eno-row" style="background:transparent;border:0;padding:0">
             <div>
               <h1 class="eno-h1">${activeCount ? 'Seus serviços' : 'Escolha seu ponto de partida'}</h1>
-              ${chosen ? `<p class="eno-muted" data-portal-combo>${activeProducts.length ? 'Seus serviços' : 'Sua combinação'}: <b>${esc(chosen)}</b> · <button type="button" class="eno-link" data-tab="plans">${activeProducts.length ? 'Ver outros serviços' : 'Alterar'}</button></p>` : ''}
+              ${chosen ? `<p class="eno-muted" data-portal-combo>${activeProducts.length ? 'Ativos' : 'Sua combinação'}: <b>${esc(chosen)}</b> · <button type="button" class="eno-link" data-tab="plans">${activeProducts.length ? 'Ver outros serviços' : 'Alterar'}</button></p>` : ''}
             </div>
             <div class="eno-btn-row">
               ${!state.me.user.emailVerified ? `<button type="button" class="eno-btn eno-btn-sec" id="eno-go-verify">Verificar e-mail pendente</button>` : ''}

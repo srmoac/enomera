@@ -46,7 +46,7 @@ export const services = [
     id: 'etha',
     name: 'etha',
     description: 'Site exclusivo para o profissional',
-    billing: 'Mensal ou anual · site, hospedagem e painel',
+    billing: 'Mensal ou anual · site e hospedagem',
     section: '#etha',
     destination: ecosystem.etha,
     externalDestination: ecosystem.etha,
@@ -87,6 +87,6 @@ export function billingFor(ids, mode) {
     .filter(s => ids.includes(s.id))
     .map(s => ({
       id: s.id,
-      text: pilotFree() ? `Grátis no piloto · ${s.id === 'etha' ? 'site, hospedagem e painel (Sob medida incluída)' : 'hospedagem, atualizações e suporte incluídos'}` : `${brl(MONTHLY[s.id] * (annual ? 10 : 1))}${annual ? '/ano' : '/mês'} · ${s.id === 'etha' ? 'site, hospedagem e painel (Sob medida: + R$ 790 de implantação, até 3x)' : 'hospedagem, atualizações e suporte incluídos'}`
+      text: pilotFree() ? `Grátis no piloto · ${s.id === 'etha' ? 'site e hospedagem (Sob medida incluída)' : 'hospedagem, atualizações e suporte incluídos'}` : `${brl(MONTHLY[s.id] * (annual ? 10 : 1))}${annual ? '/ano' : '/mês'} · ${s.id === 'etha' ? 'site e hospedagem (Sob medida: + R$ 790 de implantação, até 3x)' : 'hospedagem, atualizações e suporte incluídos'}`
     }));
 }

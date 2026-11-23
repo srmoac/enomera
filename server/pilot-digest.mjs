@@ -137,11 +137,13 @@ function panelUrl() {
 
 export function digestEmail(s) {
   const d = new Date(`${s.day}T12:00:00Z`).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', timeZone: 'UTC' });
+  const pl = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  const bpl = (n, one, many) => `<b>${n}</b> ${n === 1 ? one : many}`;
   const sign = (n) => (n == null ? '' : n > 0 ? ` (+${n})` : n < 0 ? ` (${n})` : ' (=)');
   const lines = [
     `Piloto Enomera · ${d}`,
     '',
-    `${s.totals.active} pessoa(s) usaram${sign(s.deltas?.active)} · ${fmtDur(s.totals.activeMs)} de uso ativo · ${s.totals.sessions} sessão(ões)${sign(s.deltas?.sessions)} · ${s.totals.errors} erro(s)${sign(s.deltas?.errors)}`,
+    `${pl(s.totals.active, 'pessoa usou', 'pessoas usaram')}${sign(s.deltas?.active)} · ${fmtDur(s.totals.activeMs)} de uso ativo · ${pl(s.totals.sessions, 'sessão', 'sessões')}${sign(s.deltas?.sessions)} · ${pl(s.totals.errors, 'erro', 'erros')}${sign(s.deltas?.errors)}`,
     '',
     ...s.highlights.map(([k, v]) => `${k}: ${v}`),
     '',
@@ -151,11 +153,11 @@ export function digestEmail(s) {
   const html = `<div style="font:15px/1.5 Manrope,Arial,sans-serif;color:#1C2240;max-width:560px">
     <p style="font-size:13px;color:#56607F;margin:0 0 6px">Piloto Enomera · resumo do dia</p>
     <h1 style="font-size:22px;margin:0 0 12px;font-weight:600">${esc(d)}</h1>
-    <p style="margin:0 0 16px"><b>${s.totals.active}</b> pessoa(s) usaram${esc(sign(s.deltas?.active))} · <b>${esc(fmtDur(s.totals.activeMs))}</b> de uso ativo · <b>${s.totals.sessions}</b> sessão(ões) · <b>${s.totals.errors}</b> erro(s)</p>
+    <p style="margin:0 0 16px">${bpl(s.totals.active, 'pessoa usou', 'pessoas usaram')}${esc(sign(s.deltas?.active))} · <b>${esc(fmtDur(s.totals.activeMs))}</b> de uso ativo · ${bpl(s.totals.sessions, 'sessão', 'sessões')} · ${bpl(s.totals.errors, 'erro', 'erros')}</p>
     <ul style="padding-left:18px;margin:0 0 18px">${s.highlights.map(([k, v]) => `<li style="margin:0 0 6px"><b>${esc(k)}:</b> ${esc(v)}</li>`).join('')}</ul>
     <p><a href="${esc(panelUrl())}" style="display:inline-block;background:#3B4FB8;color:#fff;text-decoration:none;padding:12px 20px;border-radius:999px;font-weight:600">Abrir o painel</a></p>
     <p style="font-size:12px;color:#8A93B2">Só administradores do piloto recebem este e-mail.</p></div>`;
-  return { subject: `Piloto · ${s.totals.active} pessoa(s) usaram ${d.split(',')[0]}`, textBody: lines.join('\n'), htmlBody: html };
+  return { subject: `Piloto · ${pl(s.totals.active, 'pessoa usou', 'pessoas usaram')} · ${d.split(',')[0]}`, textBody: lines.join('\n'), htmlBody: html };
 }
 
 /** Envia o resumo de um dia uma única vez (marca emailed_at antes de enviar). */

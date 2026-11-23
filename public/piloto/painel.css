@@ -3,7 +3,7 @@
 .pn-brand span { font-weight: 600; color: var(--accent); }
 .pn-nav { position: relative; display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; flex: 1 1 auto; min-width: 0; order: 3; width: 100%; padding: 4px; border-radius: 999px; background: var(--accent-soft); }
 .pn-nav::-webkit-scrollbar { display: none; }
-.pn-nav a { position: relative; z-index: 1; white-space: nowrap; color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 600; min-height: 40px; display: inline-flex; align-items: center; gap: 6px; padding: 0 14px; border-radius: 999px;
+.pn-nav a { position: relative; z-index: 1; white-space: nowrap; color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 600; min-height: 44px; display: inline-flex; align-items: center; gap: 6px; padding: 0 14px; border-radius: 999px;
   transition: color var(--eno-t-fast) var(--eno-ease-out), transform var(--eno-t-press) var(--eno-ease-out); }
 .pn-nav a:active { transform: scale(var(--eno-press-scale)); }
 .pn-nav a[aria-current="page"] { color: var(--ink); }
@@ -317,3 +317,8 @@
 .pn-drawer.lg { background-color: rgb(247 249 255 / .97); }
 .pn-drawer-head { background: rgb(247 249 255 / .9); -webkit-backdrop-filter: blur(14px) saturate(1.4); backdrop-filter: blur(14px) saturate(1.4); border-bottom: 1px solid transparent; transition: border-color var(--eno-t-fast) var(--eno-ease-out); }
 @media (max-width: 520px) { .pn-tools:has(#pn-period[hidden]) { width: auto; } }
+
+/* Auditoria 23 nov: rótulos do período e do "Meu teste" não quebram; no celular as ferramentas
+   ocupam a linha toda em vez de espremer o segmento. */
+.pn-tools .pl-seg button, .pn-tools .pl-btn { white-space: nowrap; }
+@media (max-width: 520px) { .pn-tools { width: 100%; flex-wrap: wrap; justify-content: space-between; } }

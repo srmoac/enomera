@@ -621,6 +621,10 @@
       lens.style.width = on.offsetWidth + 'px'; lens.style.transform = 'translateX(' + on.offsetLeft + 'px)';
     });
   }
+  // A lente se mede de novo quando a fonte termina de carregar ou o grupo muda de tamanho
+  // (antes ficava torta no celular: media com a fonte reserva e com o grupo ainda escondido).
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { placeLens(); placeTab(); });
+  if (window.ResizeObserver) { var pnRO = new ResizeObserver(function () { placeLens(); }); ['pn-period', 'pn-tools'].forEach(function (id) { var el = document.getElementById(id); if (el) pnRO.observe(el); }); }
   addEventListener('resize', function () { placeLens(); placeTab(); clearTimeout(window.__pnR); window.__pnR = setTimeout(drawHeat, 200); });
 
   document.getElementById('pn-nav').addEventListener('scroll', function () { placeTab(); }, { passive: true });

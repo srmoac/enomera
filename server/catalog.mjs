@@ -42,10 +42,10 @@ export const COMMERCIAL_CATALOG = {
     etha: {
       id: 'etha',
       name: 'Etha',
-      role: 'Site exclusivo, hospedagem e painel',
+      role: 'Site profissional e hospedagem',
       monthlyCents: 4900,
       annualCents: 4900 * ANNUAL_MONTHS,
-      includes: 'Site exclusivo com briefing guiado, redação para aprovação, publicação, hospedagem e painel de edição.',
+      includes: 'Site profissional montado a partir de 6 perguntas, com prévia, publicação e hospedagem.',
     },
   },
   // Etha em dois níveis (aprovado por Marcos em 22/11 22:08 UTC): Essencial (modelo, sem taxa)
