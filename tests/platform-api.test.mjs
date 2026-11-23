@@ -245,6 +245,11 @@ test('3. Milestone 1 End-to-End: Ambo request -> Minne confirm -> Concurrency co
   const patVer = await api('/api/v1/ambo/patient-access/verify', { method: 'POST', body: { professionalSlug: 'helena-duarte', contact: 'marina.alves@exemplo.invalid', code: patCode } });
   assert.equal(patVer.status, 200);
   const marinaToken = patVer.data.sessionToken;
+  assert.equal(patVer.data.professionalSlug, 'helena-duarte');
+
+  // Entrada direta do Ambo (sem link da profissional): o e-mail basta, e o código leva à profissional certa.
+  const unknownReq = await api('/api/v1/ambo/patient-access/request', { method: 'POST', body: { contact: 'ninguem@exemplo.invalid' } });
+  assert.equal(unknownReq.status, 200);
 
   const patMe = await api('/api/v1/ambo/patient/me', { token: marinaToken });
   assert.equal(patMe.status, 200);
@@ -438,11 +443,42 @@ test('7. Ambo Solo -> later Minne adoption + Patient Invitation single-use + Min
   const blockedMinne = await api('/api/v1/minne/workspace', { token: soloTok });
   assert.equal(blockedMinne.status, 403);
 
+  // Página pública fechada até a profissional revisar o atendimento e abrir a agenda.
+  const closedPub = await api(`/api/v1/ambo/public/${slug}`);
+  assert.equal(closedPub.data.booking.open, false);
+  assert.deepEqual(closedPub.data.professional.modalities, []);
+  const closedReq = await api(`/api/v1/ambo/public/${slug}/requests`, {
+    method: 'POST', headers: { 'X-Idempotency-Key': 'solo-req-closed' },
+    body: { modality: 'online', patientName: 'Joana Solo', patientEmail: 'joana.solo@exemplo.invalid' },
+  });
+  assert.equal(closedReq.status, 409);
+  assert.equal(closedReq.data.code, 'AMBO_NOT_OPEN');
+  const opened = await api('/api/v1/ambo/pro/setup', {
+    method: 'PUT', token: soloTok,
+    body: { modalities: ['online'], sessionDurationMin: 50, sessionPriceCents: 20000, rules: [1, 2, 3, 4, 5].map((weekday) => ({ weekday, startTime: '08:00', endTime: '18:00' })), open: true,
+      address: { cep: '01310100', street: 'Avenida Paulista', number: '1000', complement: 'sala 4', district: 'Bela Vista', city: 'São Paulo', uf: 'sp' } },
+  });
+  assert.equal(opened.status, 200);
+  assert.equal(opened.data.setup.open, true);
+  assert.deepEqual(opened.data.setup.address, { cep: '01310-100', street: 'Avenida Paulista', number: '1000', complement: 'sala 4', district: 'Bela Vista', city: 'São Paulo', uf: 'SP' });
+  assert.equal((await api(`/api/v1/ambo/public/${slug}`)).data.booking.open, true);
+
   // Patient submits request -> Ambo Solo confirms without Minne!
   const pReq = await api(`/api/v1/ambo/public/${slug}/requests`, {
     method: 'POST', headers: { 'X-Idempotency-Key': 'solo-req-1' },
     body: { modality: 'online', patientName: 'Joana Solo', patientEmail: 'joana.solo@exemplo.invalid', patientPhone: '(11) 97777-0001', preferences: { days: ['qua'], periods: ['manha'] } },
   });
+  assert.equal(pReq.status, 201);
+
+  // Entrada direta do Ambo (sem link da profissional): o e-mail basta, e o código leva à profissional certa.
+  const directReq = await api('/api/v1/ambo/patient-access/request', { method: 'POST', body: { contact: 'joana.solo@exemplo.invalid' } });
+  assert.equal(directReq.status, 200);
+  assert.ok(directReq.data.expiresAt);
+  const directBox = await api('/api/v1/dev/outbox?recipient=joana.solo@exemplo.invalid');
+  const directVer = await api('/api/v1/ambo/patient-access/verify', { method: 'POST', body: { contact: 'joana.solo@exemplo.invalid', code: extractSixDigitCode(directBox) } });
+  assert.equal(directVer.status, 200);
+  assert.equal(directVer.data.professionalSlug, slug);
+
   const proOv = await api('/api/v1/ambo/pro/overview', { token: soloTok });
   const slotA = proOv.data.availableSlots[0];
   const slotB = proOv.data.availableSlots[1];

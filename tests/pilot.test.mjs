@@ -96,6 +96,16 @@ test('Piloto: convite único, consentimento, eventos ligados à pessoa e painel 
     assert.equal(heat.data.points.length, 2);
     const tl = await call(`/api/v1/pilot/admin/participants/${p.id}/timeline`, null, login.data.sessionToken);
     assert.ok(tl.data.events.length >= 5);
+    // Operador marca o Sob medida da Etha como entregue (e reabre).
+    assert.equal((await call('/api/v1/pilot/admin/etha-sob-medida', null, acc.data.sessionToken)).status, 403);
+    const sobList = await call('/api/v1/pilot/admin/etha-sob-medida', null, login.data.sessionToken);
+    assert.equal(sobList.data.orders.length, 1); assert.equal(sobList.data.orders[0].deliveredAt, null);
+    const projId = sobList.data.orders[0].projectId;
+    const dlv = await call(`/api/v1/pilot/admin/etha-sob-medida/${projId}/entrega`, { delivered: true }, login.data.sessionToken);
+    assert.equal(dlv.status, 200); assert.ok(dlv.data.deliveredAt);
+    assert.ok(JSON.parse((await db.get('SELECT briefing_json FROM etha_projects WHERE id = ?', projId)).briefing_json).sobMedida.deliveredAt);
+    assert.equal((await call(`/api/v1/pilot/admin/etha-sob-medida/${projId}/entrega`, { delivered: false }, login.data.sessionToken)).data.deliveredAt, null);
+    assert.equal((await call('/api/v1/pilot/admin/etha-sob-medida/naoexiste/entrega', { delivered: true }, login.data.sessionToken)).status, 404);
     const ni = await call('/api/v1/pilot/admin/invites', { label: 'Convidado 3' }, login.data.sessionToken);
     assert.equal(ni.status, 201); assert.match(ni.data.link, /\/convite\/[A-Za-z0-9_-]{20,}$/);
     assert.equal((await call(`/api/v1/pilot/invites/${ni.data.link.split('/').pop()}`)).data.state, 'open');

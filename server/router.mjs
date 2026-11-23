@@ -238,6 +238,61 @@ function requireAuth(auth) {
   return auth;
 }
 
+// Ambo: a página pública só recebe pedidos depois que a profissional revisa atendimento e horários
+// e abre a agenda (22 nov 2026). Contas de demonstração já nascem abertas.
+function amboSetupOf(acc) {
+  let prefs = {};
+  try { prefs = JSON.parse(acc?.ui_preferences_json || '{}') || {}; } catch { prefs = {}; }
+  const setup = prefs.amboSetup || {};
+  const open = Boolean(acc?.is_demo_sandbox) || Boolean(setup.openedAt);
+  return { open, openedAt: setup.openedAt || null, reviewedAt: setup.reviewedAt || null, demo: Boolean(acc?.is_demo_sandbox) };
+}
+
+// Endereço em partes (CEP, rua, número, complemento, bairro), guardado ao lado
+// do texto único in_person_address que a página pública e os e-mails usam.
+function amboAddressOf(acc) {
+  let prefs = {};
+  try { prefs = JSON.parse(acc?.ui_preferences_json || '{}') || {}; } catch { prefs = {}; }
+  const a = prefs.amboSetup?.address;
+  return a && typeof a === 'object' ? a : null;
+}
+
+function cleanAmboAddress(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const pick = (k, max = 120) => String(raw[k] ?? '').trim().slice(0, max);
+  const cep = pick('cep', 9).replace(/\D/g, '');
+  const out = { cep: cep.length === 8 ? `${cep.slice(0, 5)}-${cep.slice(5)}` : '', street: pick('street'), number: pick('number', 20), complement: pick('complement', 80), district: pick('district', 80), city: pick('city', 80), uf: pick('uf', 2).toUpperCase() };
+  return Object.values(out).some(Boolean) ? out : null;
+}
+
+async function amboSetupPayload(db, accountId) {
+  const acc = await db.get('SELECT * FROM professional_accounts WHERE id = ?', accountId);
+  const rules = await db.all('SELECT weekday, start_time, end_time, modality FROM availability_rules WHERE account_id = ? AND active = 1 ORDER BY weekday, start_time', accountId);
+  const state = amboSetupOf(acc);
+  // Conta nova nunca revisada: as colunas têm valores-padrão de exemplo (cidade, endereço, valor).
+  // A profissional começa do zero em vez de herdar dados que não informou.
+  const fresh = !state.demo && !state.reviewedAt && !state.open;
+  return {
+    ...state,
+    modalities: fresh ? ['online'] : JSON.parse(acc.modalities_json || '["online","presencial"]'),
+    city: fresh ? '' : acc.city || '',
+    inPersonAddress: fresh ? '' : acc.in_person_address || '',
+    address: fresh ? null : amboAddressOf(acc),
+    sessionDurationMin: acc.session_duration_min,
+    sessionPriceCents: fresh ? null : acc.session_price_cents,
+    rules: rules.map((r) => ({ weekday: Number(r.weekday), startTime: r.start_time, endTime: r.end_time, modality: r.modality })),
+  };
+}
+
+async function amboAccountForContact(db, contact) {
+  const row = await db.get(`SELECT account_id, MAX(ts) AS last_ts FROM (
+      SELECT account_id, updated_at AS ts FROM consultation_requests WHERE lower(patient_email) = ? OR patient_phone = ?
+      UNION ALL
+      SELECT account_id, updated_at AS ts FROM operational_patients WHERE lower(email) = ? OR phone = ?
+    ) x GROUP BY account_id ORDER BY last_ts DESC LIMIT 1`, contact, contact, contact, contact);
+  return row ? db.get('SELECT * FROM professional_accounts WHERE id = ?', row.account_id) : null;
+}
+
 async function requireProfessional(db, auth, { product = null, write = false, clinical = false } = {}) {
   requireAuth(auth);
   if (auth.session.actor_type !== 'professional' || !auth.account || !auth.membership) {
@@ -1333,6 +1388,8 @@ export async function handleApiRequest(req, res, customDb = null) {
       if (!ents.ambo?.canWrite) {
         throw Object.assign(new Error('O agendamento Ambo não está ativo para este perfil.'), { status: 404, code: 'AMBO_INACTIVE' });
       }
+      const amboState = amboSetupOf(acc);
+      const amboFresh = !amboState.demo && !amboState.reviewedAt && !amboState.open;
       return json(res, 200, {
         professional: {
           slug: acc.slug,
@@ -1342,13 +1399,14 @@ export async function handleApiRequest(req, res, customDb = null) {
           bio: acc.bio,
           audience: acc.audience || '',
           photoUrl: profilePhotoUrl(acc),
-          city: acc.city,
+          city: amboFresh ? '' : acc.city,
           timezone: acc.timezone,
           sessionDurationMin: acc.session_duration_min,
-          sessionPriceCents: acc.session_price_cents,
-          modalities: JSON.parse(acc.modalities_json || '["online","presencial"]'),
-          inPersonHint: acc.city,
+          sessionPriceCents: amboFresh ? null : acc.session_price_cents,
+          modalities: amboFresh ? [] : JSON.parse(acc.modalities_json || '["online","presencial"]'),
+          inPersonHint: amboFresh ? '' : acc.city,
         },
+        booking: { open: amboState.open },
         note: 'Valor e condições do atendimento são combinados diretamente com a profissional. Enviar preferências não bloqueia horário na agenda.',
       });
     }
@@ -1360,6 +1418,7 @@ export async function handleApiRequest(req, res, customDb = null) {
       if (!acc) throw Object.assign(new Error('Profissional não encontrado.'), { status: 404, code: 'PROFESSIONAL_NOT_FOUND' });
       const ents = await getAccountEntitlements(db, acc.id);
       if (!ents.ambo?.canWrite) throw Object.assign(new Error('Agendamento indisponível para este perfil.'), { status: 403, code: 'AMBO_INACTIVE' });
+      if (!amboSetupOf(acc).open) throw Object.assign(new Error('A agenda desta profissional ainda não está aberta para pedidos.'), { status: 409, code: 'AMBO_NOT_OPEN' });
 
       const body = await readJsonBody(req);
       const idempotencyKey = String(req.headers['x-idempotency-key'] || body.idempotencyKey || randomId('idem'));
@@ -1409,9 +1468,14 @@ export async function handleApiRequest(req, res, customDb = null) {
       const body = await readJsonBody(req);
       const slug = String(body.professionalSlug || '').trim();
       const contact = String(body.contact || '').trim().toLowerCase();
-      const acc = (await db.get('SELECT * FROM professional_accounts WHERE slug = ?', slug));
-      if (!acc) throw Object.assign(new Error('Profissional não encontrado.'), { status: 404, code: 'PROFESSIONAL_NOT_FOUND' });
       if (!contact) throw Object.assign(new Error('Informe o e-mail ou telefone usado na solicitação.'), { status: 400, code: 'CONTACT_REQUIRED' });
+      // Sem profissional (entrada direta do Ambo): usa a conta com a atividade mais recente deste contato.
+      // A resposta é a mesma com ou sem cadastro, então não revela com quem a pessoa se consulta.
+      const acc = slug
+        ? (await db.get('SELECT * FROM professional_accounts WHERE slug = ?', slug))
+        : (await amboAccountForContact(db, contact));
+      if (!acc && slug) throw Object.assign(new Error('Profissional não encontrado.'), { status: 404, code: 'PROFESSIONAL_NOT_FOUND' });
+      if (!acc) return json(res, 200, { ok: true, message: 'Se houver solicitação ou cadastro associado a este contato, um código de verificação será gerado.' });
 
       const pat = (await db.get('SELECT id FROM operational_patients WHERE account_id = ? AND (lower(email) = ? OR phone = ?)', acc.id, contact, contact));
       const reqRow = (await db.get('SELECT id FROM consultation_requests WHERE account_id = ? AND (lower(patient_email) = ? OR patient_phone = ?)', acc.id, contact, contact));
@@ -1433,11 +1497,12 @@ export async function handleApiRequest(req, res, customDb = null) {
       const body = await readJsonBody(req);
       const slug = String(body.professionalSlug || '').trim();
       const contact = String(body.contact || '').trim().toLowerCase();
-      const acc = (await db.get('SELECT * FROM professional_accounts WHERE slug = ?', slug));
-      if (!acc) throw Object.assign(new Error('Profissional não encontrado.'), { status: 404, code: 'PROFESSIONAL_NOT_FOUND' });
+      let acc = slug ? (await db.get('SELECT * FROM professional_accounts WHERE slug = ?', slug)) : null;
+      if (slug && !acc) throw Object.assign(new Error('Profissional não encontrado.'), { status: 404, code: 'PROFESSIONAL_NOT_FOUND' });
 
       const verRow = await consumeVerificationCode(db, { purpose: 'patient_access', targetContact: contact, code: body.code });
-      if (verRow.account_id !== acc.id) {
+      if (!acc) acc = await db.get('SELECT * FROM professional_accounts WHERE id = ?', verRow.account_id);
+      if (!acc || verRow.account_id !== acc.id) {
         throw Object.assign(new Error('Código não corresponde a este profissional.'), { status: 403, code: 'ACCOUNT_MISMATCH' });
       }
 
@@ -1459,7 +1524,7 @@ export async function handleApiRequest(req, res, customDb = null) {
       const patientId = pat?.id || `contact:${contact}`;
       const sess = await issueSession(db, { userId: user.id, actorType: 'patient', accountId: acc.id, patientId, ttlMinutes: 120 });
       await writeAudit(db, { actorUserId: user.id, actorType: 'patient', accountId: acc.id, action: 'ambo.patient_verified', resourceType: 'session', resourceId: sess.id });
-      return json(res, 200, { verified: true, sessionToken: sess.rawToken, expiresAt: sess.expiresAt }, { 'Set-Cookie': sess.cookie });
+      return json(res, 200, { verified: true, sessionToken: sess.rawToken, expiresAt: sess.expiresAt, professionalSlug: acc.slug }, { 'Set-Cookie': sess.cookie });
     }
 
     if (method === 'GET' && pathname === '/api/v1/ambo/patient/me') {
@@ -1666,7 +1731,61 @@ export async function handleApiRequest(req, res, customDb = null) {
         patients,
         invitations,
         availableSlots: await generateAvailableSlots(db, auth.account.id, { daysAhead: 14 }),
+        setup: await amboSetupPayload(db, auth.account.id),
       });
+    }
+
+    // Configuração do atendimento no Ambo: modalidades, local, duração, valor e horários semanais.
+    // `open: true` abre a página pública para pedidos; `open: false` fecha sem apagar nada.
+    if (method === 'PUT' && pathname === '/api/v1/ambo/pro/setup') {
+      await requireProfessional(db, auth, { product: 'ambo', write: true });
+      const body = await readJsonBody(req);
+      const acc = await db.get('SELECT * FROM professional_accounts WHERE id = ?', auth.account.id);
+      const modalities = Array.isArray(body.modalities) ? body.modalities.filter((m) => m === 'online' || m === 'presencial') : null;
+      if (modalities && modalities.length === 0) throw Object.assign(new Error('Escolha ao menos uma modalidade de atendimento.'), { status: 400, code: 'AMBO_SETUP_MODALITY' });
+      const timeRe = /^([01]\d|2[0-3]):[0-5]\d$/;
+      const rules = Array.isArray(body.rules) ? body.rules.map((r) => ({
+        weekday: Number(r.weekday), startTime: String(r.startTime || ''), endTime: String(r.endTime || ''), modality: ['online', 'presencial', 'both'].includes(r.modality) ? r.modality : 'both',
+      })) : null;
+      if (rules && rules.some((r) => !(r.weekday >= 0 && r.weekday <= 6) || !timeRe.test(r.startTime) || !timeRe.test(r.endTime) || r.endTime <= r.startTime)) {
+        throw Object.assign(new Error('Confira os horários: o fim precisa ser depois do início.'), { status: 400, code: 'AMBO_SETUP_RULES' });
+      }
+      const finalModalities = modalities || JSON.parse(acc.modalities_json || '["online","presencial"]');
+      const city = body.city != null ? String(body.city).trim() : acc.city;
+      const address = body.inPersonAddress != null ? String(body.inPersonAddress).trim() : acc.in_person_address;
+      if (body.open && finalModalities.includes('presencial') && !String(address || '').trim()) {
+        throw Object.assign(new Error('Informe o endereço do consultório para atender presencialmente.'), { status: 400, code: 'AMBO_SETUP_ADDRESS' });
+      }
+      if (body.open && rules && rules.length === 0) {
+        throw Object.assign(new Error('Libere ao menos um horário na semana para abrir a agenda.'), { status: 400, code: 'AMBO_SETUP_NO_HOURS' });
+      }
+      let prefs = {};
+      try { prefs = JSON.parse(acc.ui_preferences_json || '{}') || {}; } catch { prefs = {}; }
+      const now = nowIso();
+      prefs.amboSetup = {
+        ...(prefs.amboSetup || {}),
+        reviewedAt: now,
+        openedAt: body.open === true ? (prefs.amboSetup?.openedAt || now) : body.open === false ? null : (prefs.amboSetup?.openedAt || null),
+      };
+      if (body.address !== undefined) prefs.amboSetup.address = cleanAmboAddress(body.address);
+      await runTransaction(db, async (db) => {
+        await db.run(`UPDATE professional_accounts SET modalities_json = ?, city = ?, in_person_address = ?,
+            session_duration_min = COALESCE(?, session_duration_min), session_price_cents = COALESCE(?, session_price_cents),
+            ui_preferences_json = ?, updated_at = ? WHERE id = ?`,
+          JSON.stringify(finalModalities), city, address,
+          Number.isFinite(Number(body.sessionDurationMin)) && Number(body.sessionDurationMin) >= 15 ? Number(body.sessionDurationMin) : null,
+          Number.isFinite(Number(body.sessionPriceCents)) && Number(body.sessionPriceCents) >= 0 ? Math.round(Number(body.sessionPriceCents)) : null,
+          JSON.stringify(prefs), now, auth.account.id);
+        if (rules) {
+          await db.run('DELETE FROM availability_rules WHERE account_id = ?', auth.account.id);
+          for (const r of rules) {
+            await db.run(`INSERT INTO availability_rules (id, account_id, weekday, start_time, end_time, modality, active, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, 1, ?)`, randomId('avr'), auth.account.id, r.weekday, r.startTime, r.endTime, r.modality, now);
+          }
+        }
+      });
+      await writeAudit(db, { actorUserId: auth.user.id, actorType: 'professional', accountId: auth.account.id, action: body.open === true ? 'ambo.setup_open' : body.open === false ? 'ambo.setup_close' : 'ambo.setup_save', resourceType: 'professional_account', resourceId: auth.account.id });
+      return json(res, 200, { ok: true, setup: await amboSetupPayload(db, auth.account.id) });
     }
 
     const amboProConfirm = pathname.match(/^\/api\/v1\/ambo\/pro\/requests\/([^/]+)\/confirm$/);

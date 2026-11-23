@@ -74,9 +74,11 @@
       if (r.status === 403) return loginView('Esta sessão não é a do administrador do piloto. Entre com o acesso de administrador.');
       if (!r.ok) { main.innerHTML = '<div class="pn-empty">Não foi possível carregar agora (' + esc(r.d.error || r.status) + '). Tente Atualizar.</div>'; return; }
       var prev = state.data; state.data = r.d;
+      return api('/api/v1/pilot/admin/etha-sob-medida').then(function (s2) { state.sob = s2.ok ? (s2.d.orders || []) : []; }).catch(function () { state.sob = []; }).then(function () {
       document.getElementById('pn-nav').hidden = false; document.getElementById('pn-tools').hidden = false; placeLens();
       if (!state.heat.screen && r.d.screens.length) { state.heat.product = r.d.screens[0].product; state.heat.screen = r.d.screens[0].screen; }
       render(Boolean(prev));
+      });
     }).catch(function () { loading = false; btn.removeAttribute('aria-busy'); });
   }
 
@@ -193,6 +195,17 @@
       '<form class="pn-form-inline" id="pn-new-invite" novalidate><div class="pl-field"><label for="ni-label">Novo convite para</label><input id="ni-label" maxlength="60" placeholder="Ex.: Convidado 3 · psicóloga de Recife" aria-describedby="ni-err"><p class="pl-err" id="ni-err"></p></div><button class="pl-btn" type="submit">Criar link</button></form>';
   }
 
+  function sobBlock() {
+    var list = state.sob || [];
+    if (!list.length) return '<div class="pn-empty">Nenhum pedido Sob medida da Etha ainda. Ele aparece aqui quando alguém escolhe Sob medida na contratação ou no briefing.</div>';
+    return '<div class="pn-invites" id="pn-sob-list">' + list.map(function (o) {
+      var done = Boolean(o.deliveredAt);
+      return '<div class="pn-invite"><div><b>' + esc(o.name) + '</b> <span class="small muted">' + esc(o.slug) + ' · ' + (done ? 'entregue ' + esc(ago(o.deliveredAt)) : 'atualizado ' + esc(ago(o.updatedAt))) + '</span></div>' +
+        '<div style="display:flex;gap:8px;align-items:center"><span class="pn-chip ' + (done ? 'ok' : '') + '">' + (done ? 'Entregue' : 'Em produção') + '</span>' +
+        '<button type="button" class="pl-btn ' + (done ? 'is-ghost' : 'is-quiet') + '" data-sob="' + esc(o.projectId) + '" data-sob-to="' + (done ? '0' : '1') + '">' + (done ? 'Reabrir' : 'Marcar como entregue') + '</button></div></div>';
+    }).join('') + '</div><p class="small muted" style="margin-top:10px">Entregue tira a marca Etha do site da pessoa. Reabrir volta para o modelo com a marca.</p>';
+  }
+
   function render(isRefresh) {
     var d = state.data; var t = d.totals;
     var noUse = t.active === 0;
@@ -216,6 +229,9 @@
       '<section class="pn-section" id="mapa"><div class="pn-head"><div><h2>Mapa de cliques</h2><p>Cada ponto é um toque, na posição relativa da página inteira (largura da tela × altura rolada). Anel vermelho marca toque repetido.</p></div></div>' + heatShell(d) + '</section>' +
 
       '<section class="pn-section" id="erros"><div class="pn-head"><div><h2>Erros e depuração</h2><p>Erros de JavaScript, mensagens de console.error e chamadas à Core que falharam, agrupados.</p></div></div>' + errorsBlock(d) + '</section>' +
+
+      '<section class="pn-section" id="sobmedida"><div class="pn-head"><div><h2>Etha Sob medida</h2><p>Pedidos de site montado pela equipe. Marque quando o site estiver pronto.</p></div></div>' +
+      '<div class="pn-card lg" data-glass="regular" data-glass-tint="enomera">' + sobBlock() + '</div></section>' +
 
       '<section class="pn-section" id="convites"><div class="pn-head"><div><h2>Convites</h2><p>Cada link cria uma conta uma única vez. Crie mais quando quiser chamar outra pessoa.</p></div><button type="button" class="pl-btn is-ghost" id="pn-export">Baixar dados (JSON)</button></div>' +
       '<div class="pn-card lg" data-glass="regular" data-glass-tint="enomera" id="pn-invites-card">' + invitesBlock(d) + '</div></section>';
@@ -362,6 +378,17 @@
     if ((b = t.closest('[data-revoke]'))) {
       if (b.getAttribute('data-confirm') !== '1') { b.setAttribute('data-confirm', '1'); b.textContent = 'Confirmar cancelamento'; setTimeout(function () { if (b.isConnected) { b.removeAttribute('data-confirm'); b.textContent = 'Cancelar'; } }, 4000); return; }
       api('/api/v1/pilot/admin/invites/' + encodeURIComponent(b.getAttribute('data-revoke')) + '/revoke', { method: 'POST', body: {} }).then(function () { load(); }); return;
+    }
+    if ((b = t.closest('[data-sob]'))) {
+      if (b.getAttribute('aria-busy') === 'true') return;
+      var to = b.getAttribute('data-sob-to') === '1';
+      if (!to && b.getAttribute('data-confirm') !== '1') { b.setAttribute('data-confirm', '1'); b.textContent = 'Confirmar reabrir'; setTimeout(function () { if (b.isConnected) { b.removeAttribute('data-confirm'); b.textContent = 'Reabrir'; } }, 4000); return; }
+      b.setAttribute('aria-busy', 'true'); b.innerHTML = '<span class="pl-spin" aria-hidden="true"></span> Salvando';
+      api('/api/v1/pilot/admin/etha-sob-medida/' + encodeURIComponent(b.getAttribute('data-sob')) + '/entrega', { method: 'POST', body: { delivered: to } }).then(function (r) {
+        if (!r.ok) { b.removeAttribute('aria-busy'); b.textContent = 'Tentar de novo'; return; }
+        var o = (state.sob || []).find(function (x) { return x.projectId === r.d.projectId; }); if (o) o.deliveredAt = r.d.deliveredAt;
+        var card = document.getElementById('pn-sob-list'); if (card) { card.parentElement.innerHTML = sobBlock(); var nb = document.querySelector('[data-sob="' + r.d.projectId + '"]'); if (nb) nb.focus(); }
+      }); return;
     }
     if ((b = t.closest('#pn-export'))) {
       var blob = new Blob([JSON.stringify(state.data, null, 2)], { type: 'application/json' }); var a = document.createElement('a');
