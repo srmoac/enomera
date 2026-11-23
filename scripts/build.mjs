@@ -15,10 +15,12 @@ const envMap = {
 };
 const activeEntries = Object.entries(envMap).filter(([, v]) => Boolean(v));
 if (activeEntries.length > 0) {
-  let html = await readFile('dist/index.html', 'utf8');
   const scriptTag = `<script>${activeEntries.map(([k, v]) => `window.${k}=${JSON.stringify(v)};`).join('')}</script>`;
-  html = html.replace('</head>', `${scriptTag}\n</head>`);
-  await writeFile('dist/index.html', html, 'utf8');
+  for (const file of ['dist/index.html', 'dist/configurar.html']) {
+    let html = await readFile(file, 'utf8');
+    html = html.replace('</head>', `${scriptTag}\n</head>`);
+    await writeFile(file, html, 'utf8');
+  }
 }
 
 // Previews e branches não entram em busca: só produção pode ser indexada.

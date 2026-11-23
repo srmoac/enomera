@@ -32,6 +32,7 @@ export function createEnomeraServer(customDb = null) {
       if (url.pathname.startsWith('/convite/')) file = path.join(root, 'piloto', 'convite.html');
       else if (/^\/piloto\/painel\/?$/.test(url.pathname)) file = path.join(root, 'piloto', 'painel.html');
       else if (/^\/piloto\/como-funciona\/?$/.test(url.pathname)) file = path.join(root, 'piloto', 'como-funciona.html');
+      else if (/^\/configurar\/?$/.test(url.pathname)) file = path.join(root, 'configurar.html');
       if (!path.extname(file)) file = path.join(root, 'index.html');
       const data = await readFile(file);
       res.writeHead(200, { 'Content-Type': mime[path.extname(file)] || 'application/octet-stream' });

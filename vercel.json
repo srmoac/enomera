@@ -28,6 +28,10 @@
       "destination": "/piloto/painel.html"
     },
     {
+      "source": "/configurar",
+      "destination": "/configurar.html"
+    },
+    {
       "source": "/portal",
       "destination": "/index.html"
     },

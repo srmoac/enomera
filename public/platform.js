@@ -380,6 +380,11 @@ export async function mountEnomeraPlatform(rootEl) {
     const targetOrigin = APP_ORIGINS[appKey];
     if (!targetOrigin) return;
     if (!state.me) { window.open(targetOrigin + returnPath, '_blank', 'noopener'); return; }
+    // Agenda do Ambo ainda fechada: primeiro o fluxo de configuração, dentro da Enomera.
+    if (appKey === 'ambo' && returnPath.startsWith('/operacao')) {
+      const ov = await apiFetch('/api/v1/ambo/pro/overview');
+      if (ov.ok && !ov.data?.setup?.open) { window.location.href = '/configurar?etapa=consultorio'; return; }
+    }
     const res = await apiFetch('/api/v1/auth/handoff', { method: 'POST', body: { targetOrigin, returnPath } });
     if (res.ok) {
       const sep = returnPath.includes('?') ? '&' : '?';
@@ -539,7 +544,7 @@ export async function mountEnomeraPlatform(rootEl) {
             </div>
             <div class="eno-btn-row">
               ${!state.me.user.emailVerified ? `<button type="button" class="eno-btn eno-btn-sec" id="eno-go-verify">Verificar e-mail pendente</button>` : ''}
-              <button type="button" class="eno-btn eno-btn-sec" data-tab="profile">Configurar disponibilidade</button>
+              ${activeCount ? `<a class="eno-btn" href="/configurar">Configurar meus serviços</a>` : `<button type="button" class="eno-btn eno-btn-sec" data-tab="profile">Configurar disponibilidade</button>`}
             </div>
           </div>
           ${s.pendingSyncs?.length ? `
@@ -953,6 +958,8 @@ export async function mountEnomeraPlatform(rootEl) {
     state.tab = 'portal';
     syncHistory(state.tab, state.authMode);
     await refreshSessionAndData();
+    // Depois de ativar, o profissional segue direto para o fluxo de configuração do plano.
+    setTimeout(() => { window.location.href = '/configurar'; }, prefersReducedMotion() ? 0 : 900);
   }
 
   function bindOtpInputs() {
