@@ -1,6 +1,7 @@
 // Piloto com convidados: convites únicos, registro de uso (interações, nunca conteúdo) e painel do administrador.
 // Tudo fica no mesmo banco da Core (Neon no Preview, SQLite local). Sem serviço pago de analytics.
 import { z } from 'zod';
+import { ensureDailyDigests, listDailyDigests } from './pilot-digest.mjs';
 import { hashPassword, nowIso, randomId, randomToken, sha256Hex } from './crypto.mjs';
 
 export const PILOT_CONSENT_VERSION = 'piloto-uso-2026-11-22';
@@ -24,6 +25,8 @@ export const FRIEND_INVITES = [
   { id: 'inv_piloto_amigo_1', kind: 'tester', label: 'Amigo 1', hash: '52ea7dff98accdd86fe4c66acd5fe2f48feb758ea91b9db79b987892e2d39a28' },
   { id: 'inv_piloto_amigo_2', kind: 'tester', label: 'Amigo 2', hash: '879f6622c2660534e1fc5c1b028385e3bdeff21b789cf95faf036db487ec5a11' },
   { id: 'inv_piloto_amigo_3', kind: 'tester', label: 'Amigo 3', hash: '121211ef3b8490f9e1c2aa9f00b8fc35923cc972e537048abf1975e8641e32b1' },
+  // 23/11/2026 02:49 UTC: mais uma amiga do Marcos.
+  { id: 'inv_piloto_amiga_4', kind: 'tester', label: 'Amiga 4', hash: '08be889501b7cba340fd2a652990d77c57385f1ab1ed3c1d813ca9016dd4b473' },
 ];
 
 export async function applyPilotFriendInvitesMigration(tx) {
@@ -297,13 +300,14 @@ function featureHits(ev) {
 
 function parseMeta(s) { try { return JSON.parse(s || '{}'); } catch { return {}; } }
 
-export async function buildPilotOverview(db, { days = 14, includeSelfTest = false } = {}) {
-  const since = new Date(Date.now() - days * 864e5).toISOString();
+export async function buildPilotOverview(db, { days = 14, includeSelfTest = false, since: sinceIso = null, until = null } = {}) {
+  const since = sinceIso || new Date(Date.now() - days * 864e5).toISOString();
+  const untilIso = until || '9999-12-31T00:00:00.000Z';
   const participants = await db.all(`SELECT pp.*, u.full_name, u.email FROM pilot_participants pp JOIN users u ON u.id = pp.user_id WHERE pp.kind IN (${includeSelfTest ? "'tester', 'self_test'" : "'tester'"}) ORDER BY pp.created_at ASC`);
   const invites = await db.all('SELECT id, kind, label, created_at, used_at, revoked_at, expires_at FROM pilot_invites ORDER BY created_at ASC');
   const events = await db.all(`SELECT e.participant_id, e.product, e.session_key, e.type, e.screen, e.target, e.x, e.y, e.n, e.meta_json, e.form, e.occurred_at, d.browser, d.os
     FROM pilot_events e LEFT JOIN pilot_devices d ON d.id = e.device_id
-    WHERE e.participant_id IS NOT NULL AND e.occurred_at >= ? ORDER BY e.occurred_at ASC LIMIT 60000`, since);
+    WHERE e.participant_id IS NOT NULL AND e.occurred_at >= ? AND e.occurred_at < ? ORDER BY e.occurred_at ASC LIMIT 60000`, since, untilIso);
   const unlinked = await db.get('SELECT COUNT(*) AS c FROM pilot_events WHERE participant_id IS NULL');
 
   const byP = new Map(participants.map((p) => [p.id, {
@@ -471,6 +475,7 @@ export async function handlePilotRoutes({ db, req, res, method, pathname, url, a
 
   if (method === 'POST' && pathname === '/api/v1/pilot/events') {
     const out = await ingestPilotEvents(db, { body: await readJsonBody(req), auth, userAgent: req.headers['user-agent'] });
+    await ensureDailyDigests(db).catch(() => null); // fecha o dia anterior na primeira atividade (no máximo a cada 10 min)
     json(res, 200, out); return true;
   }
 
@@ -518,6 +523,10 @@ export async function handlePilotRoutes({ db, req, res, method, pathname, url, a
       const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim();
       const proto = host.startsWith('localhost') || host.startsWith('127.') ? 'http' : 'https';
       json(res, 201, { id, label: body.label, link: `${proto}://${host}/convite/${token}` }); return true;
+    }
+    if (method === 'GET' && pathname === '/api/v1/pilot/admin/digests') {
+      await ensureDailyDigests(db, { force: true }).catch(() => null);
+      json(res, 200, { digests: await listDailyDigests(db, Number(url.searchParams.get('limite') || 14)) }); return true;
     }
     if (method === 'GET' && pathname === '/api/v1/pilot/admin/etha-sob-medida') {
       json(res, 200, { orders: await listSobMedida(db) }); return true;

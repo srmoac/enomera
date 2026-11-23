@@ -74,7 +74,10 @@
       if (r.status === 403) return loginView('Esta sessão não é a do administrador do piloto. Entre com o acesso de administrador.');
       if (!r.ok) { main.innerHTML = '<div class="pn-empty">Não foi possível carregar agora (' + esc(r.d.error || r.status) + '). Tente Atualizar.</div>'; return; }
       var prev = state.data; state.data = r.d;
-      return api('/api/v1/pilot/admin/etha-sob-medida').then(function (s2) { state.sob = s2.ok ? (s2.d.orders || []) : []; }).catch(function () { state.sob = []; }).then(function () {
+      return Promise.all([
+        api('/api/v1/pilot/admin/etha-sob-medida').then(function (s2) { state.sob = s2.ok ? (s2.d.orders || []) : []; }).catch(function () { state.sob = []; }),
+        api('/api/v1/pilot/admin/digests').then(function (s3) { state.digests = s3.ok ? (s3.d.digests || []) : []; }).catch(function () { state.digests = []; }),
+      ]).then(function () {
       document.getElementById('pn-nav').hidden = false; document.getElementById('pn-tools').hidden = false; placeLens();
       if (!state.heat.screen && r.d.screens.length) { state.heat.product = r.d.screens[0].product; state.heat.screen = r.d.screens[0].screen; }
       render(Boolean(prev));
@@ -206,11 +209,50 @@
     }).join('') + '</div><p class="small muted" style="margin-top:10px">Entregue tira a marca Etha do site da pessoa. Reabrir volta para o modelo com a marca.</p>';
   }
 
+  // ── resumo do dia (fechado em Brasília, com histórico) ──
+  function dayLabel(day, long) {
+    var d = new Date(day + 'T12:00:00Z');
+    if (long) { var t = d.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', timeZone: 'UTC' }); return t.charAt(0).toUpperCase() + t.slice(1); }
+    return d.toLocaleDateString('pt-BR', long ? { weekday: 'long', day: '2-digit', month: 'long', timeZone: 'UTC' } : { weekday: 'short', day: '2-digit', timeZone: 'UTC' });
+  }
+  function deltaTag(n, invert) {
+    if (n == null) return '';
+    if (n === 0) return ' <small class="pn-delta">=</small>';
+    var good = invert ? n < 0 : n > 0;
+    return ' <small class="pn-delta ' + (good ? 'up' : 'down') + '">' + (n > 0 ? '+' : '−') + Math.abs(n) + '</small>';
+  }
+  function digestBlock() {
+    var list = state.digests || [];
+    if (!list.length) return '<div class="pn-empty">O primeiro resumo aparece aqui depois da meia-noite do primeiro dia com convidados. Cada dia fecha às 00h (Brasília) e vai também para o seu e-mail.</div>';
+    var cur = list.find(function (x) { return x.day === state.digestDay; }) || list[0];
+    var t = cur.totals, dl = cur.deltas || {};
+    var chips = '<div class="pn-days" role="tablist" aria-label="Dias">' + list.map(function (x) {
+      var on = x.day === cur.day;
+      return '<button type="button" role="tab" class="pn-day" data-digest="' + esc(x.day) + '" aria-selected="' + on + '">' + esc(dayLabel(x.day)) + '<b class="num">' + x.totals.active + '</b></button>';
+    }).join('') + '</div>';
+    var kp = '<div class="pn-kpis pl-stagger">' +
+      '<div class="pn-kpi lg" data-glass="regular" data-glass-tint="enomera"><b class="num">' + t.active + deltaTag(dl.active) + '</b><span>usaram</span></div>' +
+      '<div class="pn-kpi lg" data-glass="regular" data-glass-tint="enomera"><b class="num">' + esc(dur(t.activeMs)) + '</b><span>tempo ativo' + (dl.activeMs != null && dl.activeMs !== 0 ? ' · ' + (dl.activeMs > 0 ? '+' : '−') + esc(dur(Math.abs(dl.activeMs))) : '') + '</span></div>' +
+      '<div class="pn-kpi lg" data-glass="regular" data-glass-tint="enomera"><b class="num">' + t.sessions + deltaTag(dl.sessions) + '</b><span>sessões</span></div>' +
+      '<div class="pn-kpi lg" data-glass="regular" data-glass-tint="enomera"><b class="num">' + t.errors + deltaTag(dl.errors, true) + '</b><span>erros</span></div></div>';
+    var hl = '<ul class="pn-insights pl-stagger">' + cur.highlights.map(function (h) { return '<li><b>' + esc(h[0]) + '</b><span>' + esc(h[1]) + '</span></li>'; }).join('') + '</ul>';
+    var ppl = cur.people.length ? '<div class="pn-card lg" data-glass="regular" data-glass-tint="enomera"><h3 style="margin-bottom:10px">Quem usou</h3><div class="pn-invites">' + cur.people.map(function (p) {
+      return '<div class="pn-invite"><div><b>' + esc(p.name) + '</b> <span class="small muted">' + esc(dur(p.activeMs)) + ' · ' + p.sessions + (p.sessions === 1 ? ' sessão' : ' sessões') + (p.products.length ? ' · ' + esc(p.products.map(prod).join(', ')) : '') + (p.lastStop ? ' · parou em ' + esc(prod(p.lastStop.product) + ' ' + screenLabel(p.lastStop.screen)) : '') + '</span></div>' +
+        '<span class="pn-chip ' + (p.returning ? 'ok' : '') + '">' + (p.returning ? 'Voltou' : 'Primeira vez') + '</span></div>';
+    }).join('') + '</div></div>' : '';
+    var errs = cur.newErrors.length ? '<div class="pn-card lg" data-glass="regular" data-glass-tint="enomera"><h3 style="margin-bottom:10px">Erros novos no dia</h3><div class="pn-invites">' + cur.newErrors.map(function (e) {
+      return '<div class="pn-invite"><div><b>' + esc(e.text) + '</b> <span class="small muted">' + esc(prod(e.product)) + (e.screen ? ' · ' + esc(screenLabel(e.screen)) : '') + ' · ' + e.count + 'x</span></div></div>';
+    }).join('') + '</div></div>' : '';
+    return chips + '<p class="pn-day-title">' + esc(dayLabel(cur.day, true)) + (cur.emailedAt ? ' · <span class="muted small">enviado por e-mail</span>' : '') + '</p>' + kp + hl + (ppl || errs ? '<div class="pn-grid two">' + ppl + errs + '</div>' : '');
+  }
+
   function render(isRefresh) {
     var d = state.data; var t = d.totals;
     var noUse = t.active === 0;
     var html =
-      '<section class="pn-section" id="resumo"><div class="pn-head"><div><h1>Uso real do piloto</h1><p>O que as pessoas convidadas fazem de fato nos produtos, nos últimos ' + d.days + ' dias. ' + (d.includeSelfTest ? 'Inclui sua conta de teste.' : 'Sua conta de teste e seu acesso de administrador não entram.') + '</p></div><span class="pn-updated">Atualizado ' + esc(when(d.generatedAt)) + '</span></div>' +
+      '<section class="pn-section" id="resumo-dia"><div class="pn-head"><div><h1>Resumo do dia</h1><p>Cada dia fecha à meia-noite (Brasília) e é comparado com o anterior. Só você vê.</p></div></div><div id="pn-digest">' + digestBlock() + '</div></section>' +
+
+      '<section class="pn-section" id="resumo"><div class="pn-head"><div><h2>Uso real do piloto</h2><p>O que as pessoas convidadas fazem de fato nos produtos, nos últimos ' + d.days + ' dias. ' + (d.includeSelfTest ? 'Inclui sua conta de teste.' : 'Sua conta de teste e seu acesso de administrador não entram.') + '</p></div><span class="pn-updated">Atualizado ' + esc(when(d.generatedAt)) + '</span></div>' +
       '<div class="pn-kpis pl-stagger">' + kpi('entraram', t.joined + '/' + t.invited) + kpi('usaram no período', t.active) + kpi('voltaram outro dia', t.returned) + kpi('tempo ativo', dur(t.activeMs)) + kpi('sessões', t.sessions) + kpi('erros', t.errors) + '</div>' +
       (noUse ? '<div class="pn-empty">' + (t.joined ? 'As contas já existem, mas ainda não há uso registrado no período.' : 'Ninguém aceitou o convite ainda. Envie os links da seção Convites.') + ' Os números aparecem aqui assim que a primeira pessoa usar.</div>' : insights(d)) + '</section>' +
 
@@ -378,6 +420,11 @@
     if ((b = t.closest('[data-revoke]'))) {
       if (b.getAttribute('data-confirm') !== '1') { b.setAttribute('data-confirm', '1'); b.textContent = 'Confirmar cancelamento'; setTimeout(function () { if (b.isConnected) { b.removeAttribute('data-confirm'); b.textContent = 'Cancelar'; } }, 4000); return; }
       api('/api/v1/pilot/admin/invites/' + encodeURIComponent(b.getAttribute('data-revoke')) + '/revoke', { method: 'POST', body: {} }).then(function () { load(); }); return;
+    }
+    if ((b = t.closest('[data-digest]'))) {
+      state.digestDay = b.getAttribute('data-digest');
+      var box = document.getElementById('pn-digest'); if (box) { box.innerHTML = digestBlock(); var nb2 = box.querySelector('[data-digest="' + state.digestDay + '"]'); if (nb2) nb2.focus(); }
+      return;
     }
     if ((b = t.closest('[data-sob]'))) {
       if (b.getAttribute('aria-busy') === 'true') return;

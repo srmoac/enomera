@@ -7,6 +7,7 @@ import { getDb, closeDb } from '../server/db.mjs';
 import { createEnomeraServer } from '../scripts/server.mjs';
 import { sha256Hex } from '../server/crypto.mjs';
 import { scrub } from '../server/pilot.mjs';
+import { buildDailyDigest, digestEmail, spDay, ensureDailyDigests } from '../server/pilot-digest.mjs';
 
 test('scrub tira e-mail, números longos e nomes próprios', () => {
   assert.equal(scrub('Ligar para Ana Souza em ana@x.com ou 11 99999-1234'), 'Ligar para ‹nome› em ‹e-mail› ou ‹número›');
@@ -92,6 +93,15 @@ test('Piloto: convite único, consentimento, eventos ligados à pessoa e painel 
     assert.equal(p.activeMs, 42000); assert.equal(p.rage, 1); assert.equal(p.errors, 1);
     assert.ok(p.features.find((f) => f.key === 'minne_paciente').used);
     assert.ok(ov.data.features.find((f) => f.key === 'etha_publicar').users === 0);
+    // Resumo diário: fecha o dia em Brasília e compara com o anterior; só o administrador vê.
+    const dg = await buildDailyDigest(db, spDay(), { totals: { active: 0, activeMs: 0, sessions: 0, errors: 0 }, errorKeys: [] });
+    assert.equal(dg.totals.active, 1); assert.equal(dg.deltas.active, 1); assert.ok(dg.newErrors.length >= 1);
+    assert.ok(dg.highlights.find(([k]) => k === 'Primeiro uso'));
+    assert.match(digestEmail(dg).textBody, /Painel completo: .*\/piloto\/painel/);
+    assert.deepEqual(await ensureDailyDigests(db, { force: true, mail: false }), []); // nada fechou ainda: o piloto começou hoje
+    assert.equal((await call('/api/v1/pilot/admin/digests', null, acc.data.sessionToken)).status, 403);
+    const dl = await call('/api/v1/pilot/admin/digests', null, login.data.sessionToken);
+    assert.equal(dl.status, 200); assert.ok(Array.isArray(dl.data.digests));
     const heat = await call(`/api/v1/pilot/admin/heatmap?produto=enomera&tela=${encodeURIComponent('/checkout')}`, null, login.data.sessionToken);
     assert.equal(heat.data.points.length, 2);
     const tl = await call(`/api/v1/pilot/admin/participants/${p.id}/timeline`, null, login.data.sessionToken);
@@ -120,6 +130,16 @@ test('Piloto: convite único, consentimento, eventos ligados à pessoa e painel 
     assert.equal(ov2.data.totals.joined, 1); assert.equal(ov2.data.totals.activeMs, 42000);
     const ov3 = await call('/api/v1/pilot/admin/overview?dias=7&teste=1', null, login.data.sessionToken);
     assert.equal(ov3.data.participants.length, 2); assert.ok(ov3.data.participants.find((x) => x.selfTest));
+
+    // Dias fechados que faltam são gerados uma vez, em ordem, e aparecem no painel.
+    const twoDaysAgo = new Date(Date.now() - 2 * 864e5).toISOString();
+    await db.run("UPDATE pilot_participants SET created_at = ? WHERE kind = 'tester'", twoDaysAgo);
+    await db.run('UPDATE pilot_events SET occurred_at = ? WHERE participant_id = ?', new Date(Date.now() - 864e5).toISOString(), p.id);
+    const made = await ensureDailyDigests(db, { force: true, mail: false });
+    assert.ok(made.length >= 2 && made.length <= 3);
+    const hist = (await call('/api/v1/pilot/admin/digests', null, login.data.sessionToken)).data.digests;
+    assert.equal(hist.length, made.length); assert.ok(hist.some((d) => d.totals.active === 1));
+    assert.deepEqual(await ensureDailyDigests(db, { force: true, mail: false }), []);
 
     // Retirar consentimento apaga os eventos.
     await call('/api/v1/pilot/withdraw', {}, acc.data.sessionToken);
