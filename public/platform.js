@@ -452,8 +452,19 @@ export async function mountEnomeraPlatform(rootEl) {
     `;
   }
 
+  // Padrão de feedback (padrao-ux-motion.md §14): sucesso vira toast leve em vidro, sem faixa
+  // no topo; aviso e erro continuam inline porque pedem atenção ou correção.
+  function notify(opts) {
+    if (window.EnoFeedback) window.EnoFeedback.toast(opts);
+  }
   function renderFeedback() {
     if (!state.feedback) return '';
+    if (state.feedback.tone === 'ok' && window.EnoFeedback) {
+      const text = state.feedback.text;
+      state.feedback = null;
+      queueMicrotask(() => notify({ tone: 'ok', text }));
+      return '';
+    }
     const cls = state.feedback.tone === 'ok' ? 'eno-pill-ok' : state.feedback.tone === 'warn' ? 'eno-pill-warn' : 'eno-pill-err';
     return `<div class="eno-status-banner ${cls}" role="status" aria-live="polite">${esc(state.feedback.text)}</div>`;
   }
@@ -520,7 +531,6 @@ export async function mountEnomeraPlatform(rootEl) {
     };
     return `
       <section class="eno-list eno-panel-enter" style="gap:20px">
-        ${renderActivationBanner(state.activation)}
         <div class="eno-card eno-card-highlight">
           <div class="eno-row" style="background:transparent;border:0;padding:0">
             <div>
@@ -720,6 +730,7 @@ export async function mountEnomeraPlatform(rootEl) {
         <h1 class="eno-h1">Obrigado por testar a Enomera</h1>
         <p class="eno-muted">Todos os serviços estão liberados sem custo até ${esc(pilotUntil())}. Use Ambo, Minne e Etha como usaria no dia a dia; o que te prende e o que te atrapalha é exatamente o que queremos aprender.</p>
         <p class="eno-muted">Registramos só como você usa as telas (cliques, tempo e erros), nunca conteúdo clínico. Detalhes em <a class="eno-link" href="/privacidade#piloto">Privacidade</a>.</p>
+        <div class="eno-btn-row"><a class="eno-btn eno-btn-sec" href="/piloto/como-funciona?next=%2Fportal">Ver como os serviços funcionam</a></div>
       </section>`;
     }
     return `
@@ -935,6 +946,7 @@ export async function mountEnomeraPlatform(rootEl) {
       at: new Date().toISOString(),
     };
     saveActivation(state.activation);
+    notify({ tone: 'ok', title: `${state.activation.names} ${state.activation.count > 1 ? 'ativos' : 'ativo'}`, text: isPilot() ? 'grátis no piloto' : `cobrado hoje ${state.activation.chargedToday}` });
     state.checkoutIdempotencyKey = `chk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     state.returnedFromReview = false;
     state.feedback = null;
