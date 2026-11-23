@@ -292,6 +292,12 @@ async function buildPublicSiteDto(db, account) {
     if (v) published = { versionNumber: v.version_number, publishedAt: v.published_at, content: JSON.parse(v.content_json) };
   }
   const ctaMode = amboActive && (!proj || proj.cta_mode === 'ambo') ? 'ambo' : 'custom';
+  // Essencial = modelo com a marca Etha. Só o Sob medida entregue é 100% da pessoa.
+  let briefing = {};
+  try { briefing = JSON.parse(proj?.briefing_json || '{}') || {}; } catch { briefing = {}; }
+  const selection = await readAccountSelection(db, account.id).catch(() => null);
+  const ethaService = briefing.service === 'sob_medida' || briefing.service === 'essencial' ? briefing.service : (selection?.ethaService === 'sob_medida' ? 'sob_medida' : 'essencial');
+  const customDelivered = ethaService === 'sob_medida' && Boolean(briefing.sobMedida?.deliveredAt);
   return {
     slug: account.slug,
     displayName: published?.content?.displayName || account.display_name,
@@ -313,6 +319,9 @@ async function buildPublicSiteDto(db, account) {
     versionNumber: published?.versionNumber || null,
     publishedAt: published?.publishedAt || null,
     domainStatus: proj?.domain_status || 'staging_only',
+    answers: published?.content?.answers || null,
+    ethaService,
+    brand: customDelivered ? 'own' : 'etha',
   };
 }
 
@@ -2144,7 +2153,8 @@ export async function handleApiRequest(req, res, customDb = null) {
     if (method === 'GET' && pathname === '/api/v1/etha/project') {
       await requireProfessional(db, auth, { product: 'etha', write: false });
       const proj = await ensureEthaProject(db, auth.account.id);
-      return json(res, 200, await buildEthaProjectDetail(db, proj));
+      const selection = await readAccountSelection(db, auth.account.id).catch(() => null);
+      return json(res, 200, { ...(await buildEthaProjectDetail(db, proj)), contractedService: selection?.ethaService === 'sob_medida' ? 'sob_medida' : 'essencial' });
     }
 
     if (pathname === '/api/v1/etha/project/photo' && ['POST', 'DELETE'].includes(method)) {
@@ -2247,7 +2257,10 @@ export async function handleApiRequest(req, res, customDb = null) {
       const content = z.object({ displayName: z.string().max(160).optional(), headline: z.string().max(300).optional(),
         subheadline: z.string().max(2000).optional(), about: z.string().max(15000).optional(),
         ctaLabel: z.string().max(100).optional(), photoAssetId: z.string().nullable().optional(),
-        customContactUrl: z.string().max(1000).optional(), crp: z.string().max(100).optional() }).parse(body.content || {});
+        customContactUrl: z.string().max(1000).optional(), crp: z.string().max(100).optional(),
+        // Etha por modelo (23/11): respostas guiadas que preenchem o modelo do site.
+        answers: z.record(z.string(), z.any()).optional() }).parse(body.content || {});
+      if (content.answers && JSON.stringify(content.answers).length > 20000) throw Object.assign(new Error('Respostas grandes demais.'), { status: 400, code: 'ANSWERS_TOO_LARGE' });
       if (content.photoAssetId) await requireOwnedPortrait(db, auth.account.id, content.photoAssetId);
       const stage = body.stage === 'preview' ? 'preview' : 'draft';
       const lastVer = Number(((await db.get('SELECT MAX(version_number) as m FROM etha_content_versions WHERE project_id = ?', proj.id)))?.m || 0) || 0;
