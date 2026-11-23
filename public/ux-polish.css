@@ -294,3 +294,7 @@ html:has(#portal:not([hidden])) body { overflow-anchor: none; }
 /* Auditoria 23 nov: Mensal/Anual da home com o mesmo peso do seletor da contratação */
 .summary .billing-toggle button { min-width: 104px; padding: 10px 20px; font-size: 15px; font-weight: 600; border-radius: 999px; }
 .summary .billing-toggle { gap: 4px; padding: 4px; border-radius: 999px; background: rgb(255 255 255 / .45); border: 1px solid rgb(255 255 255 / .9); width: max-content; }
+
+/* Auditoria 23 nov: refração SVG só em superfícies pequenas (barra, botões, lentes).
+   Nos quadros grandes da home ela derrubava quadros na rolagem no Chromium. */
+.etha-frame,.ambo.demo,.minne.demo,.profile.piece,.lg.piece,.service-option,.summary.lg,.pilot.lg{--lg-refraction:0}
