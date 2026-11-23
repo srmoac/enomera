@@ -179,10 +179,14 @@ export function motionPlay(root, snap, { route = false } = {}) {
 
   // Mede tudo antes de animar: uma animação no pai mudaria a medida dos filhos.
   const rects = new Map(list.map(({ el }) => [el, el.getBoundingClientRect()]));
+  const shareStyles = new Map();
   list.forEach(({ el, key }) => {
-    if (routeBox && routeBox.contains(el)) return;
     const prev = snap.items.get(key);
     const r = rects.get(el);
+    // Elemento compartilhado (data-m-share): o mesmo objeto viaja do lugar antigo ao novo,
+    // inclusive em troca de tela, em vez de sumir e reaparecer (padrao-ux-motion §19).
+    if (route && prev && el.hasAttribute('data-m-share') && (r.width || r.height)) { shareMorph(el, prev, r, scrollDy, shareStyles); return; }
+    if (routeBox && routeBox.contains(el)) return;
     if (!r.width && !r.height) return; // escondido (display: none)
     const p = trackedParent(el, root);
     const parentKey = p ? cache.get(p) : null;
@@ -263,6 +267,30 @@ export function motionPlay(root, snap, { route = false } = {}) {
       { opacity: 0, transform: 'scale(.97)', filter: 'blur(3px)' },
     ], { duration: 180, easing: EASE_OUT, fill: 'forwards' }).finished.then(() => g.remove(), () => g.remove());
   });
+}
+
+function shareMorph(el, prev, r, scrollDy, styleCache) {
+  const a = { left: prev.rect.left, top: prev.rect.top - scrollDy, width: prev.rect.width, height: prev.rect.height };
+  if (Math.abs(a.left - r.left) < 2 && Math.abs(a.top - r.top) < 2 && Math.abs(a.width - r.width) < 2 && Math.abs(a.height - r.height) < 2) return;
+  if (Math.abs(a.top - r.top) > innerHeight * 1.5) return;
+  const cs = getComputedStyle(el);
+  const text = (cs.backgroundColor === 'rgba(0, 0, 0, 0)' || cs.backgroundColor === 'transparent') && cs.backgroundImage === 'none';
+  const sx = text ? a.height / r.height : a.width / r.width;
+  const sy = a.height / r.height;
+  const back = { transform: `translate(${a.left - r.left}px, ${a.top - r.top}px) scale(${sx}, ${sy})` };
+  const dur = 420;
+  const from = ghost(prev.html, a, prev.radius);
+  const to = ghost(frozenHTML(el, styleCache), r, cs.borderRadius);
+  if (!from || !to) { from?.remove(); to?.remove(); return; }
+  [from, to].forEach((g) => { g.style.transformOrigin = '0 0'; if (text) Object.assign(g.style, { background: 'transparent', boxShadow: 'none', border: '0', overflow: 'visible' }); });
+  const prevVis = el.style.visibility;
+  el.style.visibility = 'hidden';
+  from.animate([
+    { transform: 'none', opacity: 1 },
+    { transform: `translate(${r.left - a.left}px, ${r.top - a.top}px) scale(${1 / sx}, ${1 / sy})`, opacity: 0 },
+  ], { duration: dur, easing: EASE_MOVE, fill: 'forwards' }).finished.finally(() => from.remove());
+  to.animate([{ ...back, opacity: 0 }, { opacity: 1, offset: 0.45 }, { transform: 'none', opacity: 1 }], { duration: dur, easing: EASE_MOVE, fill: 'forwards' })
+    .finished.finally(() => { el.style.visibility = prevVis; to.remove(); });
 }
 
 function slideIndicator(from, to) {

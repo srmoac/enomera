@@ -1,12 +1,25 @@
-/* Piloto · convite e painel. Usa /motion-tokens.css e /glass/liquid-glass.css (carregados antes).
-   Tema sempre claro (Marcos, 23/11): no modo escuro do sistema a página continua clara. */
+/* Piloto · convite e painel. Usa /motion-tokens.css e /glass/liquid-glass.css (carregados antes). */
 :root {
   --bg: #F0F4FE; --ink: #1C2240; --muted: #56607F; --faint: #8A93B2; --line: rgb(28 34 64 / .1);
   --accent: #3B4FB8; --accent-ink: #fff; --accent-soft: rgb(59 79 184 / .1);
   --bad: #C2384A; --bad-soft: rgb(194 56 74 / .1); --warn: #A86A00; --good: #1F7A4D;
   --viz: 59 79 184; --surface: rgb(255 255 255 / .72);
   --radius: 22px; --radius-sm: 14px;
-  color-scheme: only light;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0F1226; --ink: #EEF1FC; --muted: #A9B1CE; --faint: #7B84A6; --line: rgb(238 241 252 / .12);
+    --accent: #9AA8F0; --accent-ink: #10132A; --accent-soft: rgb(154 168 240 / .14);
+    --bad: #F08A97; --bad-soft: rgb(240 138 151 / .14); --warn: #E7B24C; --good: #6CD3A0;
+    --viz: 154 168 240; --surface: rgb(23 27 56 / .7); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0F1226; --ink: #EEF1FC; --muted: #A9B1CE; --faint: #7B84A6; --line: rgb(238 241 252 / .12);
+  --accent: #9AA8F0; --accent-ink: #10132A; --accent-soft: rgb(154 168 240 / .14);
+  --bad: #F08A97; --bad-soft: rgb(240 138 151 / .14); --warn: #E7B24C; --good: #6CD3A0;
+  --viz: 154 168 240; --surface: rgb(23 27 56 / .7); color-scheme: dark;
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -26,6 +39,7 @@ a { color: var(--accent); }
 .pl-backdrop i:nth-child(1) { width: 46vmax; height: 46vmax; left: -12vmax; top: -16vmax; background: radial-gradient(circle, #B8C4FF, transparent 70%); }
 .pl-backdrop i:nth-child(2) { width: 38vmax; height: 38vmax; right: -10vmax; top: 18vh; background: radial-gradient(circle, #FFD3C2, transparent 70%); }
 .pl-backdrop i:nth-child(3) { width: 40vmax; height: 40vmax; left: 20vw; bottom: -20vmax; background: radial-gradient(circle, #BFE8DA, transparent 70%); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .pl-backdrop i { opacity: .22; } }
 
 /* Botões */
 .pl-btn { appearance: none; border: 0; font: 600 15px/1 Manrope, system-ui, sans-serif; min-height: var(--eno-btn-lg, 52px); padding: 0 22px; border-radius: 999px;
@@ -46,31 +60,19 @@ a { color: var(--accent); }
 .pl-field .hint { font-size: 13px; color: var(--muted); }
 .pl-field input, .pl-select { font: 16px Manrope, system-ui, sans-serif; color: var(--ink); background: rgb(255 255 255 / .82); border: 1px solid var(--line); border-radius: var(--radius-sm);
   min-height: 52px; padding: 0 16px; width: 100%; transition: border-color var(--eno-t-fast) var(--eno-ease-out), box-shadow var(--eno-t-fast) var(--eno-ease-out); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .pl-field input, :root:not([data-theme="light"]) .pl-select { background: rgb(16 19 42 / .8); } }
 .pl-field input[aria-invalid="true"] { border-color: var(--bad); box-shadow: 0 0 0 3px var(--bad-soft); }
 .pl-err { color: var(--bad); font-size: 14px; font-weight: 600; min-height: 0; }
 .pl-err:not(:empty) { animation: plNote var(--eno-t-base) var(--eno-ease-out); }
 @keyframes plNote { from { opacity: 0; transform: translateY(calc(var(--eno-shift-small) * -1)); } }
 .pl-pass { position: relative; }
-.pl-pass input { padding-right: 104px; }
-.pl-pass button { position: absolute; right: 6px; top: 6px; bottom: 6px; min-height: 0; min-width: 84px; justify-content: center; border-radius: 999px; }
+.pl-pass input { padding-right: 96px; }
+/* Mostrar/Ocultar preso dentro do campo: sem translateY (o :active trocava o transform e o botão caía para fora). */
+.pl-pass button { position: absolute; right: 6px; top: 6px; bottom: 6px; min-height: 0; min-width: 84px; padding: 0 14px; transform: none; }
 .pl-pass button:active { transform: scale(var(--eno-press-scale)); }
-.pl-pass button .pl-eye { display: inline-grid; place-items: center; width: 18px; height: 18px; }
-.pl-pass button .pl-eye svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.pl-pass button .pl-eye .slash { stroke-dasharray: 26; stroke-dashoffset: 26; transition: stroke-dashoffset var(--eno-t-base) var(--eno-ease-out); }
-.pl-pass button[aria-pressed="true"] .pl-eye .slash { stroke-dashoffset: 0; }
-/* Força da senha */
-.pl-meter { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 2px; }
-.pl-meter i { height: 6px; border-radius: 999px; background: var(--line); position: relative; overflow: hidden; }
-.pl-meter i::after { content: ''; position: absolute; inset: 0; border-radius: inherit; background: var(--m, var(--accent)); transform: scaleX(0); transform-origin: left; transition: transform var(--eno-t-base) var(--eno-ease-move), background-color var(--eno-t-base) var(--eno-ease-out); }
-.pl-meter i.on::after { transform: scaleX(1); }
-.pl-meter-row { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--muted); min-height: 20px; }
-.pl-meter-row b { font-weight: 700; transition: color var(--eno-t-base) var(--eno-ease-out); }
-.pl-rules { display: flex; flex-wrap: wrap; gap: 6px 12px; margin: 0; padding: 0; list-style: none; font-size: 13px; color: var(--muted); }
-.pl-rules li { display: inline-flex; align-items: center; gap: 6px; transition: color var(--eno-t-base) var(--eno-ease-out); }
-.pl-rules li::before { content: ''; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--faint); box-sizing: border-box; transition: background-color var(--eno-t-base) var(--eno-ease-out), border-color var(--eno-t-base) var(--eno-ease-out), transform var(--eno-t-press) var(--eno-ease-out); }
-.pl-rules li.ok { color: var(--good); }
-.pl-rules li.ok::before { background: var(--good); border-color: var(--good); transform: scale(1.08); }
-@media (prefers-reduced-motion: reduce) { .pl-meter i::after, .pl-pass button .pl-eye .slash { transition: none; } }
+.pl-pass button.is-swap { animation: plPassSwap .26s cubic-bezier(.23,1,.32,1); }
+@keyframes plPassSwap { 0% { opacity: .2; filter: blur(2px); transform: translateY(3px); } 100% { opacity: 1; filter: none; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .pl-pass button.is-swap { animation: none; } }
 
 .pl-seg { display: inline-grid; grid-auto-flow: column; gap: 4px; padding: 4px; border-radius: 999px; background: var(--accent-soft); position: relative; }
 .pl-seg button { appearance: none; border: 0; background: transparent; font: 600 14px Manrope, sans-serif; color: var(--muted); min-height: 44px; padding: 0 18px; border-radius: 999px; cursor: pointer; position: relative; z-index: 1;
@@ -79,6 +81,7 @@ a { color: var(--accent); }
 .pl-seg button[aria-pressed="true"] { color: var(--ink); }
 .pl-seg .pl-lens { position: absolute; top: 4px; bottom: 4px; left: 0; border-radius: 999px; background: rgb(255 255 255 / .92); box-shadow: 0 2px 10px rgb(28 34 64 / .12);
   transition: transform var(--eno-t-base) var(--eno-ease-move), width var(--eno-t-base) var(--eno-ease-move); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .pl-seg .pl-lens { background: rgb(60 68 120 / .9); } }
 
 .pl-check { display: grid; grid-template-columns: 24px 1fr; gap: 12px; align-items: start; cursor: pointer; min-height: 44px; padding: 4px 0; }
 .pl-check input { position: absolute; opacity: 0; width: 1px; height: 1px; }

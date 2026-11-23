@@ -1,0 +1,136 @@
+/* Enomera · padrão de feedback em vidro (22 nov 2026)
+   Toast leve, estado inline em botões e campo de senha com força e regras ao vivo.
+   Depende de /motion-tokens.css (curvas e durações). Funciona com ou sem /glass/liquid-glass.css:
+   sem ele, o .eno-toast usa o próprio vidro abaixo.
+   Cores por produto: defina --eno-fb-accent no :root do produto (padrão: azul Enomera). */
+
+:root {
+  --eno-fb-accent: #3B4FB8;
+  --eno-fb-ink: #1C2240;
+  --eno-fb-muted: #56607F;
+  --eno-fb-good: #1F7A4D;
+  --eno-fb-warn: #A86A00;
+  --eno-fb-bad: #C2384A;
+  --eno-fb-glass: 247 249 255;
+  --eno-fb-shadow: 54 76 140;
+  --eno-toast-offset: 0px; /* altura da barra inferior do produto, quando houver */
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --eno-fb-accent: #9AA8F0; --eno-fb-ink: #EEF1FC; --eno-fb-muted: #A9B1CE;
+    --eno-fb-good: #6CD3A0; --eno-fb-warn: #E7B24C; --eno-fb-bad: #F08A97;
+    --eno-fb-glass: 28 32 64; --eno-fb-shadow: 0 0 0;
+  }
+}
+:root[data-theme="dark"] {
+  --eno-fb-accent: #9AA8F0; --eno-fb-ink: #EEF1FC; --eno-fb-muted: #A9B1CE;
+  --eno-fb-good: #6CD3A0; --eno-fb-warn: #E7B24C; --eno-fb-bad: #F08A97;
+  --eno-fb-glass: 28 32 64; --eno-fb-shadow: 0 0 0;
+}
+
+/* ---------- Toast ---------- */
+.eno-toasts {
+  position: fixed; z-index: 2147483000; left: 50%; transform: translateX(-50%);
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px) + var(--eno-toast-offset));
+  width: min(420px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 8px;
+  pointer-events: none; margin: 0; padding: 0; list-style: none;
+}
+.eno-toast {
+  pointer-events: auto; position: relative; display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 10px;
+  min-height: 52px; padding: 8px 8px 8px 14px; border-radius: 20px;
+  font: 500 14px/1.35 Manrope, system-ui, sans-serif; color: var(--eno-fb-ink);
+  background: linear-gradient(135deg, rgb(var(--eno-fb-glass) / .78), rgb(var(--eno-fb-glass) / .6));
+  -webkit-backdrop-filter: blur(22px) saturate(1.8); backdrop-filter: blur(22px) saturate(1.8);
+  border: 1px solid rgb(255 255 255 / .55);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .7), 0 10px 30px -8px rgb(var(--eno-fb-shadow) / .28), 0 2px 6px rgb(var(--eno-fb-shadow) / .08);
+  touch-action: pan-y; user-select: none; -webkit-user-select: none;
+  animation: enoToastIn var(--eno-t-step, 320ms) var(--eno-ease-out, cubic-bezier(.23,1,.32,1)) both;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .eno-toast { border-color: rgb(255 255 255 / .12); box-shadow: inset 0 1px 0 rgb(255 255 255 / .08), 0 12px 34px -10px rgb(0 0 0 / .6); } }
+:root[data-theme="dark"] .eno-toast { border-color: rgb(255 255 255 / .12); box-shadow: inset 0 1px 0 rgb(255 255 255 / .08), 0 12px 34px -10px rgb(0 0 0 / .6); }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .eno-toast { background: rgb(var(--eno-fb-glass) / .97); } }
+@media (prefers-reduced-transparency: reduce) { .eno-toast { background: rgb(var(--eno-fb-glass) / .98); -webkit-backdrop-filter: none; backdrop-filter: none; } }
+
+.eno-toast[data-leaving] { animation: enoToastOut var(--eno-t-step-out, 160ms) var(--eno-ease-out, cubic-bezier(.23,1,.32,1)) both; pointer-events: none; }
+@keyframes enoToastIn { from { opacity: 0; transform: translateY(12px) scale(.97); filter: blur(8px); } }
+@keyframes enoToastOut { to { opacity: 0; transform: translateY(8px) scale(.98); } }
+
+.eno-toast-ic { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: var(--eno-fb-good); }
+.eno-toast[data-tone="info"] .eno-toast-ic { background: var(--eno-fb-accent); }
+.eno-toast[data-tone="warn"] .eno-toast-ic { background: var(--eno-fb-warn); }
+.eno-toast[data-tone="err"] .eno-toast-ic { background: var(--eno-fb-bad); }
+.eno-toast-ic svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.eno-toast-ic path { stroke-dasharray: 24; stroke-dashoffset: 24; animation: enoDraw 220ms 120ms var(--eno-ease-out, ease-out) forwards; }
+@keyframes enoDraw { to { stroke-dashoffset: 0; } }
+.eno-toast-tx { min-width: 0; padding: 4px 0; }
+.eno-toast-tx b { font-weight: 650; }
+.eno-toast-tx span { color: var(--eno-fb-muted); }
+.eno-toast-act { appearance: none; border: 0; cursor: pointer; font: 650 14px/1 Manrope, system-ui, sans-serif; color: var(--eno-fb-accent);
+  background: rgb(255 255 255 / .55); min-height: 40px; min-width: 44px; padding: 0 14px; border-radius: 999px;
+  transition: transform var(--eno-t-press, 100ms) var(--eno-ease-out, ease-out), background-color var(--eno-t-fast, 120ms) var(--eno-ease-out, ease-out); }
+.eno-toast-act:hover { background: rgb(255 255 255 / .85); }
+.eno-toast-act:active { transform: scale(var(--eno-press-scale, .97)); }
+.eno-toast-x { appearance: none; border: 0; background: transparent; color: var(--eno-fb-muted); width: 40px; height: 40px; border-radius: 50%; cursor: pointer; display: grid; place-items: center; }
+.eno-toast-x svg { width: 14px; height: 14px; stroke: currentColor; stroke-width: 2.2; fill: none; stroke-linecap: round; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .eno-toast-act { background: rgb(255 255 255 / .1); } }
+:root[data-theme="dark"] .eno-toast-act { background: rgb(255 255 255 / .1); }
+.eno-toast-act:focus-visible, .eno-toast-x:focus-visible { outline: 2px solid var(--eno-fb-accent); outline-offset: 2px; }
+/* Barra de tempo discreta (só quando há Desfazer): mostra quanto falta. */
+.eno-toast-time { position: absolute; left: 18px; right: 18px; bottom: 3px; height: 2px; border-radius: 2px; background: var(--eno-fb-accent); opacity: .35; transform-origin: left; }
+
+/* ---------- Estado inline em botão (resultado no lugar onde se agiu) ---------- */
+[data-eno-done] { position: relative; }
+.eno-done-label { display: inline-flex; align-items: center; gap: 8px; animation: enoSwap 220ms var(--eno-ease-out, ease-out) both; }
+.eno-done-label svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.eno-done-label path { stroke-dasharray: 24; stroke-dashoffset: 24; animation: enoDraw 220ms 60ms var(--eno-ease-out, ease-out) forwards; }
+@keyframes enoSwap { from { opacity: 0; transform: translateY(4px); filter: blur(4px); } }
+/* Realce curto da linha/cartão que mudou. */
+.eno-flash { animation: enoFlash 600ms var(--eno-ease-out, ease-out); }
+@keyframes enoFlash { 0% { box-shadow: 0 0 0 0 rgb(31 122 77 / 0); } 25% { box-shadow: 0 0 0 4px rgb(31 122 77 / .22); } 100% { box-shadow: 0 0 0 0 rgb(31 122 77 / 0); } }
+
+/* ---------- Senha: força + regras ao vivo ---------- */
+.eno-pw { display: grid; gap: 10px; margin-top: 2px; }
+.eno-pw-meter { display: grid; grid-template-columns: repeat(4, 1fr) auto; gap: 6px; align-items: center; }
+.eno-pw-meter i { height: 6px; border-radius: 6px; background: rgb(28 34 64 / .1); position: relative; overflow: hidden; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .eno-pw-meter i { background: rgb(238 241 252 / .12); } }
+.eno-pw-meter i::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: var(--pw-c, var(--eno-fb-bad)); transform: scaleX(0); transform-origin: left;
+  transition: transform var(--eno-t-base, 220ms) var(--eno-ease-move, cubic-bezier(.32,.72,0,1)), background-color var(--eno-t-base, 220ms) linear; }
+.eno-pw-meter i.on::after { transform: scaleX(1); }
+.eno-pw-meter i:nth-child(2)::after { transition-delay: 30ms; } .eno-pw-meter i:nth-child(3)::after { transition-delay: 60ms; } .eno-pw-meter i:nth-child(4)::after { transition-delay: 90ms; }
+.eno-pw-label { font: 650 13px/1 Manrope, system-ui, sans-serif; color: var(--pw-c, var(--eno-fb-muted)); min-width: 92px; text-align: right; transition: color var(--eno-t-base, 220ms) linear; }
+.eno-pw[data-level="0"] { --pw-c: var(--eno-fb-muted); }
+.eno-pw[data-level="1"] { --pw-c: var(--eno-fb-bad); }
+.eno-pw[data-level="2"] { --pw-c: var(--eno-fb-warn); }
+.eno-pw[data-level="3"] { --pw-c: var(--eno-fb-accent); }
+.eno-pw[data-level="4"] { --pw-c: var(--eno-fb-good); }
+.eno-pw-rules { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font: 500 13px/1.35 Manrope, system-ui, sans-serif; color: var(--eno-fb-muted); }
+@media (min-width: 520px) { .eno-pw-rules { grid-template-columns: 1fr 1fr; column-gap: 14px; } }
+.eno-pw-rules li { display: grid; grid-template-columns: 18px 1fr; gap: 8px; align-items: center; transition: color var(--eno-t-fast, 120ms) linear; }
+.eno-pw-rules .dot { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid currentColor; opacity: .55; display: grid; place-items: center;
+  transition: background-color var(--eno-t-fast, 120ms) var(--eno-ease-out, ease-out), border-color var(--eno-t-fast, 120ms) var(--eno-ease-out, ease-out), opacity var(--eno-t-fast, 120ms) linear, transform var(--eno-t-base, 220ms) var(--eno-ease-out, ease-out); }
+.eno-pw-rules .dot svg { width: 11px; height: 11px; fill: none; stroke: #fff; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 16; stroke-dashoffset: 16; transition: stroke-dashoffset 180ms var(--eno-ease-out, ease-out); }
+.eno-pw-rules li.ok { color: var(--eno-fb-ink); }
+.eno-pw-rules li.ok .dot { background: var(--eno-fb-good); border-color: var(--eno-fb-good); opacity: 1; animation: enoPop 220ms var(--eno-ease-out, ease-out); }
+.eno-pw-rules li.ok .dot svg { stroke-dashoffset: 0; }
+.eno-pw-rules li.need { color: var(--eno-fb-bad); }
+@keyframes enoPop { 50% { transform: scale(1.18); } }
+.eno-pw-caps { font: 600 13px/1.3 Manrope, system-ui, sans-serif; color: var(--eno-fb-warn); display: flex; gap: 6px; align-items: center; }
+.eno-pw-caps[hidden] { display: none; }
+/* Campo válido: contorno verde e selo ✓ dentro do campo. */
+.eno-pw-host { position: relative; }
+.eno-pw-host input.eno-pw-valid { border-color: var(--eno-fb-good) !important; }
+.eno-pw-badge { position: absolute; top: 50%; width: 22px; height: 22px; margin-top: -11px; border-radius: 50%; background: var(--eno-fb-good); display: grid; place-items: center;
+  opacity: 0; transform: scale(.6); pointer-events: none; transition: opacity var(--eno-t-fast, 120ms) linear, transform var(--eno-t-base, 220ms) var(--eno-ease-out, ease-out); }
+.eno-pw-badge svg { width: 12px; height: 12px; fill: none; stroke: #fff; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.eno-pw-host.is-valid .eno-pw-badge { opacity: 1; transform: none; }
+/* Botão de mostrar com ícone de olho */
+.eno-pw-eye { display: inline-flex; align-items: center; gap: 6px; }
+.eno-pw-eye svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+@media (prefers-reduced-motion: reduce) {
+  .eno-toast, .eno-toast[data-leaving] { animation-name: enoFade !important; animation-duration: 120ms !important; }
+  .eno-toast[data-leaving] { animation-direction: reverse !important; }
+  .eno-done-label, .eno-pw-rules li.ok .dot, .eno-flash { animation: none !important; }
+  .eno-toast-ic path, .eno-done-label path { animation: none; stroke-dashoffset: 0; }
+  @keyframes enoFade { from { opacity: 0; } }
+}
