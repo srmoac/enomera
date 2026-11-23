@@ -435,6 +435,22 @@ export async function participantTimeline(db, participantId, limit = 400) {
   return rows.map((r) => ({ ...r, meta: parseMeta(r.meta_json), meta_json: undefined }));
 }
 
+/** Pedidos Sob medida da Etha (escolhidos no briefing ou na contratação), para o operador marcar a entrega. */
+export async function listSobMedida(db) {
+  const rows = await db.all(`SELECT p.id, p.status, p.briefing_json, p.updated_at, a.display_name, a.slug, a.ui_preferences_json
+    FROM etha_projects p JOIN professional_accounts a ON a.id = p.account_id ORDER BY p.updated_at DESC`);
+  const out = [];
+  for (const r of rows) {
+    let b = {}; let prefs = {};
+    try { b = JSON.parse(r.briefing_json || '{}') || {}; } catch { b = {}; }
+    try { prefs = JSON.parse(r.ui_preferences_json || '{}') || {}; } catch { prefs = {}; }
+    const service = b.service === 'sob_medida' || b.service === 'essencial' ? b.service : (prefs.commercialSelection?.ethaService === 'sob_medida' ? 'sob_medida' : 'essencial');
+    if (service !== 'sob_medida') continue;
+    out.push({ projectId: r.id, name: r.display_name, slug: r.slug, status: r.status, updatedAt: r.updated_at, deliveredAt: b.sobMedida?.deliveredAt || null });
+  }
+  return out;
+}
+
 export async function handlePilotRoutes({ db, req, res, method, pathname, url, auth, json, readJsonBody, createProfessionalUser, issueSession, writeAudit }) {
   if (!pathname.startsWith('/api/v1/pilot/')) return false;
 
@@ -487,6 +503,22 @@ export async function handlePilotRoutes({ db, req, res, method, pathname, url, a
       const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim();
       const proto = host.startsWith('localhost') || host.startsWith('127.') ? 'http' : 'https';
       json(res, 201, { id, label: body.label, link: `${proto}://${host}/convite/${token}` }); return true;
+    }
+    if (method === 'GET' && pathname === '/api/v1/pilot/admin/etha-sob-medida') {
+      json(res, 200, { orders: await listSobMedida(db) }); return true;
+    }
+    const sm = pathname.match(/^\/api\/v1\/pilot\/admin\/etha-sob-medida\/([A-Za-z0-9_-]+)\/entrega$/);
+    if (method === 'POST' && sm) {
+      const body = z.object({ delivered: z.boolean() }).parse(await readJsonBody(req));
+      const proj = await db.get('SELECT id, briefing_json FROM etha_projects WHERE id = ?', sm[1]);
+      if (!proj) throw Object.assign(new Error('Pedido da Etha não encontrado.'), { status: 404, code: 'PROJECT_NOT_FOUND' });
+      let briefing = {};
+      try { briefing = JSON.parse(proj.briefing_json || '{}') || {}; } catch { briefing = {}; }
+      const now = nowIso();
+      briefing.sobMedida = { ...(briefing.sobMedida || {}), deliveredAt: body.delivered ? now : null, deliveredBy: body.delivered ? auth.user.id : null };
+      await db.run('UPDATE etha_projects SET briefing_json = ?, updated_at = ? WHERE id = ?', JSON.stringify(briefing), now, proj.id);
+      await writeAudit(db, { actorUserId: auth.user.id, actorType: 'pilot_admin', accountId: null, action: body.delivered ? 'etha.sob_medida_delivered' : 'etha.sob_medida_reopened', resourceType: 'etha_project', resourceId: proj.id, meta: {} });
+      json(res, 200, { ok: true, projectId: proj.id, deliveredAt: briefing.sobMedida.deliveredAt }); return true;
     }
     const rev = pathname.match(/^\/api\/v1\/pilot\/admin\/invites\/([A-Za-z0-9_-]+)\/revoke$/);
     if (method === 'POST' && rev) {
