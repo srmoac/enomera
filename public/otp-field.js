@@ -30,6 +30,20 @@ export function bindOtpField(root, { onChange, onComplete, lastAuto } = {}) {
   if (!field || !input) return null;
   const slots = [...field.querySelectorAll('.eno-otp-digit')];
   let auto = lastAuto || { code: '' };
+  let ring = field.querySelector('.eno-otp-ring');
+  if (!ring) { ring = document.createElement('span'); ring.className = 'eno-otp-ring'; ring.setAttribute('aria-hidden', 'true'); field.appendChild(ring); }
+  let ringPlaced = false;
+  const placeRing = (idx) => {
+    if (idx < 0) { ring.classList.remove('is-on'); return; }
+    const s = slots[idx];
+    const first = !ringPlaced;
+    if (first) ring.style.transition = 'none';
+    ring.style.width = `${s.offsetWidth}px`; ring.style.height = `${s.offsetHeight}px`;
+    ring.style.borderRadius = getComputedStyle(s).borderRadius;
+    ring.style.setProperty('--ring-x', `${s.offsetLeft}px`); ring.style.setProperty('--ring-y', `${s.offsetTop}px`);
+    if (first) { void ring.offsetWidth; ring.style.transition = ''; ringPlaced = true; }
+    ring.classList.add('is-on');
+  };
 
   const paint = () => {
     const v = input.value;
@@ -45,6 +59,7 @@ export function bindOtpField(root, { onChange, onComplete, lastAuto } = {}) {
       s.classList.toggle('is-active', i === activeIdx);
       s.classList.toggle('is-caret', i === activeIdx && !v[i]);
     });
+    placeRing(activeIdx);
   };
 
   const commit = () => {

@@ -11,6 +11,11 @@
   font-size: 16px; letter-spacing: 0; /* texto real transparente; as casas mostram os dígitos */
   cursor: text; -webkit-tap-highlight-color: transparent; touch-action: manipulation;
 }
+.eno-otp-field .eno-otp-input:focus, .eno-otp-field .eno-otp-input:focus-visible, .eno-otp-field .eno-otp-input:hover {
+  /* Um anel de foco só: o da casa ativa. O campo real nunca aparece (23 nov, "foco bugado"). */
+  background: transparent !important; box-shadow: none !important; border: 0 !important; outline: none !important;
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
 .eno-otp-field .eno-otp-input::selection { background: transparent; color: transparent; -webkit-text-fill-color: transparent; }
 .eno-otp-field .eno-otp-digit {
   display: flex; align-items: center; justify-content: center; position: relative;
@@ -19,10 +24,14 @@
     opacity var(--eno-t-base) var(--eno-ease-out), transform var(--eno-t-fast) var(--eno-ease-out);
 }
 .eno-otp-field .eno-otp-digit.is-filled { animation: enoOtpPop var(--eno-t-fast) var(--eno-ease-out); }
-.eno-otp-field .eno-otp-digit.is-active {
-  border-color: var(--flow-accent, #36599E);
-  box-shadow: 0 0 0 3px rgba(91, 112, 179, .22);
-}
+.eno-otp-field .eno-otp-digit.is-active { border-color: var(--flow-accent, #36599E); }
+/* Um anel de foco só, que desliza de casa em casa enquanto você digita (23 nov). */
+.eno-otp-ring { position: absolute; left: 0; top: 0; z-index: 1; pointer-events: none; border-radius: 14px; opacity: 0;
+  box-shadow: 0 0 0 3px rgba(91, 112, 179, .24); transform: translate(var(--ring-x, 0), var(--ring-y, 0));
+  transition: transform 260ms var(--eno-ease-move, cubic-bezier(.32,.72,0,1)), width 260ms var(--eno-ease-move, cubic-bezier(.32,.72,0,1)), opacity 160ms linear; }
+.eno-otp-ring.is-on { opacity: 1; }
+.eno-otp-field.is-verifying .eno-otp-ring, .eno-otp-field.is-verified .eno-otp-ring { opacity: 0; }
+@media (prefers-reduced-motion: reduce) { .eno-otp-ring { transition: opacity 120ms linear; } }
 .eno-otp-field .eno-otp-digit.is-caret::after {
   content: ""; width: 2px; height: 42%; border-radius: 2px; background: currentColor;
   animation: enoOtpCaret 1s steps(2, start) infinite;

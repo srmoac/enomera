@@ -79,7 +79,7 @@ function renderPlanCard(plan, { selected, billing, current = false }) {
         ${plan.recommended ? '<span class="eno-plan-badge">Recomendado</span>' : ''}
       </span>
       <span class="eno-plan-for">${plan.for}</span>
-      <span class="eno-plan-dots" aria-hidden="true">${plan.products.map((p) => `<i class="eno-plan-dot eno-plan-dot-${p}"></i>`).join('')}<small>${plan.products.map((p) => PRODUCT_INFO[p].name).join(' + ')}</small></span>
+      <span class="eno-plan-dots" aria-hidden="true">${plan.products.map((p) => `<i class="eno-plan-dot eno-plan-dot-${p}"${selected ? ` data-m-key="pc-dot-${p}" data-m-share` : ''}></i>`).join('')}<small>${plan.products.map((p) => PRODUCT_INFO[p].name).join(' + ')}</small></span>
       <span class="eno-plan-price">
         <b data-m-key="plan-price-${plan.id}" data-m-num>${PILOT_FREE ? 'Grátis' : brl(price)}</b><small data-m-key="plan-cad-${plan.id}" data-m-num>${PILOT_FREE ? ' no piloto' : annual ? '/ano' : '/mês'}</small>
       </span>
@@ -135,9 +135,9 @@ export function renderProductCard(product, { selected, billing, ethaFormat, inte
   const mark = selected ? '✓' : '○';
   const inner = `
     <span class="eno-pc-mark m-pop" aria-hidden="true">${mark}</span>
-    <span class="eno-pc-dot" aria-hidden="true"></span>
+    <span class="eno-pc-dot" aria-hidden="true" data-m-key="pc-dot-${product}" data-m-share></span>
     <span class="eno-pc-body">
-      <span class="eno-pc-name">${info.name}</span>
+      <span class="eno-pc-name" data-m-key="pc-name-${product}" data-m-share>${info.name}</span>
       <span class="eno-pc-desc">${notIncluded ? 'Não incluído nesta combinação' : esc(info.description)}</span>
     </span>
     <span class="eno-pc-price">
@@ -154,7 +154,7 @@ export function renderProductCard(product, { selected, billing, ethaFormat, inte
 export function renderSummary(contract, { billing, withToggle = false, cta = '', showTitle = true, busy = false } = {}) {
   if (!contract) {
     return `
-      <div class="eno-sum eno-glass" aria-live="polite" data-m-key="sum" data-m-size>
+      <div class="eno-sum eno-glass" aria-live="polite" data-m-key="sum" data-m-size data-m-share>
         ${showTitle ? '<h2 class="eno-sum-title">Sua combinação</h2>' : ''}
         <p class="eno-sum-empty" data-m-key="sum-empty">Escolha ao menos um serviço para ver o resumo.</p>
       </div>
@@ -163,7 +163,7 @@ export function renderSummary(contract, { billing, withToggle = false, cta = '',
   }
   const hasSaas = contract.lines.length > 0;
   return `
-    <div class="eno-sum eno-glass ${busy ? 'is-busy' : ''}" aria-live="polite" data-m-key="sum" data-m-size>
+    <div class="eno-sum eno-glass ${busy ? 'is-busy' : ''}" aria-live="polite" data-m-key="sum" data-m-size data-m-share>
       ${showTitle ? '<h2 class="eno-sum-title">Sua combinação</h2>' : ''}
       <p class="eno-sum-label" data-m-key="sum-label"><span data-m-key="sum-label-text" data-m-num>${esc(contract.label)}</span><span class="eno-sum-label-billing"> · ${esc(contract.billingLabel)}</span></p>
       ${withToggle && hasSaas ? `
