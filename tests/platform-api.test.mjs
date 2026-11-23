@@ -438,6 +438,24 @@ test('7. Ambo Solo -> later Minne adoption + Patient Invitation single-use + Min
   const blockedMinne = await api('/api/v1/minne/workspace', { token: soloTok });
   assert.equal(blockedMinne.status, 403);
 
+  // Página pública fechada até a profissional revisar o atendimento e abrir a agenda.
+  const closedPub = await api(`/api/v1/ambo/public/${slug}`);
+  assert.equal(closedPub.data.booking.open, false);
+  assert.deepEqual(closedPub.data.professional.modalities, []);
+  const closedReq = await api(`/api/v1/ambo/public/${slug}/requests`, {
+    method: 'POST', headers: { 'X-Idempotency-Key': 'solo-req-closed' },
+    body: { modality: 'online', patientName: 'Joana Solo', patientEmail: 'joana.solo@exemplo.invalid' },
+  });
+  assert.equal(closedReq.status, 409);
+  assert.equal(closedReq.data.code, 'AMBO_NOT_OPEN');
+  const opened = await api('/api/v1/ambo/pro/setup', {
+    method: 'PUT', token: soloTok,
+    body: { modalities: ['online'], sessionDurationMin: 50, sessionPriceCents: 20000, rules: [1, 2, 3, 4, 5].map((weekday) => ({ weekday, startTime: '08:00', endTime: '18:00' })), open: true },
+  });
+  assert.equal(opened.status, 200);
+  assert.equal(opened.data.setup.open, true);
+  assert.equal((await api(`/api/v1/ambo/public/${slug}`)).data.booking.open, true);
+
   // Patient submits request -> Ambo Solo confirms without Minne!
   const pReq = await api(`/api/v1/ambo/public/${slug}/requests`, {
     method: 'POST', headers: { 'X-Idempotency-Key': 'solo-req-1' },

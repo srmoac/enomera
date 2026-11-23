@@ -251,6 +251,7 @@ export const FEATURES = [
   { key: 'perfil', product: 'enomera', label: 'Editar perfil profissional', api: [/^PATCH \/api\/v1\/professional\/profile$/, /^POST \/api\/v1\/professional\/profile\/photo$/] },
   { key: 'agenda', product: 'enomera', label: 'Definir disponibilidade', api: [/^PUT \/api\/v1\/professional\/availability$/] },
   { key: 'ambo_abrir', product: 'ambo', label: 'Abrir o Ambo', any: 'ambo' },
+  { key: 'ambo_configurar', product: 'ambo', label: 'Configurar atendimento no Ambo', api: [/^PUT \/api\/v1\/ambo\/pro\/setup$/] },
   { key: 'ambo_confirmar', product: 'ambo', label: 'Confirmar solicitação no Ambo', api: [/^POST \/api\/v1\/ambo\/pro\/requests\/:id\/confirm$/] },
   { key: 'ambo_convite', product: 'ambo', label: 'Convidar paciente', api: [/^POST \/api\/v1\/ambo\/invitations$/] },
   { key: 'ambo_remarcar', product: 'ambo', label: 'Decidir remarcação', api: [/^POST \/api\/v1\/ambo\/pro\/reschedules\/:id\/decide$/] },
