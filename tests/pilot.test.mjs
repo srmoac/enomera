@@ -116,6 +116,23 @@ test('Piloto: convite único, consentimento, eventos ligados à pessoa e painel 
     assert.ok(JSON.parse((await db.get('SELECT briefing_json FROM etha_projects WHERE id = ?', projId)).briefing_json).sobMedida.deliveredAt);
     assert.equal((await call(`/api/v1/pilot/admin/etha-sob-medida/${projId}/entrega`, { delivered: false }, login.data.sessionToken)).data.deliveredAt, null);
     assert.equal((await call('/api/v1/pilot/admin/etha-sob-medida/naoexiste/entrega', { delivered: true }, login.data.sessionToken)).status, 404);
+    // Material do pedido: briefing com anexo, status e download só para o administrador.
+    const png = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360000002000154a24f5d0000000049454e44ae426082', 'hex');
+    const br = await fetch(`${base}/api/v1/etha/project/briefing`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${acc.data.sessionToken}` },
+      body: JSON.stringify({ briefing: { approach: 'TCC com adultos', colors: '#3B4FB8', service: 'sob_medida' }, files: [{ originalName: 'foto.png', contentBase64: png.toString('base64') }] }) });
+    assert.equal(br.status, 200);
+    const det = await call(`/api/v1/pilot/admin/etha-sob-medida/${projId}`, null, login.data.sessionToken);
+    assert.equal(det.status, 200); assert.equal(det.data.status, 'production'); assert.equal(det.data.briefing.approach, 'TCC com adultos');
+    assert.equal(det.data.files.length, 1); assert.ok(det.data.dueAt > det.data.receivedAt);
+    const fr = await fetch(`${base}/api/v1/pilot/admin/etha-sob-medida/${projId}/arquivos/${det.data.files[0].id}?baixar=1`, { headers: { Authorization: `Bearer ${login.data.sessionToken}` } });
+    assert.equal(fr.status, 200); assert.match(fr.headers.get('content-disposition'), /attachment/);
+    assert.equal((await fetch(`${base}/api/v1/pilot/admin/etha-sob-medida/${projId}/arquivos/${det.data.files[0].id}`, { headers: { Authorization: `Bearer ${acc.data.sessionToken}` } })).status, 403);
+    assert.equal((await call(`/api/v1/pilot/admin/etha-sob-medida/${projId}/arquivos/outroarquivo1`, null, login.data.sessionToken)).status, 404);
+    assert.equal((await call(`/api/v1/pilot/admin/etha-sob-medida/${projId}/status`, { status: 'new' }, login.data.sessionToken)).data.status, 'new');
+    assert.equal((await call(`/api/v1/pilot/admin/etha-sob-medida/${projId}/status`, { status: 'production' }, login.data.sessionToken)).data.status, 'production');
+    const delivered = await call(`/api/v1/pilot/admin/etha-sob-medida/${projId}/status`, { status: 'delivered' }, login.data.sessionToken);
+    assert.equal(delivered.data.status, 'delivered'); assert.ok(delivered.data.deliveredAt);
+    assert.equal((await call('/api/v1/pilot/admin/etha-sob-medida', null, login.data.sessionToken)).data.orders[0].status, 'delivered');
     const ni = await call('/api/v1/pilot/admin/invites', { label: 'Convidado 3' }, login.data.sessionToken);
     assert.equal(ni.status, 201); assert.match(ni.data.link, /\/convite\/[A-Za-z0-9_-]{20,}$/);
     assert.equal((await call(`/api/v1/pilot/invites/${ni.data.link.split('/').pop()}`)).data.state, 'open');

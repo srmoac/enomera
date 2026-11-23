@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#F0F4FE">
+<meta name="color-scheme" content="light only">
 <title>Convite para o piloto | Enomera</title>
 <link rel="icon" type="image/svg+xml" href="/assets/brand.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -65,7 +66,11 @@
       '<form class="cv-form pl-stagger" novalidate>' +
         '<div class="pl-field"><label for="f-name">' + (admin ? 'Seu nome' : 'Nome profissional') + '</label><input id="f-name" name="fullName" autocomplete="name" data-autofocus aria-describedby="e-name"><p class="pl-err" id="e-name"></p></div>' +
         '<div class="pl-field"><label for="f-email">E-mail</label><input id="f-email" name="email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" aria-describedby="e-email"><p class="pl-err" id="e-email"></p></div>' +
-        '<div class="pl-field"><label for="f-pass">Senha</label><div class="pl-pass"><input id="f-pass" name="password" type="password" autocomplete="new-password" aria-describedby="h-pass e-pass"><button type="button" class="pl-btn is-ghost" data-toggle-pass aria-pressed="false">Mostrar</button></div><p class="hint" id="h-pass">Ao menos 8 caracteres.</p><p class="pl-err" id="e-pass"></p></div>' +
+        '<div class="pl-field"><label for="f-pass">Senha</label><div class="pl-pass"><input id="f-pass" name="password" type="password" autocomplete="new-password" aria-describedby="h-pass e-pass"><button type="button" class="pl-btn is-ghost" data-toggle-pass aria-pressed="false" aria-controls="f-pass"><span class="pl-eye" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path class="slash" d="M4 4l16 16"/></svg></span><span data-pass-label>Mostrar</span></button></div>' +
+          '<div class="pl-meter" aria-hidden="true"><i></i><i></i><i></i><i></i></div>' +
+          '<div class="pl-meter-row"><span id="h-pass">Força da senha: <b data-pass-level>—</b></span></div>' +
+          '<ul class="pl-rules" aria-hidden="true"><li data-rule="len">8 ou mais caracteres</li><li data-rule="mix">letras e números</li><li data-rule="case">maiúscula e minúscula</li><li data-rule="sym">um símbolo</li></ul>' +
+          '<p class="eno-sr-only" aria-live="polite" id="pass-live"></p><p class="pl-err" id="e-pass"></p></div>' +
         (admin ? '' :
         '<div class="cv-two"><div class="pl-field"><label for="f-crp">CRP ou CRM <span class="muted">(opcional)</span></label><input id="f-crp" name="crpOrCrm" autocomplete="off"></div>' +
         '<div class="pl-field"><span id="l-spec" style="font-size:14px;font-weight:600">Área</span><div class="pl-seg" role="group" aria-labelledby="l-spec"><span class="pl-lens" aria-hidden="true"></span><button type="button" data-spec="Psicologia" aria-pressed="true">Psicologia</button><button type="button" data-spec="Psiquiatria" aria-pressed="false">Psiquiatria</button></div></div></div>') +
@@ -92,7 +97,33 @@
     placeLens(); addEventListener('resize', placeLens);
     root.querySelectorAll('[data-spec]').forEach(function (b) { b.onclick = function () { root.querySelectorAll('[data-spec]').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); placeLens(); }; });
     var tp = root.querySelector('[data-toggle-pass]');
-    tp.onclick = function () { var i = root.querySelector('#f-pass'); var show = i.type === 'password'; i.type = show ? 'text' : 'password'; tp.textContent = show ? 'Ocultar' : 'Mostrar'; tp.setAttribute('aria-pressed', String(show)); };
+    var pi = root.querySelector('#f-pass');
+    // Mostrar/Ocultar: troca só o texto e o ícone, mantém foco e cursor no fim (sem pulo de layout).
+    tp.addEventListener('pointerdown', function (e) { e.preventDefault(); });
+    tp.onclick = function () {
+      var show = pi.type === 'password'; var pos = pi.selectionStart;
+      pi.type = show ? 'text' : 'password';
+      tp.querySelector('[data-pass-label]').textContent = show ? 'Ocultar' : 'Mostrar';
+      tp.setAttribute('aria-pressed', String(show)); tp.setAttribute('aria-label', show ? 'Ocultar senha' : 'Mostrar senha');
+      pi.focus(); try { pi.setSelectionRange(pos == null ? pi.value.length : pos, pos == null ? pi.value.length : pos); } catch (err) {}
+    };
+    var LEVELS = [['—', 'var(--faint)'], ['Fraca', 'var(--bad)'], ['Razoável', 'var(--warn)'], ['Boa', 'var(--accent)'], ['Forte', 'var(--good)']];
+    var lastLevel = -1;
+    function strength(v) {
+      var r = { len: v.length >= 8, mix: /[a-zA-Z]/.test(v) && /\d/.test(v), case: /[a-z]/.test(v) && /[A-Z]/.test(v), sym: /[^A-Za-z0-9]/.test(v) };
+      var score = !v ? 0 : !r.len ? 1 : Math.min(4, 1 + [r.mix, r.case, r.sym, v.length >= 12].filter(Boolean).length);
+      if (r.len && /^(.)\1+$/.test(v)) score = 1;
+      return { r: r, score: score };
+    }
+    function paintStrength() {
+      var s = strength(pi.value); var lv = LEVELS[s.score];
+      root.querySelectorAll('.pl-meter i').forEach(function (bar, i) { bar.classList.toggle('on', i < s.score); bar.style.setProperty('--m', lv[1]); });
+      var tag = root.querySelector('[data-pass-level]'); tag.textContent = lv[0]; tag.style.color = s.score ? lv[1] : '';
+      Object.keys(s.r).forEach(function (k) { var li = root.querySelector('[data-rule="' + k + '"]'); if (li) li.classList.toggle('ok', s.r[k]); });
+      if (s.score !== lastLevel && pi.value) document.getElementById('pass-live').textContent = 'Senha ' + lv[0].toLowerCase();
+      lastLevel = s.score;
+    }
+    pi.addEventListener('input', paintStrength); paintStrength();
     f.addEventListener('input', function (e) { var el = e.target; if (el.getAttribute('aria-invalid') === 'true') { el.removeAttribute('aria-invalid'); var er = document.getElementById('e-' + ({ fullName: 'name', email: 'email', password: 'pass', consent: 'consent' }[el.name])); if (er) er.textContent = ''; } });
     f.addEventListener('change', function (e) { if (e.target.name === 'consent' && e.target.checked) { e.target.removeAttribute('aria-invalid'); document.getElementById('e-consent').textContent = ''; } });
     f.addEventListener('submit', submit);

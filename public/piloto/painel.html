@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#F0F4FE">
+<meta name="color-scheme" content="light only">
 <title>Painel do piloto | Enomera</title>
 <link rel="icon" type="image/svg+xml" href="/assets/brand.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -19,10 +20,11 @@
 <header class="pn-top lg" data-glass="regular" data-glass-tint="enomera">
   <a class="pn-brand" href="/"><img src="/assets/brand.svg" width="28" height="24" alt="">enomera <span>piloto</span></a>
   <nav class="pn-nav" aria-label="Seções do painel" id="pn-nav" hidden>
-    <a href="#resumo-dia">Dia a dia</a><a href="#resumo">Resumo</a><a href="#pessoas">Pessoas</a><a href="#funcionalidades">Funcionalidades</a><a href="#telas">Telas</a><a href="#mapa">Mapa de cliques</a><a href="#erros">Erros</a><a href="#sobmedida">Sob medida</a><a href="#convites">Convites</a>
+    <span class="pn-tab-lens" aria-hidden="true"></span>
+    <a href="#dia" data-view="dia">Resumo do dia</a><a href="#uso" data-view="uso">Convidados e uso</a><a href="#sob" data-view="sob">Sob medida<span class="pn-badge" hidden></span></a><a href="#convites" data-view="convites">Convites</a><a href="#erros" data-view="erros">Erros<span class="pn-badge" hidden></span></a>
   </nav>
   <div class="pn-tools" id="pn-tools" hidden>
-    <div class="pl-seg" role="group" aria-label="Período"><span class="pl-lens" aria-hidden="true"></span><button type="button" data-dias="7" aria-pressed="false">7 dias</button><button type="button" data-dias="14" aria-pressed="true">14 dias</button><button type="button" data-dias="30" aria-pressed="false">30 dias</button></div>
+    <div class="pl-seg" role="group" aria-label="Período" id="pn-period"><span class="pl-lens" aria-hidden="true"></span><button type="button" data-dias="7" aria-pressed="false">7 dias</button><button type="button" data-dias="14" aria-pressed="true">14 dias</button><button type="button" data-dias="30" aria-pressed="false">30 dias</button></div>
     <button type="button" class="pl-btn is-ghost" id="pn-teste" aria-pressed="false" title="Mostrar também a sua conta de teste">Meu teste</button>
     <button type="button" class="pl-btn is-quiet" id="pn-refresh" aria-label="Atualizar agora">Atualizar</button>
   </div>
