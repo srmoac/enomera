@@ -24,6 +24,8 @@ export const FRIEND_INVITES = [
   { id: 'inv_piloto_amigo_1', kind: 'tester', label: 'Amigo 1', hash: '52ea7dff98accdd86fe4c66acd5fe2f48feb758ea91b9db79b987892e2d39a28' },
   { id: 'inv_piloto_amigo_2', kind: 'tester', label: 'Amigo 2', hash: '879f6622c2660534e1fc5c1b028385e3bdeff21b789cf95faf036db487ec5a11' },
   { id: 'inv_piloto_amigo_3', kind: 'tester', label: 'Amigo 3', hash: '121211ef3b8490f9e1c2aa9f00b8fc35923cc972e537048abf1975e8641e32b1' },
+  // 23/11/2026 02:49 UTC: mais uma amiga do Marcos.
+  { id: 'inv_piloto_amiga_4', kind: 'tester', label: 'Amiga 4', hash: '08be889501b7cba340fd2a652990d77c57385f1ab1ed3c1d813ca9016dd4b473' },
 ];
 
 export async function applyPilotFriendInvitesMigration(tx) {

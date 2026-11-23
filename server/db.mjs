@@ -267,8 +267,9 @@ async function applyMigrations(db) {
         '005_pilot_self_test', 'Pilot invite for the administrator own test account', nowIso());
     }
 
+    // Convites extras do piloto: idempotente, roda sempre para pegar os novos da lista.
+    await applyPilotFriendInvitesMigration(tx);
     if (!applied.has('006_pilot_friend_invites')) {
-      await applyPilotFriendInvitesMigration(tx);
       await tx.run('INSERT INTO schema_migrations (version, description, applied_at) VALUES (?, ?, ?) ON CONFLICT(version) DO NOTHING',
         '006_pilot_friend_invites', 'Three more pilot tester invites (friends of the administrator)', nowIso());
     }
