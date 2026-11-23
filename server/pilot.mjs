@@ -19,6 +19,21 @@ export const SELF_TEST_INVITES = [
   { id: 'inv_piloto_marcos_teste', kind: 'self_test', label: 'Teste do Marcos', hash: 'b99862e845ecfd6f8da2c40dcfce7ce9d6919c3dbeec0e5a46d04561c4c33e5d' },
 ];
 
+// Convidados extras pedidos pelo Marcos para amigos (23/11/2026 01:57 UTC): contam nas métricas.
+export const FRIEND_INVITES = [
+  { id: 'inv_piloto_amigo_1', kind: 'tester', label: 'Amigo 1', hash: '52ea7dff98accdd86fe4c66acd5fe2f48feb758ea91b9db79b987892e2d39a28' },
+  { id: 'inv_piloto_amigo_2', kind: 'tester', label: 'Amigo 2', hash: '879f6622c2660534e1fc5c1b028385e3bdeff21b789cf95faf036db487ec5a11' },
+  { id: 'inv_piloto_amigo_3', kind: 'tester', label: 'Amigo 3', hash: '121211ef3b8490f9e1c2aa9f00b8fc35923cc972e537048abf1975e8641e32b1' },
+];
+
+export async function applyPilotFriendInvitesMigration(tx) {
+  const now = nowIso();
+  for (const inv of FRIEND_INVITES) {
+    await tx.run('INSERT INTO pilot_invites (id, kind, label, token_hash, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING',
+      inv.id, inv.kind, inv.label, inv.hash, now);
+  }
+}
+
 export async function applyPilotSelfTestMigration(tx) {
   const now = nowIso();
   for (const inv of SELF_TEST_INVITES) {

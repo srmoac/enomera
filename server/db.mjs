@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { nowIso, randomId, sanitizeAuditMeta } from './crypto.mjs';
-import { applyPilotMigration, applyPilotSelfTestMigration } from './pilot.mjs';
+import { applyPilotMigration, applyPilotSelfTestMigration, applyPilotFriendInvitesMigration } from './pilot.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MIGRATION_001_SQLITE = path.join(__dirname, 'migrations', '001_init.sql');
@@ -265,6 +265,12 @@ async function applyMigrations(db) {
       await applyPilotSelfTestMigration(tx);
       await tx.run('INSERT INTO schema_migrations (version, description, applied_at) VALUES (?, ?, ?) ON CONFLICT(version) DO NOTHING',
         '005_pilot_self_test', 'Pilot invite for the administrator own test account', nowIso());
+    }
+
+    if (!applied.has('006_pilot_friend_invites')) {
+      await applyPilotFriendInvitesMigration(tx);
+      await tx.run('INSERT INTO schema_migrations (version, description, applied_at) VALUES (?, ?, ?) ON CONFLICT(version) DO NOTHING',
+        '006_pilot_friend_invites', 'Three more pilot tester invites (friends of the administrator)', nowIso());
     }
 
     await tx.run(
