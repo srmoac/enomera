@@ -1,7 +1,8 @@
 /* Enomera · Calendário próprio em vidro (23 nov 2026). Substitui o <input type="date|datetime-local">
    nativo em todos os produtos. Sem dependências. Cor do produto em --eg-c (eno-glass-ui.css).
 
-   const cal = EnoCalendar.mount(el, { mode: 'single' | 'range', value: { start: 'AAAA-MM-DD', end }, min: 'AAAA-MM-DD', onChange(v) {} });
+   const cal = EnoCalendar.mount(el, { mode: 'single' | 'range', value: { start: 'AAAA-MM-DD', end }, min: 'AAAA-MM-DD' | null, max: 'AAAA-MM-DD', onChange(v) {} });
+   min padrão = hoje (null libera o passado); max limita o futuro (ex.: data de atendimento).
    cal.get() → { start, end }   cal.set({ start, end })
 
    Motion: troca de mês desliza na direção do gesto (sai 160 ms, entra 320 ms, ease-out); dia escolhido
@@ -27,7 +28,7 @@
   function mount(el, opts) {
     opts = opts || {};
     var mode = opts.mode === 'range' ? 'range' : 'single';
-    var st = { start: (opts.value && opts.value.start) || '', end: (opts.value && opts.value.end) || '', min: opts.min || todayIso() };
+    var st = { start: (opts.value && opts.value.start) || '', end: (opts.value && opts.value.end) || '', min: opts.min === null ? '' : (opts.min || todayIso()), max: opts.max || '' };
     var base = parse(st.start) || parse(todayIso());
     var view = { y: base.y, m: base.m };
     var focusIso = st.start || todayIso();
@@ -51,7 +52,7 @@
       var today = todayIso();
       for (var d = 1; d <= days; d++) {
         var v = iso(view.y, view.m, d);
-        var dis = v < st.min;
+        var dis = (st.min && v < st.min) || (st.max && v > st.max);
         var sel = v === st.start || (mode === 'range' && v === st.end);
         var inRange = mode === 'range' && st.start && st.end && v > st.start && v < st.end;
         var cls = 'ecal-day' + (v === today ? ' is-today' : '') + (sel ? ' is-sel' : '') + (inRange ? ' is-in' : '') +
