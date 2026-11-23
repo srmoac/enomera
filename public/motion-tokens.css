@@ -78,3 +78,6 @@
 @keyframes eno-step-in-back { from { opacity: 0; transform: translateX(calc(var(--eno-shift-step) * -1)); } }
 .eno-step-enter { animation: eno-step-in-forward var(--eno-t-step) var(--eno-ease-out) both; }
 .eno-step-enter[data-direction="back"] { animation-name: eno-step-in-back; }
+
+/* Tema único (23 nov 2026): a Enomera é sempre clara, mesmo com o sistema no modo escuro. */
+:root { color-scheme: light; }

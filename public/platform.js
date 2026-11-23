@@ -380,6 +380,11 @@ export async function mountEnomeraPlatform(rootEl) {
     const targetOrigin = APP_ORIGINS[appKey];
     if (!targetOrigin) return;
     if (!state.me) { window.open(targetOrigin + returnPath, '_blank', 'noopener'); return; }
+    // Agenda do Ambo ainda fechada: primeiro o fluxo de configuração, dentro da Enomera.
+    if (appKey === 'ambo' && returnPath.startsWith('/operacao')) {
+      const ov = await apiFetch('/api/v1/ambo/pro/overview');
+      if (ov.ok && !ov.data?.setup?.open) { window.location.href = '/configurar?etapa=consultorio'; return; }
+    }
     const res = await apiFetch('/api/v1/auth/handoff', { method: 'POST', body: { targetOrigin, returnPath } });
     if (res.ok) {
       const sep = returnPath.includes('?') ? '&' : '?';
@@ -434,26 +439,43 @@ export async function mountEnomeraPlatform(rootEl) {
     `;
   }
 
+  // Um nome e uma foto só: os do perfil profissional (os mesmos do Ambo, Minne e Etha).
+  function profileName() { return state.profileData?.profile?.displayName || state.me?.account?.displayName || state.me?.user?.fullName || ''; }
+  function profilePhoto() { return state.profileData?.profile?.photoUrl || ''; }
+
   function renderTopbar() {
     const authed = Boolean(state.me);
     const tabs = authed
-      ? [['portal', 'Portal'], ['profile', 'Perfil e agenda'], ['plans', 'Outros serviços'], ['billing', isPilot() ? 'Plano' : 'Cobrança'], ['pilot', 'Piloto']]
-      : [['auth', 'Entrar'], ['plans', 'Serviços e preços'], ['pilot', 'Piloto']];
+      ? [['portal', 'Portal'], ['configurar', 'Configurar'], ['plans', 'Outros serviços'], ['billing', isPilot() ? 'Plano' : 'Cobrança'], ...(isPilot() ? [['pilot', 'Piloto']] : [])]
+      : [['auth', 'Entrar'], ['plans', 'Serviços e preços']];
     return `
       <header class="eno-topbar">
         <a class="eno-brand" href="/"><img src="/assets/brand.svg" width="32" height="27" alt="">enomera</a>
         <nav class="eno-nav-tabs" aria-label="Navegação do portal">
-          ${tabs.map(([id, label]) => `<button type="button" class="eno-tab" data-tab="${id}" aria-current="${state.tab === id ? 'page' : 'false'}">${label}</button>`).join('')}
+          ${tabs.map(([id, label]) => id === 'configurar'
+            ? `<a class="eno-tab" href="/configurar">${label}</a>`
+            : `<button type="button" class="eno-tab" data-tab="${id}" aria-current="${state.tab === id ? 'page' : 'false'}">${label}</button>`).join('')}
         </nav>
         <div class="eno-btn-row">
-          ${authed ? `<span class="eno-pill">${esc(state.me.user.fullName)}</span><button type="button" class="eno-btn eno-btn-sec" id="eno-logout">Sair</button>` : `<a class="eno-btn eno-btn-sec" href="/">Voltar ao site</a>`}
+          ${authed ? `<a class="eno-pill eno-user-link" href="/configurar?etapa=voce" aria-label="Seu perfil: ${esc(profileName())}"><span class="eno-user-ava" aria-hidden="true" ${profilePhoto() ? `style="background-image:url('${esc(profilePhoto())}');background-size:cover;background-position:center;color:transparent"` : ''}>${esc((profileName() || '?').trim().charAt(0).toUpperCase())}</span>${esc(profileName())}</a><button type="button" class="eno-btn eno-btn-sec" id="eno-logout">Sair</button>` : `<a class="eno-btn eno-btn-sec" href="/">Voltar ao site</a>`}
         </div>
       </header>
     `;
   }
 
+  // Padrão de feedback (padrao-ux-motion.md §14): sucesso vira toast leve em vidro, sem faixa
+  // no topo; aviso e erro continuam inline porque pedem atenção ou correção.
+  function notify(opts) {
+    if (window.EnoFeedback) window.EnoFeedback.toast(opts);
+  }
   function renderFeedback() {
     if (!state.feedback) return '';
+    if (state.feedback.tone === 'ok' && window.EnoFeedback) {
+      const text = state.feedback.text;
+      state.feedback = null;
+      queueMicrotask(() => notify({ tone: 'ok', text }));
+      return '';
+    }
     const cls = state.feedback.tone === 'ok' ? 'eno-pill-ok' : state.feedback.tone === 'warn' ? 'eno-pill-warn' : 'eno-pill-err';
     return `<div class="eno-status-banner ${cls}" role="status" aria-live="polite">${esc(state.feedback.text)}</div>`;
   }
@@ -520,7 +542,6 @@ export async function mountEnomeraPlatform(rootEl) {
     };
     return `
       <section class="eno-list eno-panel-enter" style="gap:20px">
-        ${renderActivationBanner(state.activation)}
         <div class="eno-card eno-card-highlight">
           <div class="eno-row" style="background:transparent;border:0;padding:0">
             <div>
@@ -529,7 +550,7 @@ export async function mountEnomeraPlatform(rootEl) {
             </div>
             <div class="eno-btn-row">
               ${!state.me.user.emailVerified ? `<button type="button" class="eno-btn eno-btn-sec" id="eno-go-verify">Verificar e-mail pendente</button>` : ''}
-              <button type="button" class="eno-btn eno-btn-sec" data-tab="profile">Configurar disponibilidade</button>
+              ${activeCount ? `<a class="eno-btn" href="/configurar">Configurar meus serviços</a>` : ''}
             </div>
           </div>
           ${s.pendingSyncs?.length ? `
@@ -624,7 +645,7 @@ export async function mountEnomeraPlatform(rootEl) {
             ${state.orders.length ? state.orders.map((o) => `
               <div class="eno-row">
                 <div>
-                  <b>${esc(o.receipt_code)}</b> · ${esc(o.items.map((x) => PRODUCT_NAMES[x] || x).join(' + '))}
+                  <b>${esc(o.items.map((x) => PRODUCT_NAMES[x] || x).join(' + '))}</b>${o.created_at ? ` · ${esc(new Date(o.created_at).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' }))}` : ''}
                   <div class="eno-muted">${isPilot() ? 'Grátis no piloto' : `Hoje: ${brl(o.due_today_cents)} · Recorrente: ${brl(o.recurring_monthly_cents)}/mês`} · Situação: <b>${esc(statusLabel(o.status))}</b></div>
                 </div>
                 ${o.status !== 'approved' ? `<button type="button" class="eno-btn eno-btn-sec" data-retry-order="${esc(o.id)}" ${state.busyAction === 'retryOrder' ? 'disabled' : ''}>Retomar</button>` : ''}
@@ -634,6 +655,11 @@ export async function mountEnomeraPlatform(rootEl) {
         </aside>
       </section>
     `;
+  }
+
+  function ownedProducts() {
+    const ents = state.me?.entitlements || {};
+    return ['ambo', 'minne', 'etha'].filter((p) => Boolean(ents[p]?.canWrite));
   }
 
   function subscribeProducts() {
@@ -720,6 +746,7 @@ export async function mountEnomeraPlatform(rootEl) {
         <h1 class="eno-h1">Obrigado por testar a Enomera</h1>
         <p class="eno-muted">Todos os serviços estão liberados sem custo até ${esc(pilotUntil())}. Use Ambo, Minne e Etha como usaria no dia a dia; o que te prende e o que te atrapalha é exatamente o que queremos aprender.</p>
         <p class="eno-muted">Registramos só como você usa as telas (cliques, tempo e erros), nunca conteúdo clínico. Detalhes em <a class="eno-link" href="/privacidade#piloto">Privacidade</a>.</p>
+        <div class="eno-btn-row"><a class="eno-btn eno-btn-sec" href="/piloto/como-funciona?next=%2Fportal">Ver como os serviços funcionam</a></div>
       </section>`;
     }
     return `
@@ -780,6 +807,8 @@ export async function mountEnomeraPlatform(rootEl) {
 
   function render() {
     setPilotFree(isPilot());
+    // Piloto é só por convite: quem não foi convidado não vê a aba nem o formulário.
+    if (state.tab === 'pilot' && !isPilot()) state.tab = state.me ? 'portal' : 'plans';
     const snap = motionSnapshot(rootEl);
     const prevH = rootEl.offsetHeight;
     renderInner();
@@ -855,7 +884,7 @@ export async function mountEnomeraPlatform(rootEl) {
         })
         : state.tab === 'review'
           ? renderReview({ combo: state.combo, contract, me: state.me, activating: state.activating })
-          : renderChoice({ combo: state.combo, contract, signedIn: Boolean(state.me), returnedFromReview: state.returnedFromReview && Boolean(state.me), customOpen: Boolean(state.customOpen) });
+          : renderChoice({ combo: state.combo, contract, signedIn: Boolean(state.me), returnedFromReview: state.returnedFromReview && Boolean(state.me), customOpen: Boolean(state.customOpen), owned: ownedProducts() });
       queueMicrotask(markRoute);
       rootEl.innerHTML = `<div class="eno-shell eno-flow-shell"><header class="eno-flow-top"><a class="eno-brand" href="/"><img src="/assets/brand.svg" width="32" height="27" alt="">enomera</a>${state.me ? `<button type="button" class="eno-link" data-tab="portal">Ir ao portal</button>` : '<a class="eno-link" href="/">Voltar ao site</a>'}</header><main class="eno-container" id="portal-content" tabindex="-1">${renderInfraAlert()}${state.feedback && state.feedback.tone === 'err' ? renderFeedback() : ''}${flowView}</main></div>`;
       bindEvents();
@@ -885,6 +914,8 @@ export async function mountEnomeraPlatform(rootEl) {
     }
     motionTracker.prevFlowStep = null;
 
+    // Perfil e agenda passou para o fluxo /configurar (23 nov): um lugar só para configurar.
+    if (state.tab === 'profile') { window.location.replace('/configurar'); return; }
     const view = state.tab === 'profile' ? renderProfileView()
       : state.tab === 'billing' ? renderBillingView()
       : state.tab === 'pilot' ? renderPilotView()
@@ -935,12 +966,15 @@ export async function mountEnomeraPlatform(rootEl) {
       at: new Date().toISOString(),
     };
     saveActivation(state.activation);
+    notify({ tone: 'ok', title: `${state.activation.names} ${state.activation.count > 1 ? 'ativos' : 'ativo'}`, text: isPilot() ? 'grátis no piloto' : `cobrado hoje ${state.activation.chargedToday}` });
     state.checkoutIdempotencyKey = `chk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     state.returnedFromReview = false;
     state.feedback = null;
     state.tab = 'portal';
     syncHistory(state.tab, state.authMode);
     await refreshSessionAndData();
+    // Depois de ativar, o profissional segue direto para o fluxo de configuração do plano.
+    setTimeout(() => { window.location.href = '/configurar'; }, prefersReducedMotion() ? 0 : 900);
   }
 
   function bindOtpInputs() {
@@ -1476,6 +1510,18 @@ export async function mountEnomeraPlatform(rootEl) {
     });
 
     rootEl.querySelector('#eno-checkout-submit')?.addEventListener('click', runCheckoutSubmit);
+    // Ativar é um gesto: deslize para confirmar (padrao-ux-motion §20).
+    const slideHost = rootEl.querySelector('#eno-checkout-slide');
+    if (slideHost && window.EnoSlide) {
+      window.EnoSlide.mount(slideHost, {
+        label: slideHost.dataset.slideLabel, busyLabel: 'Ativando…', doneLabel: 'Ativado',
+        state: slideHost.dataset.slideState,
+        onConfirm: () => { runCheckoutSubmit(); return new Promise(() => {}); },
+      });
+    } else if (slideHost) {
+      slideHost.innerHTML = `<button type="button" class="eno-btn" style="width:100%">${esc(slideHost.dataset.slideLabel.replace('Deslize para a', 'A'))}</button>`;
+      slideHost.querySelector('button').addEventListener('click', runCheckoutSubmit);
+    }
     rootEl.querySelector('#eno-mobile-checkout')?.addEventListener('click', runCheckoutSubmit);
 
     // Hide mobile sticky bar only while a virtual-keyboard text input has focus (not checkboxes/selects)
