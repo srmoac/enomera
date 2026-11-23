@@ -14,8 +14,10 @@
 <link rel="stylesheet" href="/eno-glass-ui.css">
 <link rel="stylesheet" href="/eno-feedback.css">
 <link rel="stylesheet" href="/eno-calendar.css">
+<link rel="stylesheet" href="/eno-slide.css">
 <script src="/eno-feedback.js"></script>
 <script src="/eno-calendar.js"></script>
+<script src="/eno-slide.js"></script>
 <style>
   :root { --eno-toast-offset: 90px; }
   body { --c1: #b8c4ff; --c2: #ffd3c2; --c3: #dfe6ff; background: #f4f6fd; }
@@ -81,6 +83,9 @@
   .cf-dock { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(14px + env(safe-area-inset-bottom)); width: min(568px, calc(100vw - 32px)); padding: 12px; border-radius: 34px; display: flex; gap: 12px; z-index: 10; }
   .cf-dock .eg-btn:last-child { flex: 1; }
   .cf-dock .eg-btn[hidden] { display: none; }
+  .cf-dock #dock-slide { flex: 1; height: 54px; }
+  .cf-dock #dock-slide[hidden] { display: none; }
+  .cf-dock #dock-slide .es-knob { width: 50px; height: 44px; }
   .cf-skip { background: none; border: 0; color: var(--muted); font: 600 14px Manrope, sans-serif; min-height: 44px; padding: 0 12px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
   .cf-skel { height: 320px; border-radius: 28px; }
   /* Fundo vivo: as manchas de cor derivam devagar (desligado com movimento reduzido). */

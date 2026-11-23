@@ -162,6 +162,21 @@ function paint() {
   [...bar.children].forEach((el, k) => el.classList.toggle('on', k <= S.i));
   backBtn.hidden = S.i === 0;
   nextBtn.textContent = key === 'pronto' ? 'Ir para o portal' : key === 'link' ? (S.form.open ? 'Continuar' : 'Abrir agenda') : key === 'site' ? 'Já respondi, continuar' : 'Continuar';
+  // Abrir a agenda é um compromisso com pacientes: vira um gesto de deslizar (padrao-ux-motion §20).
+  const slideMode = key === 'link' && !S.form.open && Boolean(window.EnoSlide);
+  let slot = document.getElementById('dock-slide');
+  if (slideMode && !slot) {
+    slot = document.createElement('div'); slot.id = 'dock-slide';
+    nextBtn.after(slot);
+    window.EnoSlide.mount(slot, { label: 'Deslize para abrir', busyLabel: 'Abrindo…', doneLabel: 'Agenda aberta', onConfirm: async () => {
+      const ok = await save('link');
+      if (ok) setTimeout(() => { show(S.i + 1, 'next'); }, 900);
+      return ok;
+    } });
+  }
+  nextBtn.hidden = slideMode;
+  if (slot) slot.hidden = !slideMode;
+  if (slot && !slideMode && S.form.open) slot.remove();
 }
 function stepHtml(key) {
   const v = VIEWS[key]();
@@ -179,8 +194,26 @@ function show(k, dir) {
     setTimeout(() => old.remove(), 170);
   }
   paint(); wire(nu);
+  if (S.steps[k] === 'pronto' && dir && !reduce()) flyDots(nu);
   if (dir) { nu.querySelector('h1').focus({ preventScroll: true }); window.scrollTo({ top: 0, behavior: reduce() ? 'auto' : 'smooth' }); }
   try { history.replaceState(null, '', `?etapa=${S.steps[k]}`); } catch {}
+}
+
+// Pronto: cada ponto de produto sai do seu trecho da barra de progresso e pousa na linha dele.
+function flyDots(root) {
+  const segs = [...document.getElementById('bar').children];
+  root.querySelectorAll('.cf-sum').forEach((row, n) => {
+    const prod = row.dataset.produto; const dot = row.querySelector('.dot');
+    const seg = segs[S.steps.findIndex((s) => STEP_DEFS[s].prod === prod)]; if (!dot || !seg) return;
+    requestAnimationFrame(() => {
+      const a = seg.getBoundingClientRect(); const b = dot.getBoundingClientRect();
+      dot.animate([
+        { transform: `translate(${a.left + a.width / 2 - (b.left + b.width / 2)}px, ${a.top + a.height / 2 - (b.top + b.height / 2)}px) scale(.18)`, opacity: .6 },
+        { opacity: 1, offset: .3 },
+        { transform: 'none', opacity: 1 },
+      ], { duration: 720, delay: 160 + n * 110, easing: 'linear(0, .009, .035 2.1%, .141 4.4%, .723 12.9%, .938 16.7%, 1.017 20.4%, 1.041 24.6%, 1.035 28.5%, 1.004 38.3%, .997 46.7%, 1)', fill: 'backwards' });
+    });
+  });
 }
 
 // ---------- Interações: cada toque muda só o próprio elemento ----------

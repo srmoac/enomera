@@ -350,7 +350,7 @@ export function renderReview({ combo, contract, me, activating }) {
   // Mostra Ambo e Minne sempre; o que não foi escolhido aparece como "não incluído".
   const cards = ORDER.filter((p) => chosen.includes(p));
   const cta = `
-    <button type="button" class="eno-btn eno-flow-cta" id="eno-checkout-submit" ${activating ? 'aria-disabled="true" aria-busy="true"' : ''}>${activating ? '<span class="eno-spinner" aria-hidden="true"></span> Ativando…' : PILOT_FREE ? 'Ativar grátis' : 'Ativar sem cobrança hoje'}</button>
+    <div class="eno-slide-host" id="eno-checkout-slide" data-slide-state="${activating ? 'busy' : 'idle'}" data-slide-label="${PILOT_FREE ? 'Deslize para ativar grátis' : 'Deslize para ativar'}"></div>
     ${activating ? '<p class="eno-flow-note" role="status">Leva alguns segundos. Os controles seguem disponíveis; se você sair, a ativação continua.</p>' : ''}
   `;
   return `

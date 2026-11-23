@@ -1510,6 +1510,18 @@ export async function mountEnomeraPlatform(rootEl) {
     });
 
     rootEl.querySelector('#eno-checkout-submit')?.addEventListener('click', runCheckoutSubmit);
+    // Ativar é um gesto: deslize para confirmar (padrao-ux-motion §20).
+    const slideHost = rootEl.querySelector('#eno-checkout-slide');
+    if (slideHost && window.EnoSlide) {
+      window.EnoSlide.mount(slideHost, {
+        label: slideHost.dataset.slideLabel, busyLabel: 'Ativando…', doneLabel: 'Ativado',
+        state: slideHost.dataset.slideState,
+        onConfirm: () => { runCheckoutSubmit(); return new Promise(() => {}); },
+      });
+    } else if (slideHost) {
+      slideHost.innerHTML = `<button type="button" class="eno-btn" style="width:100%">${esc(slideHost.dataset.slideLabel.replace('Deslize para a', 'A'))}</button>`;
+      slideHost.querySelector('button').addEventListener('click', runCheckoutSubmit);
+    }
     rootEl.querySelector('#eno-mobile-checkout')?.addEventListener('click', runCheckoutSubmit);
 
     // Hide mobile sticky bar only while a virtual-keyboard text input has focus (not checkboxes/selects)
