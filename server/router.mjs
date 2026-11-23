@@ -240,12 +240,16 @@ function requireAuth(auth) {
 
 // Ambo: a página pública só recebe pedidos depois que a profissional revisa atendimento e horários
 // e abre a agenda (22 nov 2026). Contas de demonstração já nascem abertas.
+// Valores-padrão das colunas (migração 001): nunca são dados que a profissional informou.
+const AMBO_DEFAULT_ADDRESS = 'Pinheiros, São Paulo - SP (endereço completo após confirmação)';
+const AMBO_DEFAULT_CITY = 'São Paulo, SP';
+
 function amboSetupOf(acc) {
   let prefs = {};
   try { prefs = JSON.parse(acc?.ui_preferences_json || '{}') || {}; } catch { prefs = {}; }
   const setup = prefs.amboSetup || {};
   const open = Boolean(acc?.is_demo_sandbox) || Boolean(setup.openedAt);
-  return { open, openedAt: setup.openedAt || null, reviewedAt: setup.reviewedAt || null, demo: Boolean(acc?.is_demo_sandbox) };
+  return { open, openedAt: setup.openedAt || null, reviewedAt: setup.reviewedAt || null, demo: Boolean(acc?.is_demo_sandbox), priceUnset: Boolean(setup.priceUnset) };
 }
 
 // Endereço em partes (CEP, rua, número, complemento, bairro), guardado ao lado
@@ -276,10 +280,10 @@ async function amboSetupPayload(db, accountId) {
     ...state,
     modalities: fresh ? ['online'] : JSON.parse(acc.modalities_json || '["online","presencial"]'),
     city: fresh ? '' : acc.city || '',
-    inPersonAddress: fresh ? '' : acc.in_person_address || '',
+    inPersonAddress: fresh || acc.in_person_address === AMBO_DEFAULT_ADDRESS ? '' : acc.in_person_address || '',
     address: fresh ? null : amboAddressOf(acc),
     sessionDurationMin: acc.session_duration_min,
-    sessionPriceCents: fresh ? null : acc.session_price_cents,
+    sessionPriceCents: fresh || state.priceUnset ? null : acc.session_price_cents,
     rules: rules.map((r) => ({ weekday: Number(r.weekday), startTime: r.start_time, endTime: r.end_time, modality: r.modality })),
   };
 }
@@ -1402,7 +1406,7 @@ export async function handleApiRequest(req, res, customDb = null) {
           city: amboFresh ? '' : acc.city,
           timezone: acc.timezone,
           sessionDurationMin: acc.session_duration_min,
-          sessionPriceCents: amboFresh ? null : acc.session_price_cents,
+          sessionPriceCents: amboFresh || amboState.priceUnset ? null : acc.session_price_cents,
           modalities: amboFresh ? [] : JSON.parse(acc.modalities_json || '["online","presencial"]'),
           inPersonHint: amboFresh ? '' : acc.city,
         },
@@ -1751,8 +1755,12 @@ export async function handleApiRequest(req, res, customDb = null) {
         throw Object.assign(new Error('Confira os horários: o fim precisa ser depois do início.'), { status: 400, code: 'AMBO_SETUP_RULES' });
       }
       const finalModalities = modalities || JSON.parse(acc.modalities_json || '["online","presencial"]');
-      const city = body.city != null ? String(body.city).trim() : acc.city;
-      const address = body.inPersonAddress != null ? String(body.inPersonAddress).trim() : acc.in_person_address;
+      const before = amboSetupOf(acc);
+      const wasFresh = !before.demo && !before.reviewedAt && !before.open;
+      // Primeira revisão: o que a profissional não informou não herda o exemplo das colunas.
+      const city = body.city != null ? String(body.city).trim() : (wasFresh && acc.city === AMBO_DEFAULT_CITY ? '' : acc.city);
+      const address = body.inPersonAddress != null ? String(body.inPersonAddress).trim() : (wasFresh || acc.in_person_address === AMBO_DEFAULT_ADDRESS ? '' : acc.in_person_address);
+      const priceGiven = Number.isFinite(Number(body.sessionPriceCents)) && body.sessionPriceCents !== null && body.sessionPriceCents !== '' && Number(body.sessionPriceCents) >= 0;
       if (body.open && finalModalities.includes('presencial') && !String(address || '').trim()) {
         throw Object.assign(new Error('Informe o endereço do consultório para atender presencialmente.'), { status: 400, code: 'AMBO_SETUP_ADDRESS' });
       }
@@ -1768,13 +1776,15 @@ export async function handleApiRequest(req, res, customDb = null) {
         openedAt: body.open === true ? (prefs.amboSetup?.openedAt || now) : body.open === false ? null : (prefs.amboSetup?.openedAt || null),
       };
       if (body.address !== undefined) prefs.amboSetup.address = cleanAmboAddress(body.address);
+      if (priceGiven) delete prefs.amboSetup.priceUnset;
+      else if (wasFresh) prefs.amboSetup.priceUnset = true;
       await runTransaction(db, async (db) => {
         await db.run(`UPDATE professional_accounts SET modalities_json = ?, city = ?, in_person_address = ?,
             session_duration_min = COALESCE(?, session_duration_min), session_price_cents = COALESCE(?, session_price_cents),
             ui_preferences_json = ?, updated_at = ? WHERE id = ?`,
           JSON.stringify(finalModalities), city, address,
           Number.isFinite(Number(body.sessionDurationMin)) && Number(body.sessionDurationMin) >= 15 ? Number(body.sessionDurationMin) : null,
-          Number.isFinite(Number(body.sessionPriceCents)) && Number(body.sessionPriceCents) >= 0 ? Math.round(Number(body.sessionPriceCents)) : null,
+          priceGiven ? Math.round(Number(body.sessionPriceCents)) : null,
           JSON.stringify(prefs), now, auth.account.id);
         if (rules) {
           await db.run('DELETE FROM availability_rules WHERE account_id = ?', auth.account.id);
