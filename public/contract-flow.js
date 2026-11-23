@@ -56,7 +56,15 @@ export function planFor(products = []) {
   return PLANS.find((pl) => pl.products.join('+') === key) || null;
 }
 
-function renderPlanCard(plan, { selected, billing }) {
+function renderPlanCard(plan, { selected, billing, current = false }) {
+  if (current) {
+    return `
+    <div class="eno-plan eno-plan-${plan.id} is-current" data-m-key="plan-${plan.id}" aria-label="${plan.name}, seu plano atual">
+      <span class="eno-plan-head"><span class="eno-plan-radio" aria-hidden="true">✓</span><span class="eno-plan-name">${plan.name}</span><span class="eno-plan-badge">Seu plano</span></span>
+      <span class="eno-plan-for">Você já usa este plano.</span>
+      <span class="eno-plan-dots" aria-hidden="true">${plan.products.map((p) => `<i class="eno-plan-dot eno-plan-dot-${p}"></i>`).join('')}<small>${plan.products.map((p) => PRODUCT_INFO[p].name).join(' + ')}</small></span>
+    </div>`;
+  }
   const annual = billing === 'permanent';
   const price = annual ? plan.monthly * 10 : plan.monthly;
   const save = annual ? plan.separate * 12 - plan.monthly * 10 : plan.separate - plan.monthly;
@@ -210,7 +218,27 @@ function footerNotes() {
   `;
 }
 
-export function renderChoice({ combo, contract, signedIn, returnedFromReview, customOpen = false }) {
+// Quem já tem todos os serviços não vê de novo a escolha de plano: vê o que tem.
+function renderOwnedAll() {
+  return `
+    <section class="eno-flow eno-flow-choice" data-flow-step="choice">
+      <div class="eno-flow-main">
+        <h1 class="eno-flow-title">Você já tem o plano Completo.</h1>
+        <p class="eno-flow-lead">Ambo, Minne e Etha estão ativos na sua conta. Não há nada para contratar de novo.</p>
+        <div class="eno-plan-list">
+          ${['ambo', 'minne', 'etha'].map((p) => `<div class="eno-plan is-current"><span class="eno-plan-head"><span class="eno-plan-radio" aria-hidden="true">✓</span><span class="eno-plan-name">${PRODUCT_INFO[p].name}</span><span class="eno-plan-badge">Ativo</span></span><span class="eno-plan-for">${{ ambo: 'Agendamento online e pedidos', minne: 'Pacientes, agenda e prontuário', etha: 'Seu site profissional' }[p]}</span></div>`).join('')}
+        </div>
+        <div class="eno-btn-row" style="margin-top:20px">
+          <a class="eno-btn" href="/configurar">Configurar meus serviços</a>
+          <button type="button" class="eno-btn eno-btn-sec" data-tab="portal">Ir ao portal</button>
+        </div>
+      </div>
+    </section>`;
+}
+
+export function renderChoice({ combo, contract, signedIn, returnedFromReview, customOpen = false, owned = [] }) {
+  if (signedIn && ['ambo', 'minne', 'etha'].every((p) => owned.includes(p))) return renderOwnedAll();
+  const ownedPlan = owned.length ? planFor(owned) : null;
   const billing = combo.viewMode === 'permanent' ? 'permanent' : 'monthly';
   const sel = (p) => combo.products.includes(p);
   const plan = planFor(combo.products);
@@ -239,7 +267,7 @@ export function renderChoice({ combo, contract, signedIn, returnedFromReview, cu
           <button type="button" role="radio" data-viewmode="permanent" data-m-key="seg-a" data-m-state="${billing === 'permanent'}" aria-checked="${billing === 'permanent'}">Anual${PILOT_FREE ? '' : ' <span class="eno-seg-badge">2 meses grátis</span>'}</button>
         </div>
         <div class="eno-plan-list" role="radiogroup" aria-label="Planos">
-          ${PLANS.map((pl) => renderPlanCard(pl, { selected: plan?.id === pl.id, billing })).join('')}
+          ${PLANS.map((pl) => renderPlanCard(pl, { selected: plan?.id === pl.id, billing, current: signedIn && ownedPlan?.id === pl.id })).join('')}
         </div>
         ${sel('etha') ? renderEthaService(combo.ethaService) : ''}
         <div class="eno-custom${customOpen ? ' is-open' : ''}" data-m-key="custom">

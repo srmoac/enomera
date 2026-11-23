@@ -109,12 +109,14 @@ const VIEWS = {
   },
   horarios() {
     const f = S.form;
-    const dayRows = DAYS.map(([d, n]) => `<div class="cf-day" data-dayrow="${d}" ${f.days.has(d) ? '' : 'hidden'}><span class="cf-label">${n}</span><div class="cf-row">${HOURS.map((h) => chip(`data-hour="${h}" data-d="${d}"`, `${h}h`, Boolean(f.hours[d] && f.hours[d].has(h)), 'is-sm')).join('')}</div></div>`).join('');
+    const full = (d) => HOURS.every((h) => f.hours[d] && f.hours[d].has(h));
+    const dayRows = DAYS.map(([d, n]) => `<div class="cf-day" data-dayrow="${d}" ${f.days.has(d) ? '' : 'hidden'}><button type="button" class="cf-dayall" data-dayall="${d}" aria-pressed="${full(d)}"><b>${n}</b><span>${full(d) ? 'Dia inteiro marcado' : 'Toque para marcar o dia inteiro'}</span></button><div class="cf-row">${HOURS.map((h) => chip(`data-hour="${h}" data-d="${d}"`, `${h}h`, Boolean(f.hours[d] && f.hours[d].has(h)), 'is-sm')).join('')}</div></div>`).join('');
     return { title: 'Seus horários', lead: `Toque nos dias e escolha a hora de início de cada sessão de ${f.duration} min. O paciente só vê o que você liberar.`, body: `
       <div class="cf-row" role="group" aria-label="Dias">${DAYS.map(([d, n]) => chip(`data-day="${d}"`, n, f.days.has(d))).join('')}</div>
       ${dayRows}
       <button type="button" class="cf-skip" id="copy-hours" style="justify-self:start">Repetir os horários do primeiro dia nos outros</button>
-      <span class="cf-hint" id="h-hours"></span>` };
+      <span class="cf-hint" id="h-hours"></span>
+      ${blocksHtml()}` };
   },
   link() {
     const url = `${ORIGIN.ambo}/?pro=${encodeURIComponent(S.me?.account?.slug || '')}`;
@@ -203,7 +205,20 @@ function wire(root) {
   root.querySelectorAll('[data-hour]').forEach((b) => b.addEventListener('click', () => {
     const d = b.dataset.d; const h = Number(b.dataset.hour); const set = f.hours[d] || (f.hours[d] = new Set());
     const on = !set.has(h); on ? set.add(h) : set.delete(h); toggle(b, on);
+    syncDayAll(root, d);
   }));
+  // Como no Google Fotos: tocar no dia marca (ou desmarca) todas as horas dele, em cascata.
+  root.querySelectorAll('[data-dayall]').forEach((b) => b.addEventListener('click', () => {
+    const d = b.dataset.dayall; const set = f.hours[d] || (f.hours[d] = new Set());
+    const on = !HOURS.every((h) => set.has(h));
+    HOURS.forEach((h) => (on ? set.add(h) : set.delete(h)));
+    root.querySelectorAll(`[data-hour][data-d="${d}"]`).forEach((x, i) => {
+      if (reduce()) { toggle(x, on); return; }
+      setTimeout(() => { toggle(x, on); x.animate([{ transform: 'scale(.9)' }, { transform: 'scale(1.04)' }, { transform: 'none' }], { duration: 260, easing: 'cubic-bezier(.23,1,.32,1)' }); }, i * 18);
+    });
+    syncDayAll(root, d);
+  }));
+  wireBlocks(root);
   const copy = root.querySelector('#copy-hours');
   if (copy) copy.addEventListener('click', () => {
     const order = DAYS.map(([d]) => d).filter((d) => f.days.has(d)); if (order.length < 2) return;
@@ -212,7 +227,7 @@ function wire(root) {
     toast({ title: 'Horários repetidos', text: `${order.length - 1} ${order.length - 1 === 1 ? 'dia' : 'dias'}` });
   });
   const photo = root.querySelector('#photo');
-  if (photo) photo.addEventListener('change', () => uploadPhoto(photo.files[0], root));
+  if (photo) photo.addEventListener('change', () => { const file = photo.files[0]; photo.value = ''; if (file) openCropper(file, root); });
   const cep = root.querySelector('#f-cep');
   if (cep) cep.addEventListener('input', () => { let v = cep.value.replace(/\D/g, '').slice(0, 8); if (v.length > 5) v = v.slice(0, 5) + '-' + v.slice(5); cep.value = v; if (v.length === 9) lookupCep(v, root); });
   const cp = root.querySelector('#copy');
@@ -222,6 +237,13 @@ function wire(root) {
   root.querySelectorAll('[data-launch]').forEach((b) => b.addEventListener('click', () => launch(b.dataset.launch, b.dataset.path)));
   root.querySelectorAll('[data-skip]').forEach((b) => b.addEventListener('click', () => go(+1, true)));
   root.querySelectorAll('.cf-input').forEach((i) => i.addEventListener('input', () => { if (i.getAttribute('aria-invalid') === 'true') { i.removeAttribute('aria-invalid'); const h = root.querySelector('#h-' + i.id.slice(2)); if (h) { h.textContent = ''; h.className = 'cf-hint'; } } }));
+}
+function syncDayAll(root, d) {
+  const b = root.querySelector(`[data-dayall="${d}"]`); if (!b) return;
+  const on = HOURS.every((h) => S.form.hours[d] && S.form.hours[d].has(h));
+  if (b.getAttribute('aria-pressed') === String(on)) return;
+  b.setAttribute('aria-pressed', String(on));
+  b.querySelector('span').textContent = on ? 'Dia inteiro marcado' : 'Toque para marcar o dia inteiro';
 }
 function revealAddr(el, on) {
   if (!el) return;
@@ -254,12 +276,12 @@ async function lookupCep(v, root) {
   }
 }
 
-async function uploadPhoto(file, root) {
-  if (!file) return;
-  if (file.size > 3 * 1024 * 1024) { toast({ tone: 'warn', text: 'A foto precisa ter até 3 MB.' }); return; }
-  const b64 = await new Promise((res) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.readAsDataURL(file); });
-  const av = root.querySelector('#avatar'); av.style.backgroundImage = `url('${URL.createObjectURL(file)}')`; av.animate?.([{ transform: 'scale(.9)', filter: 'blur(4px)' }, { transform: 'none', filter: 'none' }], { duration: 320, easing: 'cubic-bezier(.23,1,.32,1)' });
-  const r = await api('/api/v1/professional/profile/photo', { method: 'POST', body: { contentBase64: b64, originalName: file.name } });
+async function uploadPhoto(blob, root) {
+  if (!blob) return;
+  const b64 = await new Promise((res) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.readAsDataURL(blob); });
+  const av = root.querySelector('#avatar'); av.style.backgroundImage = `url('${URL.createObjectURL(blob)}')`; av.animate?.([{ transform: 'scale(.9)', filter: 'blur(4px)' }, { transform: 'none', filter: 'none' }], { duration: 320, easing: 'cubic-bezier(.23,1,.32,1)' });
+  const lbl = root.querySelector('label.eg-btn'); if (lbl && lbl.firstChild) lbl.firstChild.textContent = 'Trocar foto';
+  const r = await api('/api/v1/professional/profile/photo', { method: 'POST', body: { contentBase64: b64, originalName: 'foto.jpg' } });
   if (!r.ok) { toast({ tone: 'err', text: r.data.error || 'Não deu para salvar a foto.' }); return; }
   S.form.photoUrl = r.data.photoUrl || S.form.photoUrl;
   toast({ title: 'Foto salva', text: 'aparece em todos os serviços' });
@@ -285,6 +307,156 @@ async function launch(app, path) {
   const sep = (path || '/').includes('?') ? '&' : '?';
   const url = r.ok ? `${origin}${path || '/'}${sep}handoff=${encodeURIComponent(r.data.handoffCode)}` : origin + (path || '/');
   if (w) w.location.href = url; else location.href = url;
+}
+
+// ---------- Folgas e férias (calendário próprio em vidro, sem campo nativo) ----------
+const MES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const REASONS = ['Férias', 'Folga', 'Supervisão', 'Compromisso'];
+function fmtBlock(b) {
+  const d = (v) => { const [y, m, dd] = String(v).slice(0, 10).split('-'); return `${Number(dd)} ${MES[Number(m) - 1]}`; };
+  const t = (v) => String(v).slice(11, 16);
+  const sd = String(b.startAt).slice(0, 10), ed = String(b.endAt).slice(0, 10);
+  const allDay = t(b.startAt) === '00:00' && t(b.endAt) >= '23:59';
+  const days = sd === ed ? d(sd) : `${d(sd)} a ${d(ed)}`;
+  return `${esc(b.reason || 'Folga')} · ${days}${allDay ? '' : `, ${t(b.startAt)} às ${t(b.endAt)}`}`;
+}
+function blockRow(b, i) { return `<div data-bi="${i}"><span>${fmtBlock(b)}</span><button type="button" class="cf-x" data-bdel="${i}" aria-label="Remover ${esc(b.reason || 'folga')}">×</button></div>`; }
+function blocksHtml() {
+  const hourChips = (attr, from, to) => Array.from({ length: to - from + 1 }, (_, k) => from + k).map((h) => chip(`${attr}="${h}"`, `${h}h`, false, 'is-sm')).join('');
+  return `
+    <section class="cf-blocks">
+      <div class="cf-blocks-head"><div><span class="cf-label">Folgas e férias</span><span class="cf-hint" style="display:block">Dias em que o Ambo não oferece horário.</span></div>
+        <button type="button" class="eg-btn is-glass is-sm" id="b-new">Adicionar</button></div>
+      <div class="cf-list" id="b-list">${(S.blocks || []).map(blockRow).join('')}</div>
+      <div class="cf-bnew" id="b-panel" hidden>
+        <div id="b-cal"></div>
+        <p class="cf-hint" id="b-range">Toque no primeiro dia. Para um período, toque também no último.</p>
+        <div class="cf-row">${chip('id="b-all"', 'Dia inteiro', true)}</div>
+        <div id="b-hours" hidden style="display:none;gap:10px">
+          <span class="cf-label">Das</span><div class="cf-row">${hourChips('data-bfrom', 7, 20)}</div>
+          <span class="cf-label">Até</span><div class="cf-row">${hourChips('data-bto', 8, 22)}</div>
+        </div>
+        <span class="cf-label">Motivo</span>
+        <div class="cf-row">${REASONS.map((r, i) => chip(`data-breason="${r}"`, r, i === 0)).join('')}</div>
+        <div class="cf-row"><button type="button" class="eg-btn is-sm" id="b-save">Salvar folga</button><button type="button" class="eg-btn is-glass is-sm" id="b-cancel">Cancelar</button></div>
+      </div>
+    </section>`;
+}
+async function putBlocks() {
+  const r = await api('/api/v1/professional/availability', { method: 'PUT', body: { blocks: S.blocks } });
+  if (!r.ok) toast({ tone: 'err', text: r.data.error || 'Não deu para salvar a folga agora.' });
+  return r.ok;
+}
+function wireBlocks(root) {
+  const panel = root.querySelector('#b-panel'); if (!panel) return;
+  const B = { start: '', end: '', all: true, from: null, to: null, reason: REASONS[0] };
+  let cal = null;
+  const rangeHint = root.querySelector('#b-range');
+  const open = (on) => {
+    if (on && !cal && window.EnoCalendar) {
+      cal = window.EnoCalendar.mount(root.querySelector('#b-cal'), { mode: 'range', onChange: (v) => {
+        B.start = v.start; B.end = v.end;
+        rangeHint.className = 'cf-hint ok';
+        rangeHint.textContent = v.start === v.end ? `${window.EnoCalendar.label(v.start)}. Toque em outro dia para virar um período.` : `De ${window.EnoCalendar.label(v.start)} até ${window.EnoCalendar.label(v.end)}.`;
+      } });
+    }
+    revealRow(panel, on);
+    root.querySelector('#b-new').hidden = on;
+  };
+  root.querySelector('#b-new').addEventListener('click', () => open(true));
+  root.querySelector('#b-cancel').addEventListener('click', () => open(false));
+  root.querySelector('#b-all').addEventListener('click', (e) => {
+    B.all = !B.all; toggle(e.currentTarget, B.all);
+    revealAddr(root.querySelector('#b-hours'), !B.all);
+  });
+  const single = (attr, key) => root.querySelectorAll(`[${attr}]`).forEach((b) => b.addEventListener('click', () => {
+    B[key] = key === 'reason' ? b.getAttribute(attr) : Number(b.getAttribute(attr));
+    root.querySelectorAll(`[${attr}]`).forEach((x) => toggle(x, x === b));
+  }));
+  single('data-bfrom', 'from'); single('data-bto', 'to'); single('data-breason', 'reason');
+  root.querySelector('#b-save').addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    if (!B.start) { rangeHint.className = 'cf-hint bad'; rangeHint.textContent = 'Escolha o dia da folga no calendário.'; window.EnoFeedback?.flash(root.querySelector('#b-cal')); return; }
+    if (!B.all && (B.from == null || B.to == null || B.to <= B.from)) { rangeHint.className = 'cf-hint bad'; rangeHint.textContent = 'Escolha o horário de início e um fim depois dele.'; return; }
+    const hh = (h) => `${String(h).padStart(2, '0')}:00`;
+    const block = { startAt: `${B.start}T${B.all ? '00:00' : hh(B.from)}:00-03:00`, endAt: `${B.end || B.start}T${B.all ? '23:59' : hh(B.to)}:00-03:00`, reason: B.reason };
+    btn.setAttribute('aria-busy', 'true');
+    S.blocks.push(block);
+    const ok = await putBlocks();
+    btn.removeAttribute('aria-busy');
+    if (!ok) { S.blocks.pop(); return; }
+    const list = root.querySelector('#b-list');
+    list.insertAdjacentHTML('beforeend', blockRow(block, S.blocks.length - 1));
+    list.lastElementChild.animate?.([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: 'cubic-bezier(.23,1,.32,1)' });
+    toast({ title: 'Folga salva', text: 'esses horários somem do Ambo' });
+    B.start = ''; B.end = ''; cal?.set({ start: '' }); rangeHint.className = 'cf-hint'; rangeHint.textContent = 'Toque no primeiro dia. Para um período, toque também no último.';
+    open(false);
+  });
+  // Remover com Desfazer, sem "tem certeza?".
+  root.querySelector('#b-list').addEventListener('click', async (e) => {
+    const del = e.target.closest('[data-bdel]'); if (!del) return;
+    const i = Number(del.dataset.bdel); const removed = S.blocks[i]; const row = del.parentElement;
+    S.blocks.splice(i, 1);
+    const repaint = () => { const list = root.querySelector('#b-list'); list.innerHTML = S.blocks.map(blockRow).join(''); };
+    const a = row.animate?.([{ opacity: 1 }, { opacity: 0, transform: 'translateX(-12px)' }], { duration: 160, easing: 'cubic-bezier(.23,1,.32,1)' });
+    if (a) a.onfinish = repaint; else repaint();
+    if (!(await putBlocks())) { S.blocks.splice(i, 0, removed); repaint(); return; }
+    toast({ title: 'Folga removida', action: { label: 'Desfazer', onClick: async () => { S.blocks.splice(i, 0, removed); repaint(); await putBlocks(); } } });
+  });
+}
+
+// ---------- Foto: recorte em círculo, como no Minne (arrastar, zoom e pinça) ----------
+function openCropper(file, root) {
+  if (!/^image\/(png|jpe?g|webp)$/.test(file.type)) { toast({ tone: 'warn', text: 'Use uma foto em JPG, PNG ou WebP.' }); return; }
+  const url = URL.createObjectURL(file);
+  const wrap = document.createElement('div');
+  wrap.className = 'cf-crop';
+  wrap.innerHTML = `<div class="cf-crop-panel eg-surface" role="dialog" aria-modal="true" aria-labelledby="crop-t">
+      <h2 id="crop-t" style="margin:0;font-size:20px">Ajustar foto</h2>
+      <p class="cf-hint" style="margin:0">Arraste para enquadrar. Use o controle ou dois dedos para aproximar.</p>
+      <div class="cf-crop-stage"><img alt="" draggable="false"><i class="cf-crop-ring" aria-hidden="true"></i></div>
+      <label class="cf-zoom"><span aria-hidden="true">−</span><input type="range" min="1" max="4" step="0.01" value="1" aria-label="Aproximar"><span aria-hidden="true">+</span></label>
+      <div class="cf-row" style="justify-content:flex-end"><button type="button" class="eg-btn is-glass is-sm" data-c="no">Cancelar</button><button type="button" class="eg-btn is-sm" data-c="ok">Aplicar</button></div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const img = wrap.querySelector('img'); const stageEl = wrap.querySelector('.cf-crop-stage'); const range = wrap.querySelector('input');
+  const C = () => stageEl.clientWidth;
+  const st = { x: 0, y: 0, z: 1, w: 0, h: 0 };
+  const scale = () => Math.max(C() / st.w, C() / st.h) * st.z;
+  const clamp = () => { const s = scale(); const mx = Math.max(0, (st.w * s - C()) / 2); const my = Math.max(0, (st.h * s - C()) / 2); st.x = Math.min(mx, Math.max(-mx, st.x)); st.y = Math.min(my, Math.max(-my, st.y)); };
+  const paint = () => { clamp(); const s = scale(); img.style.width = `${st.w * s}px`; img.style.height = `${st.h * s}px`; img.style.transform = `translate(calc(-50% + ${st.x}px), calc(-50% + ${st.y}px))`; };
+  img.onload = () => { st.w = img.naturalWidth; st.h = img.naturalHeight; paint(); };
+  img.src = url;
+  if (!reduce()) { wrap.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 220, easing: 'linear' }); wrap.firstElementChild.animate([{ opacity: 0, transform: 'scale(.96) translateY(8px)', filter: 'blur(6px)' }, { opacity: 1, transform: 'none', filter: 'none' }], { duration: 320, easing: 'cubic-bezier(.23,1,.32,1)' }); }
+  const pts = new Map(); let pinch0 = null;
+  stageEl.addEventListener('pointerdown', (e) => { stageEl.setPointerCapture(e.pointerId); pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch0 = { d: Math.hypot(a.x - b.x, a.y - b.y), z: st.z }; } });
+  stageEl.addEventListener('pointermove', (e) => {
+    const p = pts.get(e.pointerId); if (!p) return;
+    if (pts.size === 2 && pinch0) { pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); const [a, b] = [...pts.values()]; st.z = Math.min(4, Math.max(1, pinch0.z * Math.hypot(a.x - b.x, a.y - b.y) / pinch0.d)); range.value = st.z; paint(); return; }
+    st.x += e.clientX - p.x; st.y += e.clientY - p.y; pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); paint();
+  });
+  const up = (e) => { pts.delete(e.pointerId); if (pts.size < 2) pinch0 = null; };
+  stageEl.addEventListener('pointerup', up); stageEl.addEventListener('pointercancel', up);
+  stageEl.addEventListener('wheel', (e) => { e.preventDefault(); st.z = Math.min(4, Math.max(1, st.z * (e.deltaY < 0 ? 1.08 : 0.93))); range.value = st.z; paint(); }, { passive: false });
+  range.addEventListener('input', () => { st.z = Number(range.value); paint(); });
+  const close = () => {
+    document.removeEventListener('keydown', onKey);
+    const done = () => { wrap.remove(); URL.revokeObjectURL(url); };
+    if (reduce()) { done(); return; }
+    wrap.firstElementChild.animate([{ opacity: 1 }, { opacity: 0, transform: 'scale(.97)' }], { duration: 160, easing: 'cubic-bezier(.23,1,.32,1)' });
+    wrap.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160 }).onfinish = done;
+  };
+  const apply = () => {
+    const out = 512; const k = out / C(); const s = scale();
+    const cv = document.createElement('canvas'); cv.width = out; cv.height = out;
+    const ctx = cv.getContext('2d'); ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img, (C() / 2 + st.x - st.w * s / 2) * k, (C() / 2 + st.y - st.h * s / 2) * k, st.w * s * k, st.h * s * k);
+    cv.toBlob((blob) => { close(); uploadPhoto(blob, root); }, 'image/jpeg', 0.9);
+  };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', onKey);
+  wrap.addEventListener('click', (e) => { if (e.target === wrap) close(); const b = e.target.closest('[data-c]'); if (b) (b.dataset.c === 'ok' ? apply() : close()); });
+  setTimeout(() => wrap.querySelector('[data-c="ok"]').focus({ preventScroll: true }), 50);
 }
 
 // ---------- Salvar ao avançar ----------
@@ -355,6 +527,7 @@ backBtn.addEventListener('click', () => go(-1));
   if (has('ambo')) jobs.push(api('/api/v1/ambo/pro/overview'));
   const [prof, amb] = await Promise.all(jobs);
   S.profile = prof?.ok ? prof.data.profile : {};
+  S.blocks = prof?.ok ? (prof.data.availabilityBlocks || []).map((b) => ({ startAt: b.start_at, endAt: b.end_at, reason: b.reason })) : [];
   S.setup = amb?.ok ? amb.data.setup : null;
   initForm();
   S.steps = computeSteps();

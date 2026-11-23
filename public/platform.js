@@ -442,16 +442,18 @@ export async function mountEnomeraPlatform(rootEl) {
   function renderTopbar() {
     const authed = Boolean(state.me);
     const tabs = authed
-      ? [['portal', 'Portal'], ['profile', 'Perfil e agenda'], ['plans', 'Outros serviços'], ['billing', isPilot() ? 'Plano' : 'Cobrança'], ['pilot', 'Piloto']]
-      : [['auth', 'Entrar'], ['plans', 'Serviços e preços'], ['pilot', 'Piloto']];
+      ? [['portal', 'Portal'], ['configurar', 'Configurar'], ['plans', 'Outros serviços'], ['billing', isPilot() ? 'Plano' : 'Cobrança'], ...(isPilot() ? [['pilot', 'Piloto']] : [])]
+      : [['auth', 'Entrar'], ['plans', 'Serviços e preços']];
     return `
       <header class="eno-topbar">
         <a class="eno-brand" href="/"><img src="/assets/brand.svg" width="32" height="27" alt="">enomera</a>
         <nav class="eno-nav-tabs" aria-label="Navegação do portal">
-          ${tabs.map(([id, label]) => `<button type="button" class="eno-tab" data-tab="${id}" aria-current="${state.tab === id ? 'page' : 'false'}">${label}</button>`).join('')}
+          ${tabs.map(([id, label]) => id === 'configurar'
+            ? `<a class="eno-tab" href="/configurar">${label}</a>`
+            : `<button type="button" class="eno-tab" data-tab="${id}" aria-current="${state.tab === id ? 'page' : 'false'}">${label}</button>`).join('')}
         </nav>
         <div class="eno-btn-row">
-          ${authed ? `<span class="eno-pill">${esc(state.me.user.fullName)}</span><button type="button" class="eno-btn eno-btn-sec" id="eno-logout">Sair</button>` : `<a class="eno-btn eno-btn-sec" href="/">Voltar ao site</a>`}
+          ${authed ? `<a class="eno-pill eno-user-link" href="/configurar?etapa=voce" aria-label="Seu perfil: ${esc(state.me.user.fullName)}"><span class="eno-user-ava" aria-hidden="true">${esc((state.me.user.fullName || '?').trim().charAt(0).toUpperCase())}</span>${esc(state.me.user.fullName)}</a><button type="button" class="eno-btn eno-btn-sec" id="eno-logout">Sair</button>` : `<a class="eno-btn eno-btn-sec" href="/">Voltar ao site</a>`}
         </div>
       </header>
     `;
@@ -544,7 +546,7 @@ export async function mountEnomeraPlatform(rootEl) {
             </div>
             <div class="eno-btn-row">
               ${!state.me.user.emailVerified ? `<button type="button" class="eno-btn eno-btn-sec" id="eno-go-verify">Verificar e-mail pendente</button>` : ''}
-              ${activeCount ? `<a class="eno-btn" href="/configurar">Configurar meus serviços</a>` : `<button type="button" class="eno-btn eno-btn-sec" data-tab="profile">Configurar disponibilidade</button>`}
+              ${activeCount ? `<a class="eno-btn" href="/configurar">Configurar meus serviços</a>` : ''}
             </div>
           </div>
           ${s.pendingSyncs?.length ? `
@@ -639,7 +641,7 @@ export async function mountEnomeraPlatform(rootEl) {
             ${state.orders.length ? state.orders.map((o) => `
               <div class="eno-row">
                 <div>
-                  <b>${esc(o.receipt_code)}</b> · ${esc(o.items.map((x) => PRODUCT_NAMES[x] || x).join(' + '))}
+                  <b>${esc(o.items.map((x) => PRODUCT_NAMES[x] || x).join(' + '))}</b>${o.created_at ? ` · ${esc(new Date(o.created_at).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' }))}` : ''}
                   <div class="eno-muted">${isPilot() ? 'Grátis no piloto' : `Hoje: ${brl(o.due_today_cents)} · Recorrente: ${brl(o.recurring_monthly_cents)}/mês`} · Situação: <b>${esc(statusLabel(o.status))}</b></div>
                 </div>
                 ${o.status !== 'approved' ? `<button type="button" class="eno-btn eno-btn-sec" data-retry-order="${esc(o.id)}" ${state.busyAction === 'retryOrder' ? 'disabled' : ''}>Retomar</button>` : ''}
@@ -649,6 +651,11 @@ export async function mountEnomeraPlatform(rootEl) {
         </aside>
       </section>
     `;
+  }
+
+  function ownedProducts() {
+    const ents = state.me?.entitlements || {};
+    return ['ambo', 'minne', 'etha'].filter((p) => Boolean(ents[p]?.canWrite));
   }
 
   function subscribeProducts() {
@@ -796,6 +803,8 @@ export async function mountEnomeraPlatform(rootEl) {
 
   function render() {
     setPilotFree(isPilot());
+    // Piloto é só por convite: quem não foi convidado não vê a aba nem o formulário.
+    if (state.tab === 'pilot' && !isPilot()) state.tab = state.me ? 'portal' : 'plans';
     const snap = motionSnapshot(rootEl);
     const prevH = rootEl.offsetHeight;
     renderInner();
@@ -871,7 +880,7 @@ export async function mountEnomeraPlatform(rootEl) {
         })
         : state.tab === 'review'
           ? renderReview({ combo: state.combo, contract, me: state.me, activating: state.activating })
-          : renderChoice({ combo: state.combo, contract, signedIn: Boolean(state.me), returnedFromReview: state.returnedFromReview && Boolean(state.me), customOpen: Boolean(state.customOpen) });
+          : renderChoice({ combo: state.combo, contract, signedIn: Boolean(state.me), returnedFromReview: state.returnedFromReview && Boolean(state.me), customOpen: Boolean(state.customOpen), owned: ownedProducts() });
       queueMicrotask(markRoute);
       rootEl.innerHTML = `<div class="eno-shell eno-flow-shell"><header class="eno-flow-top"><a class="eno-brand" href="/"><img src="/assets/brand.svg" width="32" height="27" alt="">enomera</a>${state.me ? `<button type="button" class="eno-link" data-tab="portal">Ir ao portal</button>` : '<a class="eno-link" href="/">Voltar ao site</a>'}</header><main class="eno-container" id="portal-content" tabindex="-1">${renderInfraAlert()}${state.feedback && state.feedback.tone === 'err' ? renderFeedback() : ''}${flowView}</main></div>`;
       bindEvents();
@@ -901,6 +910,8 @@ export async function mountEnomeraPlatform(rootEl) {
     }
     motionTracker.prevFlowStep = null;
 
+    // Perfil e agenda passou para o fluxo /configurar (23 nov): um lugar só para configurar.
+    if (state.tab === 'profile') { window.location.replace('/configurar'); return; }
     const view = state.tab === 'profile' ? renderProfileView()
       : state.tab === 'billing' ? renderBillingView()
       : state.tab === 'pilot' ? renderPilotView()
