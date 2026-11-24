@@ -21,7 +21,11 @@ const FLOW_EMAIL_KEY = 'enomera_flow_email_v1';
 
 // Preview: o projeto Vercel real de cada produto (nomes de projeto != nomes de marca).
 // Produção: domínio público oficial. Sempre sobrescrevível por window.__ENOMERA_*_URL.
-function resolveSiblingOrigin(override, localPort, previewProject, prodOrigin) {
+// Nos domínios oficiais (produção e desenvolvimento) os produtos moram no mesmo endereço, por caminho:
+// /agendamento, /consultorio, /site. Links relativos ao host em que a pessoa está (Marcos, 24/11).
+const SAME_HOST = /^enomera(-desenvolvimento)?\.vercel\.app$/.test(location.hostname);
+function resolveSiblingOrigin(override, localPort, previewProject, prodOrigin, seg) {
+  if (seg && SAME_HOST) return `${location.origin}/${seg}`;
   if (override) return override;
   if (location.hostname === '127.0.0.1' || location.hostname === 'localhost') {
     return `http://127.0.0.1:${localPort}`;
@@ -37,9 +41,9 @@ function resolveSiblingOrigin(override, localPort, previewProject, prodOrigin) {
 }
 
 const APP_ORIGINS = {
-  ambo: resolveSiblingOrigin(window.__ENOMERA_AMBO_URL, 3001, 'lotus-app', 'https://ambo-enomera.vercel.app'),
-  minne: resolveSiblingOrigin(window.__ENOMERA_MINNE_URL, 3002, 'compasso-app', 'https://compasso-app-seven.vercel.app'),
-  etha: resolveSiblingOrigin(window.__ENOMERA_ETHA_URL, 3003, 'etha-enomera', 'https://etha-enomera.vercel.app'),
+  ambo: resolveSiblingOrigin(window.__ENOMERA_AMBO_URL, 3001, 'lotus-app', 'https://ambo-enomera.vercel.app', 'agendamento'),
+  minne: resolveSiblingOrigin(window.__ENOMERA_MINNE_URL, 3002, 'compasso-app', 'https://compasso-app-seven.vercel.app', 'consultorio'),
+  etha: resolveSiblingOrigin(window.__ENOMERA_ETHA_URL, 3003, 'etha-enomera', 'https://etha-enomera.vercel.app', 'site'),
   helena: resolveSiblingOrigin(window.__ENOMERA_HELENA_URL, 3004, 'clara-azevedo-site', 'https://helenaduartepsi.vercel.app'),
 };
 

@@ -9,16 +9,19 @@ async function api(path, { method = 'GET', body } = {}) {
   const data = await r.json().catch(() => ({}));
   return { ok: r.ok, status: r.status, data };
 }
-function sibling(override, port, project, prod) {
+// Produção e desenvolvimento: produtos no mesmo host, por caminho (links relativos, Marcos 24/11).
+const SAME_HOST = /^enomera(-desenvolvimento)?\.vercel\.app$/.test(location.hostname);
+function sibling(override, port, project, prod, seg) {
+  if (seg && SAME_HOST) return `${location.origin}/${seg}`;
   if (override) return override;
   if (location.hostname === '127.0.0.1' || location.hostname === 'localhost') return `http://127.0.0.1:${port}`;
   const m = location.hostname.match(/^enomera(-git-.+\.vercel\.app)$/);
   return m ? `https://${project}${m[1]}` : prod;
 }
 const ORIGIN = {
-  ambo: sibling(window.__ENOMERA_AMBO_URL, 3001, 'lotus-app', 'https://ambo-enomera.vercel.app'),
-  minne: sibling(window.__ENOMERA_MINNE_URL, 3002, 'compasso-app', 'https://compasso-app-seven.vercel.app'),
-  etha: sibling(window.__ENOMERA_ETHA_URL, 3003, 'etha-enomera', 'https://etha-enomera.vercel.app'),
+  ambo: sibling(window.__ENOMERA_AMBO_URL, 3001, 'lotus-app', 'https://ambo-enomera.vercel.app', 'agendamento'),
+  minne: sibling(window.__ENOMERA_MINNE_URL, 3002, 'compasso-app', 'https://compasso-app-seven.vercel.app', 'consultorio'),
+  etha: sibling(window.__ENOMERA_ETHA_URL, 3003, 'etha-enomera', 'https://etha-enomera.vercel.app', 'site'),
 };
 const COLOR = { enomera: '#5b70b2', ambo: '#235d94', minne: '#1e625e', etha: '#53459a' };
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

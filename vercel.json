@@ -96,7 +96,7 @@
           "value": "enomera-painel.vercel.app"
         }
       ],
-      "destination": "/portal",
+      "destination": "/piloto/painel",
       "permanent": false
     }
   ]
