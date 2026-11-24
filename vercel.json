@@ -57,11 +57,11 @@
     },
     {
       "source": "/consultorio",
-      "destination": "https://minne-preview-enomera.vercel.app/consultorio"
+      "destination": "https://compasso-app-git-desenvolvimento-marcosvmgs-projects.vercel.app/consultorio"
     },
     {
       "source": "/consultorio/:path*",
-      "destination": "https://minne-preview-enomera.vercel.app/consultorio/:path*"
+      "destination": "https://compasso-app-git-desenvolvimento-marcosvmgs-projects.vercel.app/consultorio/:path*"
     },
     {
       "source": "/site",
