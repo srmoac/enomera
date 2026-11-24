@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { nowIso, randomId, sanitizeAuditMeta } from './crypto.mjs';
 import { applyPilotDigestMigration } from './pilot-digest.mjs';
+import { applyRateLimitMigration } from './security.mjs';
 import { applyPilotMigration, applyPilotSelfTestMigration, applyPilotFriendInvitesMigration } from './pilot.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -279,6 +280,12 @@ async function applyMigrations(db) {
       await applyPilotDigestMigration(tx);
       await tx.run('INSERT INTO schema_migrations (version, description, applied_at) VALUES (?, ?, ?) ON CONFLICT(version) DO NOTHING',
         '007_pilot_daily_digest', 'Daily pilot usage digest for the administrator', nowIso());
+    }
+
+    if (!applied.has('008_rate_limits')) {
+      await applyRateLimitMigration(tx);
+      await tx.run('INSERT INTO schema_migrations (version, description, applied_at) VALUES (?, ?, ?) ON CONFLICT(version) DO NOTHING',
+        '008_rate_limits', 'Shared rate limit buckets (security audit 2026-11-24)', nowIso());
     }
 
     await tx.run(
