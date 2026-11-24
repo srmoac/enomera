@@ -4,6 +4,8 @@
 // atravessa um cartão aparece a fenda com brilho e uma onda que se espalha no vidro.
 // Desliga sozinho no modo leve (EnoPerf.lite) e com movimento reduzido: volta o desenho plano.
 
+import { supportsRefraction } from './glass/liquid-glass.js';
+
 const NS = 'http://www.w3.org/2000/svg';
 const PIVOT = { x: 235, y: 335 };
 const SAMPLES = 84;
@@ -104,6 +106,56 @@ export function createPetalPhysics({ shapes, fills }) {
 
   // Fenda e ondas no vidro (sempre na camada da frente, acima do cartão).
   const fx = mk(front.svg, 'g', { class: 'pp-fx' });
+  // Membrana: o vidro do cartão é puxado para fora no furo (cone de tensão, rugas que irradiam).
+  const tentGrad = mk(front.defs, 'radialGradient', { id: 'pp-tent' });
+  [['0', '#fff', '.0'], ['.32', '#fff', '.45'], ['.6', '#fff', '.1'], ['.8', '#25306a', '.08'], ['1', '#25306a', '0']]
+    .forEach(([o, c, a]) => mk(tentGrad, 'stop', { offset: o, 'stop-color': c, 'stop-opacity': a }));
+  front.svg.insertBefore(fx, front.svg.firstChild.nextSibling); // por baixo da parte da frente da pétala
+  const tents = [0, 1, 2].map(() => mk(fx, 'ellipse', { fill: 'url(#pp-tent)', opacity: '0' }));
+  // Lente de deformação (só Chromium): um círculo com backdrop-filter de deslocamento sobre o furo.
+  // Ela puxa o conteúdo do cartão para dentro do furo (pinça) e arrasta na direção da tensão.
+  const canWarp = url !== 'semlente' && (() => { try { return supportsRefraction(); } catch { return false; } })();
+  const warpMaps = (() => {
+    if (!canWarp) return null;
+    const N = 256, mkMap = fn => {
+      const cv = document.createElement('canvas'); cv.width = cv.height = N;
+      const g2 = cv.getContext('2d'), im = g2.createImageData(N, N);
+      for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+        const dx = (x + .5 - N / 2) / (N / 2), dy = (y + .5 - N / 2) / (N / 2), r = Math.hypot(dx, dy);
+        const [R, G, B] = fn(dx, dy, r);
+        const k = (y * N + x) * 4;
+        im.data[k] = R; im.data[k + 1] = G; im.data[k + 2] = B; im.data[k + 3] = 255;
+      }
+      g2.putImageData(im, 0, 0);
+      return cv.toDataURL();
+    };
+    const enc = v => Math.round(128 + 127 * clamp(v, -1, 1));
+    return {
+      // pinça: zero no centro e na borda, puxa para o centro
+      pinch: mkMap((dx, dy, r) => { const f = r < 1 ? (1 - r) ** 2 * 2.7 : 0; return [enc(dx * f), enc(dy * f), 128]; }),
+      // arrasto: máximo no centro, some suave na borda
+      drag: mkMap((dx, dy, r) => { const f = r < 1 ? (1 - r * r) ** 2 : 0; return [enc(f), enc(f), 128]; })
+    };
+  })();
+  const lenses = [0, 1, 2].map(k => {
+    if (!warpMaps) return null;
+    const id = `pp-warp-${k}`;
+    const filter = mk(front.defs, 'filter', { id, x: 0, y: 0, width: 200, height: 200, filterUnits: 'userSpaceOnUse', primitiveUnits: 'userSpaceOnUse', 'color-interpolation-filters': 'sRGB' });
+    const im1 = mk(filter, 'feImage', { x: 0, y: 0, width: 200, height: 200, preserveAspectRatio: 'none', result: 'pm', href: warpMaps.pinch });
+    const im2 = mk(filter, 'feImage', { x: 0, y: 0, width: 200, height: 200, preserveAspectRatio: 'none', result: 'dm', href: warpMaps.drag });
+    const pinch = mk(filter, 'feDisplacementMap', { in: 'SourceGraphic', in2: 'pm', scale: 0, xChannelSelector: 'R', yChannelSelector: 'G', result: 'p1' });
+    const dragX = mk(filter, 'feDisplacementMap', { in: 'p1', in2: 'dm', scale: 0, xChannelSelector: 'R', yChannelSelector: 'B', result: 'p2' });
+    const dragY = mk(filter, 'feDisplacementMap', { in: 'p2', in2: 'dm', scale: 0, xChannelSelector: 'B', yChannelSelector: 'G' });
+    const div = document.createElement('div');
+    div.className = 'pp-lens';
+    div.hidden = true;
+    div.style.backdropFilter = div.style.webkitBackdropFilter = `url(#${id})`;
+    front.slot.insertBefore(div, front.svg);
+    return { div, filter, im1, im2, pinch, dragX, dragY, D: 0, on: false };
+  });
+  const wrinkles = [0, 1, 2].map(() => [0, 1, 2, 3, 4, 5, 6].map(k => mk(fx, 'path', {
+    fill: 'none', stroke: k % 2 ? '#25306a' : '#fff', 'stroke-width': k % 2 ? '1' : '1.4', 'stroke-linecap': 'round', opacity: '0'
+  })));
   const slit = [0, 1, 2].map(() => ({
     glow: mk(fx, 'path', { fill: 'none', stroke: '#fff', 'stroke-opacity': '0', 'stroke-width': '9', 'stroke-linecap': 'round' }),
     shadow: mk(fx, 'path', { fill: 'none', stroke: '#2a3570', 'stroke-opacity': '0', 'stroke-width': '2.2', 'stroke-linecap': 'round' }),
@@ -122,6 +174,7 @@ export function createPetalPhysics({ shapes, fills }) {
     back.slot.hidden = !v;
     front.slot.hidden = !v;
     document.documentElement.toggleAttribute('data-petal-physics', v);
+    if (!v) for (const [el, c] of cardState) { el.style.transform = ''; el.style.transformOrigin = ''; c.tf = ''; c.anchor = null; }
     onToggle(v);
   }
 
@@ -282,11 +335,11 @@ export function createPetalPhysics({ shapes, fills }) {
         if (dd > best) { best = dd; a = hits[m]; b = hits[n]; }
       }
       const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-      const inside = cards().some(el => {
+      const card = cards().find(el => {
         const r = el.getBoundingClientRect();
         return mx > r.left + 4 && mx < r.right - 4 && my > r.top + 4 && my < r.bottom - 4;
       });
-      if (inside) slitInfo = { a, b, mx, my, len: Math.sqrt(best), ang: Math.atan2(b.y - a.y, b.x - a.x) };
+      if (card) slitInfo = { a, b, mx, my, len: Math.sqrt(best), ang: Math.atan2(b.y - a.y, b.x - a.x), card, w: L * .3 };
     }
     const nowCrossing = !!slitInfo;
     if (nowCrossing && !it.crossing) ripple(slitInfo, now, 1);
@@ -308,7 +361,135 @@ export function createPetalPhysics({ shapes, fills }) {
   }
 
   // Depois de todas as pétalas: fendas e ondas.
+  // Física do cartão: cada cartão é uma membrana presa ao furo. Quando a pétala se move em relação ao
+  // cartão, o ponto do furo é puxado (tensão), o cartão inclina na direção do puxão e o canto levanta
+  // em direção à tela; ao entrar ela afunda o vidro, ao sair ele solta e balança até assentar.
+  const cardState = new Map();
+  let lastFx = 0;
+  function cardFx(now) {
+    const dt = Math.min(32, now - (lastFx || now - 16)) / 1000;
+    lastFx = now;
+    let busy = false;
+    let ti = 0;
+    for (const el of cards()) {
+      let c = cardState.get(el);
+      if (!c) { c = { tx: 0, ty: 0, vx: 0, vy: 0, lz: 0, vlz: 0, anchor: null, T: { x: 0, y: 0 }, tf: '' }; cardState.set(el, c); }
+      const it = items.find(q => q.slit && q.slit.card === el);
+      const wrap = el.offsetParent || el.parentElement;
+      const wr = wrap.getBoundingClientRect();
+      const r0 = { left: wr.left + el.offsetLeft, top: wr.top + el.offsetTop, w: el.offsetWidth, h: el.offsetHeight };
+      let tTx = 0, tTy = 0, tLz = 0;
+      if (it) {
+        const sl = it.slit;
+        const u = (sl.mx - r0.left) / r0.w, v = (sl.my - r0.top) / r0.h;
+        if (!c.anchor) {
+          c.anchor = { u, v };
+          c.vlz -= 34 * sl.o; // a ponta afunda o vidro ao entrar
+        }
+        // o furo "aprende" a nova posição devagar: só o movimento rápido vira tensão
+        const k = 1 - Math.exp(-dt / .45);
+        c.anchor.u += (u - c.anchor.u) * k;
+        c.anchor.v += (v - c.anchor.v) * k;
+        const ax = r0.left + c.anchor.u * r0.w, ay = r0.top + c.anchor.v * r0.h;
+        c.T = { x: sl.mx - ax, y: sl.my - ay };
+        const tl = Math.hypot(c.T.x, c.T.y);
+        const cap = tl > 26 ? 26 / tl : 1;
+        tTx = c.T.x * .42 * cap;
+        tTy = c.T.y * .42 * cap;
+        tLz = sl.o * Math.min(2.6, tl * .09); // a base da pétala na frente puxa o vidro para fora
+        c.u = c.anchor.u; c.v = c.anchor.v;
+        c.pull = sl.o;
+      } else if (c.anchor) {
+        // soltou: o vidro volta de uma vez e balança
+        c.vx -= c.T.x * 9; c.vy -= c.T.y * 9;
+        c.vlz += 26 * (c.pull || 1);
+        c.anchor = null;
+        c.pull = 0;
+      }
+      const K = 140, C = 9.5; // pouco amortecido: assenta com 2 ou 3 balanços
+      c.vx += (K * (tTx - c.tx) - C * c.vx) * dt;
+      c.vy += (K * (tTy - c.ty) - C * c.vy) * dt;
+      c.vlz += (K * (tLz - c.lz) - C * c.vlz) * dt;
+      c.tx += c.vx * dt; c.ty += c.vy * dt; c.lz += c.vlz * dt;
+      const settled = Math.abs(c.tx) < .12 && Math.abs(c.ty) < .12 && Math.abs(c.lz) < .02 && Math.abs(c.vlz) < .08 && Math.abs(c.vx) < .08 && Math.abs(c.vy) < .08;
+      let tf = '';
+      if (!settled) {
+        busy = true;
+        const u = c.u ?? .5, v = c.v ?? .5;
+        const ry = -(u - .5) * 2 * c.lz, rx = (v - .5) * 2 * c.lz;
+        tf = `perspective(1400px) translate3d(${c.tx.toFixed(2)}px,${c.ty.toFixed(2)}px,0) rotateX(${rx.toFixed(3)}deg) rotateY(${ry.toFixed(3)}deg)`;
+        el.style.transformOrigin = `${(100 - u * 100).toFixed(1)}% ${(100 - v * 100).toFixed(1)}%`;
+      } else if (!c.anchor) {
+        c.vx = c.vy = c.vlz = 0; c.tx = c.ty = c.lz = 0;
+      }
+      if (tf !== c.tf) { c.tf = tf; el.style.transform = tf; if (!tf) el.style.transformOrigin = ''; }
+
+      // cone de tensão e rugas desenhados sobre o furo
+      const tent = tents[ti], wr7 = wrinkles[ti];
+      ti++;
+      if (it) {
+        const sl = it.slit;
+        const tl = Math.hypot(c.T.x, c.T.y);
+        const ang = tl > .5 ? Math.atan2(c.T.y, c.T.x) : sl.ang + Math.PI / 2;
+        const R = sl.len * .5 + 14 + Math.min(40, tl * 1.4) + Math.max(0, -c.lz) * 5;
+        const cx = sl.mx - Math.cos(ang) * tl * .5, cy = sl.my - Math.sin(ang) * tl * .5;
+        tent.setAttribute('cx', cx.toFixed(1)); tent.setAttribute('cy', cy.toFixed(1));
+        tent.setAttribute('rx', (R * (1 + tl * .012)).toFixed(1)); tent.setAttribute('ry', (R * .78).toFixed(1));
+        tent.setAttribute('transform', `rotate(${(ang / DEG).toFixed(1)} ${cx.toFixed(1)} ${cy.toFixed(1)})`);
+        tent.setAttribute('opacity', (sl.o * clamp(.3 + tl * .035 + Math.abs(c.lz) * .12, 0, .8)).toFixed(3));
+        const tension = clamp(.12 + tl / 22 + Math.abs(c.lz) * .15, 0, 1) * sl.o;
+        wr7.forEach((w, k) => {
+          // rugas saem do furo e se curvam para o lado oposto ao puxão
+          const a = ang + Math.PI + (k - 3) * .42;
+          const r1 = sl.len * .3 + 4, r2 = r1 + (10 + Math.min(34, tl * 1.5)) * (1 - Math.abs(k - 3) * .14);
+          const bend = (k - 3) * 3;
+          const x1 = sl.mx + Math.cos(a) * r1, y1 = sl.my + Math.sin(a) * r1;
+          const x2 = sl.mx + Math.cos(a) * r2, y2 = sl.my + Math.sin(a) * r2;
+          const qx = (x1 + x2) / 2 - Math.sin(a) * bend, qy = (y1 + y2) / 2 + Math.cos(a) * bend;
+          w.setAttribute('d', `M${x1.toFixed(1)} ${y1.toFixed(1)}Q${qx.toFixed(1)} ${qy.toFixed(1)} ${x2.toFixed(1)} ${y2.toFixed(1)}`);
+          w.setAttribute('opacity', (tension * (k % 2 ? .22 : .5)).toFixed(3));
+        });
+      } else {
+        tent.setAttribute('opacity', '0');
+        wr7.forEach(w => w.setAttribute('opacity', '0'));
+      }
+      const lens = lenses[ti - 1];
+      if (lens) {
+        const strength = it ? it.slit.o : 0;
+        const sl = it ? it.slit : c.lens;
+        const tl = Math.hypot(c.T.x, c.T.y);
+        // pinça: quase nada parado; cresce com a tensão, ao afundar e no balanço
+        const pinch = sl ? Math.min(90, strength * (8 + Math.min(56, tl * 2.4)) + Math.max(0, -c.lz) * 12 + Math.abs(c.vlz) * .3) : 0;
+        const dx = clamp(-(c.T.x * strength) * .9 - c.vx * .015, -36, 36);
+        const dy = clamp(-(c.T.y * strength) * .9 - c.vy * .015, -36, 36);
+        const amount = pinch + Math.abs(dx) + Math.abs(dy);
+        // histerese: entra acima de 16, sai abaixo de 9 (parada, o filtro não roda)
+        const want = sl && (lens.on ? amount > 9 : amount > 16);
+        if (want) {
+          c.lens = { mx: sl.mx, my: sl.my, len: sl.len };
+          const D = Math.round(clamp(sl.len * 1.7 + 110, 150, 300) / 10) * 10;
+          if (D !== lens.D) {
+            lens.D = D;
+            for (const n of [lens.filter, lens.im1, lens.im2]) { n.setAttribute('width', D); n.setAttribute('height', D); }
+            lens.div.style.width = lens.div.style.height = D + 'px';
+          }
+          if (!lens.on) { lens.on = true; lens.div.hidden = false; }
+          lens.div.style.transform = `translate3d(${(sl.mx - D / 2).toFixed(1)}px,${(sl.my - D / 2).toFixed(1)}px,0)`;
+          lens.pinch.setAttribute('scale', pinch.toFixed(1));
+          lens.dragX.setAttribute('scale', dx.toFixed(1));
+          lens.dragY.setAttribute('scale', dy.toFixed(1));
+          if (!it) busy = true;
+        } else if (lens.on) {
+          lens.on = false; lens.div.hidden = true;
+        }
+        if (!it && !want) c.lens = null;
+      }
+    }
+    return busy;
+  }
+
   function renderFx(now) {
+    const cardBusy = cardFx(now);
     let n = 0;
     for (const it of items) {
       if (!it.slit || n >= slit.length) continue;
@@ -346,7 +527,7 @@ export function createPetalPhysics({ shapes, fills }) {
       el.setAttribute('opacity', (.55 * r.strength * (1 - e) ** 2).toFixed(3));
     });
     while (ripples.length && now - ripples[0].start > 1150) ripples.shift();
-    return alive;
+    return alive || cardBusy;
   }
 
   // Cursor (mouse) passa perto: a pétala desvia e dobra. Toque: um sopro onde o dedo encosta.
