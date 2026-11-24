@@ -581,39 +581,6 @@ export async function mountEnomeraPlatform(rootEl) {
     `;
   }
 
-  function renderProfileView() {
-    const p = state.profileData?.profile;
-    if (!p) return loadingSkeleton('Carregando seu perfil…', 2);
-    return `
-      <section class="eno-grid-2 eno-panel-enter">
-        <form id="eno-profile-form" class="eno-card">
-          <span class="eno-pill">PERFIL COMPARTILHADO (AMBO + MINNE)</span>
-          <h1 class="eno-h1">Dados profissionais, modalidades e valor</h1>
-          <div class="eno-field"><label for="p-name">Nome de exibição</label><input id="p-name" name="displayName" class="eno-input" value="${esc(p.displayName)}"></div>
-          <div class="eno-field"><label for="p-crp">CRP / CRM</label><input id="p-crp" name="crpOrCrm" class="eno-input" value="${esc(p.crpOrCrm)}"></div>
-          <div class="eno-field"><label for="p-price">Valor da consulta em reais (acerto fora do app)</label><input id="p-price" name="priceReais" type="number" min="0" class="eno-input" value="${Math.round((p.sessionPriceCents || 22000) / 100)}"></div>
-          <div class="eno-field"><label for="p-city">Cidade / consultório</label><input id="p-city" name="city" class="eno-input" value="${esc(p.city)}"></div>
-          <div class="eno-field"><label for="p-meet">Link externo da sala online</label><input id="p-meet" name="onlineMeetingUrl" class="eno-input" value="${esc(p.onlineMeetingUrl)}"></div>
-          <button type="submit" class="eno-btn">Salvar alterações</button>
-        </form>
-
-        <div class="eno-card">
-          <span class="eno-pill eno-pill-ambo">DISPONIBILIDADE E BLOQUEIOS</span>
-          <h2 class="eno-h2">Fuso configurado: ${esc(p.timezone)}</h2>
-          <form id="eno-block-form" class="eno-list">
-            <div class="eno-field"><label for="b-start">Início do bloqueio</label><input id="b-start" name="startAt" type="datetime-local" class="eno-input" value="${new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10)}T14:00"></div>
-            <div class="eno-field"><label for="b-end">Fim do bloqueio</label><input id="b-end" name="endAt" type="datetime-local" class="eno-input" value="${new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10)}T16:00"></div>
-            <div class="eno-field"><label for="b-reason">Motivo</label><input id="b-reason" name="reason" class="eno-input" value="Supervisão clínica"></div>
-            <button type="submit" class="eno-btn eno-btn-ambo">Salvar bloqueio na agenda</button>
-          </form>
-          <div class="eno-list">
-            ${(state.profileData.availabilityBlocks || []).map((b) => `<div class="eno-row"><span>${esc(b.reason)}</span><small>${esc(fmtDateTime(b.start_at))} até ${esc(fmtDateTime(b.end_at))}</small></div>`).join('') || '<p class="eno-muted">Nenhum bloqueio cadastrado.</p>'}
-          </div>
-        </div>
-      </section>
-    `;
-  }
-
   function renderBillingView() {
     const ents = state.me?.entitlements || {};
     return `
@@ -922,8 +889,7 @@ export async function mountEnomeraPlatform(rootEl) {
 
     // Perfil e agenda passou para o fluxo /configurar (23 nov): um lugar só para configurar.
     if (state.tab === 'profile') { window.location.replace('/configurar'); return; }
-    const view = state.tab === 'profile' ? renderProfileView()
-      : state.tab === 'billing' ? renderBillingView()
+    const view = state.tab === 'billing' ? renderBillingView()
       : state.tab === 'pilot' ? renderPilotView()
       : renderPortalView();
 
