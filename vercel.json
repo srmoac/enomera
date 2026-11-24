@@ -49,19 +49,27 @@
     },
     {
       "source": "/agendamento",
-      "destination": "https://lotus-app-git-desenvolvimento-marcosvmgs-projects.vercel.app/agendamento"
+      "destination": "https://agendamento-enomera-desenvolvimento.vercel.app/agendamento"
+    },
+    {
+      "source": "/agendamento/",
+      "destination": "https://agendamento-enomera-desenvolvimento.vercel.app/agendamento/"
     },
     {
       "source": "/agendamento/:path*",
-      "destination": "https://lotus-app-git-desenvolvimento-marcosvmgs-projects.vercel.app/agendamento/:path*"
+      "destination": "https://agendamento-enomera-desenvolvimento.vercel.app/agendamento/:path*"
     },
     {
       "source": "/consultorio",
-      "destination": "https://compasso-app-git-desenvolvimento-marcosvmgs-projects.vercel.app/consultorio"
+      "destination": "https://consultorio-enomera-desenvolvimento.vercel.app/consultorio"
+    },
+    {
+      "source": "/consultorio/",
+      "destination": "https://consultorio-enomera-desenvolvimento.vercel.app/consultorio/"
     },
     {
       "source": "/consultorio/:path*",
-      "destination": "https://compasso-app-git-desenvolvimento-marcosvmgs-projects.vercel.app/consultorio/:path*"
+      "destination": "https://consultorio-enomera-desenvolvimento.vercel.app/consultorio/:path*"
     },
     {
       "source": "/site/",
