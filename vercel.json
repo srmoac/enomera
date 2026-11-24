@@ -64,12 +64,8 @@
       "destination": "https://compasso-app-git-desenvolvimento-marcosvmgs-projects.vercel.app/consultorio/:path*"
     },
     {
-      "source": "/site",
-      "destination": "https://etha-enomera-preview.vercel.app/site"
-    },
-    {
       "source": "/site/:path*",
-      "destination": "https://etha-enomera-preview.vercel.app/site/:path*"
+      "destination": "https://etha-enomera-desenvolvimento.vercel.app/site/:path*"
     }
   ],
   "headers": [
@@ -126,6 +122,11 @@
         }
       ],
       "destination": "/piloto/painel",
+      "permanent": false
+    },
+    {
+      "source": "/site",
+      "destination": "/site/",
       "permanent": false
     }
   ]
