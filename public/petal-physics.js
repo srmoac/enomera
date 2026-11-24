@@ -44,7 +44,8 @@ function samplePath(d) {
     const dx = q.x - base.x, dy = q.y - base.y;
     return { a: (dx * ux + dy * uy) / far, l: (-dx * uy + dy * ux) / far };
   });
-  return { local, base, ux, uy, L: far };
+  const tipIdx = local.reduce((best, v, k) => (v.a > local[best].a ? k : best), 0);
+  return { local, base, ux, uy, L: far, tipIdx };
 }
 
 export function createPetalPhysics({ shapes, fills }) {
@@ -100,16 +101,27 @@ export function createPetalPhysics({ shapes, fills }) {
       front: mkSide(front, 'f'),
       // molas da dobra (bz = curvatura para fora da página, bx = dobra lateral) e do empurrão
       bz: 0, vbz: 0, bx: 0, vbx: 0, ox: 0, oy: 0, vox: 0, voy: 0,
-      flutter: 0, phase: i * 1.37, crossing: false, side: false, prox: 0
+      flutter: 0, phase: i * 1.37, side: false, prox: 0,
+      // perfuração: 0 fora, 1 pressionando a membrana, 2 dentro; q = quanto já atravessou (mola)
+      layerFront: false, bbox: null, state: 0, t0: 0, q: 0, vq: 0, pressK: 0, evPop: false, evOut: false, mem: null, slit: null, fill: fills[i], i
     };
   });
 
+  // Recortes por pétala: depois de furar, o trecho dentro do cartão é desenhado atrás do vidro (camada
+  // de trás, recortada pelo contorno do cartão) e o trecho de fora continua na frente.
+  for (const it of items) {
+    const cin = mk(back.defs, 'clipPath', { id: `pp-in-${it.i}` });
+    it.clipIn = mk(cin, 'rect', {});
+    const cout = mk(front.defs, 'clipPath', { id: `pp-out-${it.i}` });
+    it.clipOut = mk(cout, 'path', { 'clip-rule': 'evenodd' });
+    it.clipped = false;
+  }
   // Fenda e ondas no vidro (sempre na camada da frente, acima do cartão).
   const fx = mk(front.svg, 'g', { class: 'pp-fx' });
   // Membrana: o vidro do cartão é puxado para fora no furo (cone de tensão, rugas que irradiam).
   // Covinha da membrana: só sombra suave (côncava), nada de brilho branco em volta.
   const tentGrad = mk(front.defs, 'radialGradient', { id: 'pp-tent', fx: '.42', fy: '.38' });
-  [['0', '#1f2a5e', '.2'], ['.45', '#1f2a5e', '.09'], ['1', '#1f2a5e', '0']]
+  [['0', '#1f2a5e', '.3'], ['.3', '#1f2a5e', '.13'], ['.7', '#1f2a5e', '.03'], ['1', '#1f2a5e', '0']]
     .forEach(([o, c, a]) => mk(tentGrad, 'stop', { offset: o, 'stop-color': c, 'stop-opacity': a }));
   front.svg.insertBefore(fx, front.svg.firstChild.nextSibling); // por baixo da parte da frente da pétala
   const tents = [0, 1, 2].map(() => mk(fx, 'ellipse', { fill: 'url(#pp-tent)', opacity: '0' }));
@@ -134,8 +146,16 @@ export function createPetalPhysics({ shapes, fills }) {
     return {
       // pinça: zero no centro e na borda, puxa para o centro
       pinch: mkMap((dx, dy, r) => { const f = r < 1 ? (1 - r) ** 2 * 2.7 : 0; return [enc(dx * f), enc(dy * f), 128]; }),
-      // arrasto: máximo no centro, some suave na borda
-      drag: mkMap((dx, dy, r) => { const f = r < 1 ? (1 - r * r) ** 2 : 0; return [enc(f), enc(f), 128]; })
+      // empurrão da borda, um mapa por lado de entrada: máximo num ponto a 0,6 raio do centro (onde fica
+      // a borda do cartão), some em ~1/3 de raio para fora (não mexe no que está fora do cartão) e devagar
+      // para dentro. (u, v) = coordenadas com v apontando para dentro do cartão.
+      ...Object.fromEntries([['t', 0, 1], ['b', 0, -1], ['l', 1, 0], ['r', -1, 0]].map(([k, nx, ny]) => [k, mkMap((dx, dy) => {
+        const v = dx * nx + dy * ny, u = -dx * ny + dy * nx;
+        const v0 = -.6, fu = Math.abs(u) < .9 ? (1 - (u / .9) ** 2) ** 2 : 0;
+        const t = v < v0 ? (v0 - v) / .36 : (v - v0) / 1.5;
+        const f = t < 1 ? (1 - t * t) ** 2 * fu : 0;
+        return [enc(f), enc(f), 128];
+      })]))
     };
   })();
   const lenses = [0, 1, 2].map(k => {
@@ -143,7 +163,7 @@ export function createPetalPhysics({ shapes, fills }) {
     const id = `pp-warp-${k}`;
     const filter = mk(front.defs, 'filter', { id, x: 0, y: 0, width: 200, height: 200, filterUnits: 'userSpaceOnUse', primitiveUnits: 'userSpaceOnUse', 'color-interpolation-filters': 'sRGB' });
     const im1 = mk(filter, 'feImage', { x: 0, y: 0, width: 200, height: 200, preserveAspectRatio: 'none', result: 'pm', href: warpMaps.pinch });
-    const im2 = mk(filter, 'feImage', { x: 0, y: 0, width: 200, height: 200, preserveAspectRatio: 'none', result: 'dm', href: warpMaps.drag });
+    const im2 = mk(filter, 'feImage', { x: 0, y: 0, width: 200, height: 200, preserveAspectRatio: 'none', result: 'dm', href: warpMaps.t });
     const pinch = mk(filter, 'feDisplacementMap', { in: 'SourceGraphic', in2: 'pm', scale: 0, xChannelSelector: 'R', yChannelSelector: 'G', result: 'p1' });
     const dragX = mk(filter, 'feDisplacementMap', { in: 'p1', in2: 'dm', scale: 0, xChannelSelector: 'R', yChannelSelector: 'B', result: 'p2' });
     const dragY = mk(filter, 'feDisplacementMap', { in: 'p2', in2: 'dm', scale: 0, xChannelSelector: 'B', yChannelSelector: 'G' });
@@ -154,9 +174,6 @@ export function createPetalPhysics({ shapes, fills }) {
     front.slot.insertBefore(div, front.svg);
     return { div, filter, im1, im2, pinch, dragX, dragY, D: 0, on: false };
   });
-  const wrinkles = [0, 1, 2].map(() => [0, 1, 2, 3, 4, 5, 6].map(k => mk(fx, 'path', {
-    fill: 'none', stroke: k % 2 ? '#25306a' : '#fff', 'stroke-width': k % 2 ? '1' : '1.4', 'stroke-linecap': 'round', opacity: '0'
-  })));
   const slit = [0, 1, 2].map(() => ({
     glow: mk(fx, 'path', { fill: 'none', stroke: '#fff', 'stroke-opacity': '0', 'stroke-width': '9', 'stroke-linecap': 'round' }),
     shadow: mk(fx, 'path', { fill: 'none', stroke: '#2a3570', 'stroke-opacity': '0', 'stroke-width': '2.2', 'stroke-linecap': 'round' }),
@@ -164,6 +181,18 @@ export function createPetalPhysics({ shapes, fills }) {
   }));
   const ripplePool = [0, 1, 2, 3, 4, 5].map(() => mk(fx, 'ellipse', { fill: 'none', stroke: '#1f2a5e', 'stroke-width': '1', opacity: '0' }));
   const ripples = [];
+  // Onda de ativação: depois do furo, uma onda na cor da pétala parte do ponto de entrada e cruza o
+  // cartão inteiro (como a onda que percorre o óvulo a partir de onde o espermatozoide entrou).
+  const waves = [0, 1, 2].map(k => {
+    const cp = mk(front.defs, 'clipPath', { id: `pp-clip-${k}` });
+    const rect = mk(cp, 'rect', {});
+    const gr = mk(front.defs, 'radialGradient', { id: `pp-wave-${k}` });
+    const stops = [['0', '0'], ['.5', '0'], ['.84', '1'], ['1', '0']].map(([o, a]) => mk(gr, 'stop', { offset: o, 'stop-opacity': a }));
+    const g = mk(fx, 'g', { 'clip-path': `url(#pp-clip-${k})` });
+    const circ = mk(g, 'circle', { fill: `url(#pp-wave-${k})`, opacity: '0' });
+    circ.style.mixBlendMode = 'multiply';
+    return { rect, stops, circ, start: 0, on: false, x: 0, y: 0, R: 0 };
+  });
 
   let active = false;
   const want = () => !forcedOff && !reduced.matches && !(window.EnoPerf && window.EnoPerf.lite);
@@ -175,7 +204,7 @@ export function createPetalPhysics({ shapes, fills }) {
     back.slot.hidden = !v;
     front.slot.hidden = !v;
     document.documentElement.toggleAttribute('data-petal-physics', v);
-    if (!v) for (const [el, c] of cardState) { el.style.transform = ''; el.style.transformOrigin = ''; c.tf = ''; c.anchor = null; }
+    if (!v) for (const [el, c] of cardState) { el.style.transform = ''; el.style.transformOrigin = ''; c.tf = ''; }
     onToggle(v);
   }
 
@@ -184,6 +213,11 @@ export function createPetalPhysics({ shapes, fills }) {
     if (!cardEls) cardEls = ['#etha-frame', '#ambo-demo', '#minne-demo'].map(s => document.querySelector(s)).filter(Boolean);
     return cardEls;
   };
+
+  // pétala → cartão do produto dela (0 Minne, 1 Etha, 2 Ambo)
+  const CARD_SEL = ['#minne-demo', '#etha-frame', '#ambo-demo'];
+  const cardCache = [];
+  const cardOf = i => (i in CARD_SEL ? (cardCache[i] ??= document.querySelector(CARD_SEL[i])) : null);
 
   // Recorte de polígono pelo plano z = 0 (Sutherland–Hodgman), lado sgn (+1 frente, -1 trás).
   function clipZ(pts, sgn, hits) {
@@ -257,112 +291,159 @@ export function createPetalPhysics({ shapes, fills }) {
     it.flutter = Math.max(it.flutter * Math.exp(-h / .5), clamp(speed * .05, 0, .07));
     it.phase += h * (7 + speed * 6);
 
-    // --- atravessar a página ---
+    // --- furar a membrana (a borda do cartão), no tempo, como agulha em membrana mole ---
+    // (1) a ponta da base encosta na borda; (2) a borda afunda e segura a pétala, que comprime e se
+    // debate, freando porque a resistência cresce com a profundidade; (3) instabilidade: fura de uma
+    // vez, a pétala estica, afina e dispara para dentro; (4) a borda volta, passa do ponto e fecha em
+    // volta. O que está dentro do cartão passa a ficar atrás do vidro; o que está fora, na frente.
     const prox = it.prox;
-    if (prox < .05) it.side = !!front_; // de que lado ela chega
-    const p = smooth(prox);
-    const theta = 54 * DEG * smooth(clamp(prox * 1.4));
-    const cross = mix(it.side ? 1.18 : -.18, .4, p); // fração do eixo onde corta o plano
-    const sT = Math.sin(theta), cT = Math.cos(theta);
-    const piercing = prox > .02;
+    const card = cardOf(i);
+    // Camada enquanto não fura: perto do próprio cartão a pétala vem para a frente. A troca só acontece
+    // quando ela não está sobre nenhum cartão (ninguém vê o salto); se não der, fica atrás, como antes.
+    if (it.state === 0) {
+      const desired = !!front_ || prox > .02;
+      if (desired !== it.layerFront) {
+        const bb = it.bbox;
+        const over = bb && cards().some(el => {
+          const r = el.getBoundingClientRect();
+          return bb.x1 > r.left && bb.x0 < r.right && bb.y1 > r.top && bb.y0 < r.bottom;
+        });
+        if (!over || front_) it.layerFront = desired;
+      }
+    }
+    const rc = card && (it.state || (it.layerFront && prox > .02)) ? card.getBoundingClientRect() : null;
 
-    const s = pose.s * (1 - .1 * p); // encolhe um pouco ao entrar
+    const PRESS_MS = 300, DENT = 18;
+    const pressT = it.state === 1 ? clamp((now - it.t0) / PRESS_MS) : 0;
+    if (it.state === 1) it.pressK = 1 - (1 - pressT) ** 2.4;       // avança rápido e freia
+    else it.pressK *= Math.exp(-h / .08);
+    const qT = it.state === 2 ? 1 : 0;
+    if (it.state === 2) {
+      it.vq += (300 * (1 - it.q) - 23 * it.vq) * h;                // dispara, com leve passada do ponto
+      it.q += it.vq * h;
+    } else { it.q = 0; it.vq = 0; }
+    const q01 = clamp(it.q);
+
+    // comprimir (pressionando) e esticar (passando): eixo e largura em sentidos opostos
+    const sq = it.state === 1 ? it.pressK : 0;
+    const st = clamp(Math.abs(it.vq) / 7);
+    const axK = 1 - .12 * sq + .16 * st, latK = 1 + .1 * sq - .2 * st;
+    // esforço: a pétala se debate de lado enquanto empurra (umas 3 investidas)
+    const wig = it.state === 1 ? Math.sin((now - it.t0) * .001 * 2 * Math.PI * 9) * .07 * Math.sin(Math.PI * pressT) : 0;
+    const bxE = it.bx + wig;
+
+    const s = pose.s;
     const L = g.L * s;
     const rx = (pose.rx || 0) * DEG, ry = (pose.ry || 0) * DEG;
     const cx = Math.cos(rx), sx = Math.sin(rx), cy = Math.cos(ry), sy = Math.sin(ry);
     const bxo = (g.base.x - PIVOT.x) * s, byo = (g.base.y - PIVOT.y) * s;
     const ux = g.ux, uy = g.uy;
-    const X0 = pose.x + it.ox, Y0 = pose.y + it.oy;
+    const PX = pose.x + it.ox, PY = pose.y + it.oy;
+    // ponto (a ao longo do eixo, l lateral) → tela, sem o recuo da membrana
+    let neckA = -9, neckK = 0;
+    const proj = (a, l) => {
+      const A = a * L * axK;
+      let Ll = (l * latK + bxE * a * a * .55) * L;
+      if (neckK) Ll *= 1 - neckK * Math.exp(-((a - neckA) ** 2) / .012); // pescoço: aperta onde cruza a borda
+      const Z = (it.bz * a * a * .62 + .3 * l * l + it.flutter * a * Math.sin(it.phase - a * 5.2)) * L;
+      const x = bxo + A * ux - Ll * uy, y = byo + A * uy + Ll * ux;
+      const x1 = x * cy + Z * sy, z1 = -x * sy + Z * cy;
+      const y2 = y * cx - z1 * sx, z2 = y * sx + z1 * cx;
+      const w = F / Math.max(200, F - z2);
+      return { x: PX + (x1 * cr - y2 * sr) * w, y: PY + (x1 * sr + y2 * cr) * w };
+    };
+    const B0 = proj(0, 0), T0 = proj(1, 0);
+
+    // profundidade (para dentro) de um ponto em relação à borda de entrada
+    const E = it.edge;
+    const depthOf = pt => !rc || !E ? -1 : E === 't' ? pt.y - rc.top : E === 'b' ? rc.bottom - pt.y : E === 'l' ? pt.x - rc.left : rc.right - pt.x;
+    const insideRc = pt => rc && pt.x > rc.left && pt.x < rc.right && pt.y > rc.top && pt.y < rc.bottom;
+
+    if (it.state === 0 && rc && it.layerFront && prox > .02 && insideRc(B0)) {
+      // encostou: a borda mais próxima é por onde ela entra
+      const d = { t: B0.y - rc.top, b: rc.bottom - B0.y, l: B0.x - rc.left, r: rc.right - B0.x };
+      it.edge = Object.keys(d).reduce((m, k) => (d[k] < d[m] ? k : m), 't');
+      it.state = 1; it.t0 = now; it.outDone = false;
+    } else if (it.state === 1) {
+      if (!insideRc(B0)) it.state = 0;
+      else if (now - it.t0 >= PRESS_MS) { it.state = 2; it.evPop = true; it.holdPop = it.hold || 0; }
+    } else if (it.state === 2) {
+      const bb = it.bbox;
+      if (!rc || (bb && !(bb.x1 > rc.left && bb.x0 < rc.right && bb.y1 > rc.top && bb.y0 < rc.bottom))) it.state = 0;
+      else if (!insideRc(B0) && !it.outDone) { it.outDone = true; it.evOut = true; }
+    }
+
+    // a membrana segura a pétala: enquanto pressiona ela só entra o quanto a borda afundou
+    const n = it.edge === 't' ? [0, 1] : it.edge === 'b' ? [0, -1] : it.edge === 'l' ? [1, 0] : [-1, 0];
+    let hold = 0;
+    if (it.state === 1) hold = Math.max(0, depthOf(B0) - DENT * it.pressK);
+    else if (it.state === 2) hold = (it.holdPop || 0) * (1 - it.q);
+    it.hold = hold;
+    const HX = -n[0] * hold, HY = -n[1] * hold;
+
+    // pescoço onde o eixo cruza a borda (só depois de furar)
+    if (it.state === 2 && rc) {
+      const dB = depthOf(B0) - hold, dT = depthOf(T0) - hold;
+      if (dB > 0 && dT < 0) { neckA = dB / (dB - dT); neckK = .34 * Math.max(st, .45) * q01; }
+    }
 
     const pts = new Array(g.local.length);
-    let tipP = null, midP = null;
-    for (let q = 0; q < g.local.length; q++) {
-      const { a, l } = g.local[q];
-      // dobra: curvatura ao longo do eixo + leve concha lateral + tremor que corre até a ponta
-      let A = a * L;
-      let Ll = (l + it.bx * a * a * .55) * L;
-      let Z = (it.bz * a * a * .62 + .3 * l * l + it.flutter * a * Math.sin(it.phase - a * 5.2)) * L;
-      // afinar: a lateral estreita perto do corte, como quem passa de lado por uma fresta
-      if (piercing) {
-        const near = Math.exp(-((a - cross) ** 2) / .03);
-        Ll *= 1 - .28 * p * near;
-        // gira em torno da base: a ponta entra na página
-        const A2 = A * cT + Z * sT;
-        Z = -A * sT + Z * cT + L * sT * cross;
-        A = A2;
-      }
-      // de volta ao plano da flor
-      let x = bxo + A * ux - Ll * uy;
-      let y = byo + A * uy + Ll * ux;
-      let z = Z;
-      // rotateY, rotateX, rotateZ (mesma ordem do CSS anterior)
-      let x1 = x * cy + z * sy, z1 = -x * sy + z * cy;
-      let y2 = y * cx - z1 * sx, z2 = y * sx + z1 * cx;
-      let x3 = x1 * cr - y2 * sr, y3 = x1 * sr + y2 * cr;
-      const w = F / Math.max(200, F - z2);
-      const P = { x: X0 + x3 * w, y: Y0 + y3 * w, z: piercing ? z2 : (front_ ? 1 : -1) };
-      pts[q] = P;
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    for (let k2 = 0; k2 < g.local.length; k2++) {
+      const pt = proj(g.local[k2].a, g.local[k2].l);
+      pt.x += HX; pt.y += HY;
+      if (pt.x < x0) x0 = pt.x; if (pt.x > x1) x1 = pt.x; if (pt.y < y0) y0 = pt.y; if (pt.y > y1) y1 = pt.y;
+      pts[k2] = pt;
     }
-    // gradiente da base à ponta para a luz da dobra
-    const tipIdx = g.local.reduce((best, v, q) => (v.a > g.local[best].a ? q : best), 0);
-    tipP = pts[tipIdx];
-    midP = pts[0];
-    const bend = Math.abs(it.bz) + Math.abs(it.bx) * .6 + it.flutter * 2;
+    it.bbox = { x0, y0, x1, y1 };
+    const tipP = pts[g.tipIdx], baseP = pts[0];
+    const bend = Math.abs(it.bz) + Math.abs(bxE) * .6 + it.flutter * 2;
     const grad = {
-      x1: midP.x, y1: midP.y, x2: tipP.x, y2: tipP.y,
-      light: clamp(.06 + bend * .55 + p * .1, 0, .42),
-      dark: clamp(bend * .22 + p * .14, 0, .22)
+      x1: baseP.x, y1: baseP.y, x2: tipP.x, y2: tipP.y,
+      light: clamp(.06 + bend * .55, 0, .42),
+      dark: clamp(bend * .22 + sq * .1, 0, .24)
     };
 
-    let hits = null;
-    if (piercing) {
-      hits = [];
-      const fr = clipZ(pts, 1, hits);
-      const bk = clipZ(pts, -1, null);
-      setSide(it.front, toD(fr), pose.o, grad);
-      setSide(it.back, toD(bk), pose.o, grad);
+    const d = toD(pts);
+    if (it.state === 2 && rc) {
+      // dentro do cartão: atrás do vidro; fora: na frente
+      const rad = (it.rad ??= parseFloat(getComputedStyle(card).borderTopLeftRadius) || 0);
+      const { left: l, top: t, width: w, height: hh } = rc;
+      for (const [k3, v] of [['x', l], ['y', t], ['width', w], ['height', hh], ['rx', rad]]) it.clipIn.setAttribute(k3, v.toFixed(1));
+      const r2 = Math.min(rad, w / 2, hh / 2);
+      it.clipOut.setAttribute('d', `M-9999-9999H19999V19999H-9999ZM${(l + r2).toFixed(1)} ${t.toFixed(1)}h${(w - 2 * r2).toFixed(1)}a${r2} ${r2} 0 0 1 ${r2} ${r2}v${(hh - 2 * r2).toFixed(1)}a${r2} ${r2} 0 0 1 ${-r2} ${r2}h${(-(w - 2 * r2)).toFixed(1)}a${r2} ${r2} 0 0 1 ${-r2} ${-r2}v${(-(hh - 2 * r2)).toFixed(1)}a${r2} ${r2} 0 0 1 ${r2} ${-r2}Z`);
+      if (!it.clipped) {
+        it.clipped = true;
+        it.back.grp.setAttribute('clip-path', `url(#pp-in-${i})`);
+        it.front.grp.setAttribute('clip-path', `url(#pp-out-${i})`);
+      }
+      setSide(it.front, d, pose.o, grad);
+      setSide(it.back, d, pose.o, grad);
     } else {
-      const d = toD(pts);
-      setSide(front_ ? it.front : it.back, d, pose.o, grad);
-      setSide(front_ ? it.back : it.front, '', 0, grad);
+      if (it.clipped) {
+        it.clipped = false;
+        it.back.grp.removeAttribute('clip-path');
+        it.front.grp.removeAttribute('clip-path');
+      }
+      setSide(it.layerFront ? it.front : it.back, d, pose.o, grad);
+      setSide(it.layerFront ? it.back : it.front, '', 0, grad);
     }
 
-    // fenda: só quando o corte cai dentro de um cartão
-    let slitInfo = null;
-    if (hits && hits.length >= 2) {
-      let a = hits[0], b = hits[1], best = 0;
-      for (let m = 0; m < hits.length; m++) for (let n = m + 1; n < hits.length; n++) {
-        const dd = (hits[m].x - hits[n].x) ** 2 + (hits[m].y - hits[n].y) ** 2;
-        if (dd > best) { best = dd; a = hits[m]; b = hits[n]; }
-      }
-      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-      const card = cards().find(el => {
-        const r = el.getBoundingClientRect();
-        return mx > r.left + 4 && mx < r.right - 4 && my > r.top + 4 && my < r.bottom - 4;
-      });
-      if (card) slitInfo = { a, b, mx, my, len: Math.sqrt(best), ang: Math.atan2(b.y - a.y, b.x - a.x), card, w: L * .3 };
+    // o que a membrana do cartão sente: ponto de contato na borda, direção e quanto afunda
+    it.cardEl = card;
+    it.mem = null;
+    if (rc && it.state === 1) {
+      const dep = DENT * it.pressK;
+      const cxp = clamp(B0.x, rc.left, rc.right), cyp = clamp(B0.y, rc.top, rc.bottom);
+      // ponto da borda sob a base
+      const ex = it.edge === 'l' ? rc.left : it.edge === 'r' ? rc.right : cxp;
+      const ey = it.edge === 't' ? rc.top : it.edge === 'b' ? rc.bottom : cyp;
+      it.mem = { mx: ex, my: ey, nx: n[0], ny: n[1], target: it.pressK * pose.o, dent: DENT, len: L * .2, dep };
     }
-    // antes de furar: a ponta encosta e empurra a membrana (cross entre 1 e 1,18 = ponta logo à frente do plano)
-    it.press = null;
-    if (piercing && !slitInfo && cross > .97 && it.side) {
-      const amt = smooth((1.2 - cross) / .23) * pose.o;
-      const card = amt > .02 && cards().find(el => {
-        const r = el.getBoundingClientRect();
-        return tipP.x > r.left + 4 && tipP.x < r.right - 4 && tipP.y > r.top + 4 && tipP.y < r.bottom - 4;
-      });
-      if (card) it.press = { mx: tipP.x, my: tipP.y, amt, card, len: L * .22, ang: 0 };
-    }
-    const nowCrossing = !!slitInfo;
-    // um cutucão forte enquanto atravessa também ondula o vidro
-    if (nowCrossing && Math.abs(it.vbz) > 2.4 && now - (it.lastPokeRipple || 0) > 500) {
-      it.lastPokeRipple = now;
-      ripple(slitInfo, now, .5);
-    }
-    it.crossing = nowCrossing;
-    it.slit = slitInfo && { ...slitInfo, o: pose.o * smooth(clamp((prox - .08) / .3)) };
 
     return Math.abs(it.vbz) > .01 || Math.abs(it.vbx) > .01 || Math.abs(it.bz - tz) > .004 || Math.abs(it.bx - tx) > .004
-      || Math.abs(it.ox) > .2 || Math.abs(it.oy) > .2 || it.flutter > .002;
+      || Math.abs(it.ox) > .2 || Math.abs(it.oy) > .2 || it.flutter > .002
+      || it.state === 1 || Math.abs(it.vq) > .01 || Math.abs(it.q - qT) > .003 || it.pressK > .01;
   }
 
   function ripple(info, now, strength) {
@@ -383,114 +464,106 @@ export function createPetalPhysics({ shapes, fills }) {
     let ti = 0;
     for (const el of cards()) {
       let c = cardState.get(el);
-      if (!c) { c = { P: 0, vP: 0, lz: 0, vlz: 0, tx: 0, ty: 0, vx: 0, vy: 0, pierced: false, spot: null, T: { x: 0, y: 0 }, tf: '' }; cardState.set(el, c); }
-      const pierce = items.find(q => q.slit && q.slit.card === el);
-      const press = !pierce && items.find(q => q.press && q.press.card === el);
-      const spot = pierce ? pierce.slit : press ? press.press : null;
+      if (!c) { c = { P: 0, vP: 0, lz: 0, vlz: 0, spot: null, tf: '', rad: null }; cardState.set(el, c); }
+      const it = items.find(q => q.cardEl === el);
+      const m = it ? it.mem : null;
+      const wave = waves[ti];
 
-      // Membrana (óvulo): a ponta encosta e afunda a superfície (P cresce), a tensão sobe até furar;
-      // no furo ela estoura: a covinha some num tranco, a superfície volta, balança e fecha em volta.
-      let targetP = 0;
-      if (press) targetP = press.press.amt;
-      if (c.popAt) targetP = Math.max(targetP, .9);
-      else if (pierce) targetP = .1 * pierce.slit.o; // fica uma covinha mínima onde está cravada
-      if (pierce && !c.pierced) {
-        c.pierced = true;
-        // Se a rolagem foi rápida e a ponta não chegou a afundar a membrana, a sequência acontece no
-        // tempo: afunda por ~150 ms, então estoura. Se já estava afundada, estoura na hora.
-        if (c.P < .45) { c.vP += 9 - c.P * 10; c.popAt = now + 150; }
-        else c.popAt = now;
-      }
-      if (c.popAt && now >= c.popAt) {
-        c.popAt = 0;
-        c.vP -= 6 + c.P * 9;  // estouro: a covinha volta num tranco, passa do ponto e balança
-        c.vlz += 5;
-        if (c.spot) ripple(c.spot, now, 1);
-      } else if (!pierce && c.pierced && !press) {
-        c.pierced = false;  // saiu: pequeno tranco de fechar
-        c.vP -= 3;
-        ripple(c.spot || { mx: 0, my: 0, len: 0, ang: 0 }, now, .6);
-      }
-      if (spot) c.spot = { mx: spot.mx, my: spot.my, len: spot.len, ang: spot.ang || 0 };
-
-      // tensão: o cartão segue um pouco a pétala presa (bem menos que antes)
-      if (pierce) {
-        const wrap = el.offsetParent || el.parentElement;
-        const wr = wrap.getBoundingClientRect();
-        const r0 = { left: wr.left + el.offsetLeft, top: wr.top + el.offsetTop, w: el.offsetWidth, h: el.offsetHeight };
-        const u = (pierce.slit.mx - r0.left) / r0.w, v = (pierce.slit.my - r0.top) / r0.h;
-        if (!c.anchor) c.anchor = { u, v };
-        const k = 1 - Math.exp(-dt / .4);
-        c.anchor.u += (u - c.anchor.u) * k; c.anchor.v += (v - c.anchor.v) * k;
-        c.T = { x: pierce.slit.mx - (r0.left + c.anchor.u * r0.w), y: pierce.slit.my - (r0.top + c.anchor.v * r0.h) };
-        c.u = c.anchor.u; c.v = c.anchor.v;
-      } else {
-        c.anchor = null;
-        c.T = { x: 0, y: 0 };
-        if (press) {
+      // Membrana: P > 0 a borda afunda sob a pétala, P < 0 estufa para fora. A mola é pouco amortecida:
+      // ao furar, a borda volta num tranco, passa do ponto e assenta em volta da pétala.
+      const targetP = m ? m.target : 0;
+      if (m) c.spot = { mx: m.mx, my: m.my, nx: m.nx, ny: m.ny, dent: m.dent, len: m.len };
+      if (it && it.evPop) {
+        it.evPop = false;
+        if (c.spot) {
+          c.vP -= 7 + Math.abs(c.P) * 9;
+          c.vlz += 5;
+          // onda de ativação a partir do ponto de entrada
           const r = el.getBoundingClientRect();
-          c.u = (press.press.mx - r.left) / r.width; c.v = (press.press.my - r.top) / r.height;
+          wave.on = true; wave.start = now; wave.x = c.spot.mx; wave.y = c.spot.my;
+          wave.R = Math.max(Math.hypot(wave.x - r.left, wave.y - r.top), Math.hypot(wave.x - r.right, wave.y - r.top),
+            Math.hypot(wave.x - r.left, wave.y - r.bottom), Math.hypot(wave.x - r.right, wave.y - r.bottom));
+          wave.stops.forEach(sx => sx.setAttribute('stop-color', it.fill));
+          if (c.rad == null) c.rad = parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0;
         }
       }
-      const tl = Math.hypot(c.T.x, c.T.y), cap = tl > 10 ? 10 / tl : 1;
-      const tTx = c.T.x * .18 * cap, tTy = c.T.y * .18 * cap;
-      // pressionar empurra o canto para dentro (afasta da tela); estourar devolve
-      const tLz = -targetP * .9;
+      if (it && it.evOut) { it.evOut = false; if (c.spot) c.vP -= 3; } // ao sair, a borda é puxada e solta
 
-      const KP = 210, CP = 13;   // covinha: firme, um pouco elástica
+      if (m) {
+        const r = el.getBoundingClientRect();
+        c.u = (m.mx - r.left) / r.width; c.v = (m.my - r.top) / r.height;
+      }
+      const tLz = -targetP * 1.2; // pressionar empurra aquele lado do cartão para longe da tela
+      const KP = 240, CP = 11;
       c.vP += (KP * (targetP - c.P) - CP * c.vP) * dt; c.P += c.vP * dt;
       const K = 160, C = 12;
       c.vlz += (K * (tLz - c.lz) - C * c.vlz) * dt; c.lz += c.vlz * dt;
-      c.vx += (K * (tTx - c.tx) - C * c.vx) * dt; c.tx += c.vx * dt;
-      c.vy += (K * (tTy - c.ty) - C * c.vy) * dt; c.ty += c.vy * dt;
 
-      const moving = Math.abs(c.vP) > .02 || Math.abs(c.P - targetP) > .004 || Math.abs(c.vlz) > .05 || Math.abs(c.lz - tLz) > .01
-        || Math.abs(c.vx) > .05 || Math.abs(c.vy) > .05 || Math.abs(c.tx - tTx) > .05 || Math.abs(c.ty - tTy) > .05;
-      if (moving || c.popAt) busy = true;
+      const moving = Math.abs(c.vP) > .02 || Math.abs(c.P - targetP) > .004 || Math.abs(c.vlz) > .05 || Math.abs(c.lz - tLz) > .01;
+      if (moving) busy = true;
 
       // cartão: só transforma enquanto há movimento perceptível (parado fica 2D e nítido)
       let tf = '';
-      if (Math.abs(c.lz) > .02 || Math.abs(c.tx) > .15 || Math.abs(c.ty) > .15) {
+      if (Math.abs(c.lz) > .02) {
         const u = c.u ?? .5, v = c.v ?? .5;
         const ry = -(u - .5) * 2 * c.lz, rx = (v - .5) * 2 * c.lz;
-        tf = `perspective(1400px) translate3d(${c.tx.toFixed(2)}px,${c.ty.toFixed(2)}px,0) rotateX(${rx.toFixed(3)}deg) rotateY(${ry.toFixed(3)}deg)`;
+        tf = `perspective(1400px) rotateX(${rx.toFixed(3)}deg) rotateY(${ry.toFixed(3)}deg)`;
         el.style.transformOrigin = `${(100 - u * 100).toFixed(1)}% ${(100 - v * 100).toFixed(1)}%`;
       }
       if (tf !== c.tf) { c.tf = tf; el.style.transform = tf; if (!tf) el.style.transformOrigin = ''; }
 
-      const tent = tents[ti], wr7 = wrinkles[ti], lens = lenses[ti];
+      const tent = tents[ti], lens = lenses[ti];
       ti++;
-      wr7.forEach(w => w.setAttribute('opacity', '0'));
       const sp = c.spot;
-      const depth = Math.max(0, c.P); // só a covinha (para dentro) desenha sombra/deforma
-      const R = sp ? clamp(sp.len * .55 + 22 + depth * 30, 26, 90) : 0;
+      const depth = Math.max(0, c.P);
       if (sp && depth > .01) {
-        tent.setAttribute('cx', sp.mx.toFixed(1)); tent.setAttribute('cy', sp.my.toFixed(1));
-        tent.setAttribute('rx', R.toFixed(1)); tent.setAttribute('ry', (R * .9).toFixed(1));
-        tent.removeAttribute('transform');
+        // sombra dentro da covinha, logo abaixo da borda afundada
+        const R = 16 + depth * 16;
+        tent.setAttribute('cx', (sp.mx + sp.nx * depth * sp.dent * .9).toFixed(1));
+        tent.setAttribute('cy', (sp.my + sp.ny * depth * sp.dent * .9).toFixed(1));
+        tent.setAttribute('rx', R.toFixed(1)); tent.setAttribute('ry', R.toFixed(1));
         tent.setAttribute('opacity', clamp(depth * 1.1, 0, .9).toFixed(3));
       } else tent.setAttribute('opacity', '0');
 
       if (lens) {
-        // lente pequena e fraca: o vidro afunda em volta da ponta (pinça) e mais nada
-        const pinch = sp ? Math.min(56, depth * 52) : 0;
-        const want = sp && (lens.on ? pinch > 2.5 : pinch > 5);
+        // lente: empurra a borda e o conteúdo vizinho na direção da pétala (ou de volta, no repique)
+        const px = sp ? clamp(c.P, -.5, 1.15) * sp.dent : 0;
+        const want = sp && (lens.on ? Math.abs(px) > .8 : Math.abs(px) > 1.6);
         if (want) {
-          const D = Math.round(clamp(R * 2.4, 90, 200) / 10) * 10;
+          const D = 180;
           if (D !== lens.D) {
             lens.D = D;
-            for (const n of [lens.filter, lens.im1, lens.im2]) { n.setAttribute('width', D); n.setAttribute('height', D); }
+            for (const nn of [lens.filter, lens.im1, lens.im2]) { nn.setAttribute('width', D); nn.setAttribute('height', D); }
             lens.div.style.width = lens.div.style.height = D + 'px';
           }
           if (!lens.on) { lens.on = true; lens.div.hidden = false; }
-          lens.div.style.transform = `translate3d(${(sp.mx - D / 2).toFixed(1)}px,${(sp.my - D / 2).toFixed(1)}px,0)`;
-          lens.pinch.setAttribute('scale', pinch.toFixed(1));
-          lens.dragX.setAttribute('scale', '0');
-          lens.dragY.setAttribute('scale', '0');
+          // a borda fica a 0,6 raio do centro da lente; o mapa do lado certo empurra na direção de dentro
+          const key = sp.ny > 0 ? 't' : sp.ny < 0 ? 'b' : sp.nx > 0 ? 'l' : 'r';
+          if (lens.key !== key) { lens.key = key; lens.im2.setAttribute('href', warpMaps[key]); }
+          const ccx = sp.mx + sp.nx * D * .3, ccy = sp.my + sp.ny * D * .3;
+          lens.div.style.transform = `translate3d(${(ccx - D / 2).toFixed(1)}px,${(ccy - D / 2).toFixed(1)}px,0)`;
+          lens.pinch.setAttribute('scale', '0');
+          lens.dragX.setAttribute('scale', (-2 * px * sp.nx).toFixed(1));
+          lens.dragY.setAttribute('scale', (-2 * px * sp.ny).toFixed(1));
           busy = true;
         } else if (lens.on) { lens.on = false; lens.div.hidden = true; }
       }
-      if (!spot && !moving) c.spot = null;
+
+      if (wave.on) {
+        const e = (now - wave.start) / 1100;
+        if (e >= 1) { wave.on = false; wave.circ.setAttribute('opacity', '0'); }
+        else {
+          busy = true;
+          const r = el.getBoundingClientRect();
+          wave.rect.setAttribute('x', r.left.toFixed(1)); wave.rect.setAttribute('y', r.top.toFixed(1));
+          wave.rect.setAttribute('width', r.width.toFixed(1)); wave.rect.setAttribute('height', r.height.toFixed(1));
+          wave.rect.setAttribute('rx', c.rad || 0);
+          wave.circ.setAttribute('cx', wave.x.toFixed(1)); wave.circ.setAttribute('cy', wave.y.toFixed(1));
+          wave.circ.setAttribute('r', (16 + (wave.R * 1.12) * (1 - (1 - e) ** 2.6)).toFixed(1));
+          wave.circ.setAttribute('opacity', (.6 * Math.min(1, e * 8) * (1 - e) ** 1.6).toFixed(3));
+        }
+      }
+      if (!m && !moving) c.spot = null;
     }
     return busy;
   }
