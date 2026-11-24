@@ -355,7 +355,7 @@ function fmtBlock(b) {
   const days = sd === ed ? d(sd) : `${d(sd)} a ${d(ed)}`;
   return `${esc(b.reason || 'Folga')} · ${days}${allDay ? '' : `, ${t(b.startAt)} às ${t(b.endAt)}`}`;
 }
-function blockRow(b, i) { return `<div data-bi="${i}"><span>${fmtBlock(b)}</span><button type="button" class="cf-x" data-bdel="${i}" aria-label="Remover ${esc(b.reason || 'folga')}">×</button></div>`; }
+function blockRow(b, i) { return `<div data-bi="${i}" data-swipe-l="Remover" data-swipe-l-click=".cf-x" data-swipe-l-tone="danger"><span>${fmtBlock(b)}</span><button type="button" class="cf-x" data-bdel="${i}" aria-label="Remover ${esc(b.reason || 'folga')}">×</button></div>`; }
 function blocksHtml() {
   const hourChips = (attr, from, to) => Array.from({ length: to - from + 1 }, (_, k) => from + k).map((h) => chip(`${attr}="${h}"`, `${h}h`, false, 'is-sm')).join('');
   return `
