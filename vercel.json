@@ -49,11 +49,11 @@
     },
     {
       "source": "/agendamento",
-      "destination": "https://ambo-enomera-preview.vercel.app/agendamento"
+      "destination": "https://lotus-app-git-desenvolvimento-marcosvmgs-projects.vercel.app/agendamento"
     },
     {
       "source": "/agendamento/:path*",
-      "destination": "https://ambo-enomera-preview.vercel.app/agendamento/:path*"
+      "destination": "https://lotus-app-git-desenvolvimento-marcosvmgs-projects.vercel.app/agendamento/:path*"
     },
     {
       "source": "/consultorio",
