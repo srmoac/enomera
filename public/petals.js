@@ -8,6 +8,7 @@ import {
   applyIntentPose,
   SERVICE_PETAL
 } from './petal-model.js';
+import { createPetalPhysics } from './petal-physics.js';
 
 export async function mountPetalJourney() {
   const response = await fetch('/assets/flower.svg');
@@ -57,6 +58,11 @@ export async function mountPetalJourney() {
       vel: { x: 0, y: 0, r: 0 },
       z: 1
     };
+  });
+
+  const physics = createPetalPhysics({
+    shapes: paths.map(p => p.getAttribute('d')),
+    fills: paths.map(p => p.getAttribute('fill'))
   });
 
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
@@ -413,6 +419,7 @@ export async function mountPetalJourney() {
       const prox = clamp(1 - dist / radius);
       const smoothProx = prox * prox * (3 - 2 * prox);
       const focused = owner.mode === 'intent' && owner.service === service;
+      physics.setProx(petalIdx, smoothProx);
       level = focused ? Math.max(smoothProx, .52) : smoothProx;
     }
 
@@ -531,6 +538,8 @@ export async function mountPetalJourney() {
         petal.slot.style.zIndex = String(wantZ);
       }
 
+      petal.goalFront = !!goal.front;
+      if (physics.active) return;
       const visible = p.y > -560 && p.y < dimensions.h + 560;
       petal.outer.style.visibility = visible ? 'visible' : 'hidden';
       petal.outer.style.transform = `translate3d(${p.x.toFixed(2)}px,${p.y.toFixed(2)}px,0) scale(${p.s.toFixed(4)})`;
@@ -544,6 +553,17 @@ export async function mountPetalJourney() {
       syncDockGlow('etha', 1, y, ethaGlow, ethaFrameEl);
       syncDockGlow('ambo', 2, y, amboGlow, null);
       syncDockGlow('minne', 0, y, minneGlow, null);
+    }
+
+    if (physics.active) {
+      for (let i = 0; i < petals.length; i++) {
+        const petal = petals[i];
+        if (!petal.pose) continue;
+        const visible = petal.pose.y > -560 && petal.pose.y < dimensions.h + 560;
+        if (!visible) continue;
+        if (physics.render(i, petal.pose, petal.vel, petal.goalFront, dt, now)) moving = true;
+      }
+      if (physics.renderFx(now)) moving = true;
     }
 
     if (moving || (!reduced.matches && (now - started < 1250 || settleEnergy > .004 || (owner.expiresAt && now < owner.expiresAt)))) {
@@ -760,6 +780,29 @@ export async function mountPetalJourney() {
       };
     }
   };
+
+  // Física: o cursor desvia as pétalas; no toque, encostar perto dá um sopro.
+  let lastPtr = null;
+  const posesNow = () => petals.map(p => p.pose);
+  addEventListener('pointermove', e => {
+    if (!physics.active) return;
+    const t = performance.now();
+    if (e.pointerType !== 'mouse') return;
+    const vx = lastPtr ? (e.clientX - lastPtr.x) / Math.max(8, t - lastPtr.t) : 0;
+    const vy = lastPtr ? (e.clientY - lastPtr.y) / Math.max(8, t - lastPtr.t) : 0;
+    lastPtr = { x: e.clientX, y: e.clientY, t };
+    if (physics.poke(e.clientX, e.clientY, vx, vy, posesNow(), .55)) schedule();
+  }, { passive: true });
+  addEventListener('pointerdown', e => {
+    if (!physics.active || e.pointerType === 'mouse') return;
+    if (physics.poke(e.clientX, e.clientY, 0, 0, posesNow(), 1.2)) schedule();
+  }, { passive: true });
+
+  physics.start(on => {
+    for (const s of slots) s.hidden = on;
+    snapNext = false;
+    schedule();
+  });
 
   measure();
   document.fonts.ready.then(measure);
