@@ -296,6 +296,54 @@ function syncServiceLinks() {
   }
 }
 
+// Âncoras da home sem "#" na URL: rola suave até a seção e mantém o endereço limpo (feedback do Flay, 24 nov).
+function wireSmoothAnchors() {
+  const reduceMo = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const goTo = (id, smooth) => {
+    const el = id && document.getElementById(id);
+    if (!el) return false;
+    el.scrollIntoView({ behavior: smooth && !reduceMo() ? 'smooth' : 'auto', block: 'start' });
+    if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '-1');
+    el.focus({ preventScroll: true });
+    return true;
+  };
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a[href^="#"], a[href^="/#"]');
+    if (!a || a.classList.contains('skip') || e.metaKey || e.ctrlKey || e.shiftKey || e.button > 0) return;
+    const id = a.getAttribute('href').split('#')[1];
+    if (id === 'inicio' || id === '') { e.preventDefault(); window.scrollTo({ top: 0, behavior: reduceMo() ? 'auto' : 'smooth' }); return; }
+    if (goTo(id, true)) e.preventDefault();
+  });
+  // Quem chega com /#secao (link antigo ou de outra página) rola até ela e o "#" sai da barra.
+  if (location.hash) {
+    const id = decodeURIComponent(location.hash.slice(1));
+    try { history.replaceState(history.state, '', location.pathname + location.search); } catch {}
+    requestAnimationFrame(() => goTo(id, false));
+  }
+}
+
+// Já logado: some o "Entrar" e o "Experimentar" vira "Acessar painel".
+function reflectSession() {
+  const TOKEN = 'enomera_session_token_v1';
+  let tok = '';
+  try { tok = sessionStorage.getItem(TOKEN) || ''; } catch {}
+  const apply = (on) => {
+    document.documentElement.classList.toggle('is-signed-in', on);
+    const cta = $('#nav-links a.button');
+    const mob = $('.nav-login-mobile');
+    if (cta) {
+      if (!cta.dataset.anon) cta.dataset.anon = cta.textContent + '|' + cta.getAttribute('href');
+      const [t, h] = on ? ['Acessar painel', '/portal'] : cta.dataset.anon.split('|');
+      if (cta.textContent !== t) { cta.textContent = t; cta.setAttribute('href', h); cta.animate?.([{ opacity: 0, filter: 'blur(4px)', transform: 'scale(.96)' }, { opacity: 1, filter: 'none', transform: 'none' }], { duration: 280, easing: 'cubic-bezier(.23,1,.32,1)' }); }
+    }
+    if (mob) mob.textContent = on ? 'Painel' : 'Entrar';
+  };
+  if (tok) apply(true);
+  fetch('/api/v1/auth/me', { credentials: 'include', headers: tok ? { Authorization: `Bearer ${tok}` } : {} })
+    .then((r) => apply(r.ok))
+    .catch(() => {});
+}
+
 const cleanPath = location.pathname.replace(/\/$/, '') || '/';
 const isPortal = ['/portal', '/conta', '/checkout'].includes(cleanPath);
 if (isPortal) {
@@ -310,6 +358,8 @@ if (isPortal) {
   renderAmbo();
   renderMini();
   renderCombination();
+  wireSmoothAnchors();
+  reflectSession();
   $('#combo-continue-cta')?.addEventListener('click', (e) => {
     const sel = state.selected.length ? state.selected.join(',') : 'ambo,minne';
     // A combinação e a periodicidade escolhidas no site seguem para o percurso de contratação.

@@ -298,3 +298,9 @@ html:has(#portal:not([hidden])) body { overflow-anchor: none; }
 /* Auditoria 23 nov: refração SVG só em superfícies pequenas (barra, botões, lentes).
    Nos quadros grandes da home ela derrubava quadros na rolagem no Chromium. */
 .etha-frame,.ambo.demo,.minne.demo,.profile.piece,.lg.piece,.service-option,.summary.lg,.pilot.lg{--lg-refraction:0}
+
+/* Home com sessão ativa: some o "Entrar" do menu (o botão principal vira "Acessar painel"). */
+html.is-signed-in #nav-links .nav-login-in-menu { display: none !important; }
+/* Rotas do app (/portal, /conta, /checkout): a home nunca pisca antes do portal; mostra o esqueleto na hora. */
+html.is-app-route .nav, html.is-app-route #main { display: none !important; }
+html.is-app-route #portal[hidden] { display: block; }
