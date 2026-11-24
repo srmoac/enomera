@@ -28,6 +28,8 @@ export const FRIEND_INVITES = [
   { id: 'inv_piloto_amigo_3', kind: 'tester', label: 'Amigo 3', hash: '121211ef3b8490f9e1c2aa9f00b8fc35923cc972e537048abf1975e8641e32b1' },
   // 23/11/2026 02:49 UTC: mais uma amiga do Marcos.
   { id: 'inv_piloto_amiga_4', kind: 'tester', label: 'Amiga 4', hash: '08be889501b7cba340fd2a652990d77c57385f1ab1ed3c1d813ca9016dd4b473' },
+  // 24/11/2026 00:31 UTC: mais um link de teste pedido pelo Marcos.
+  { id: 'inv_piloto_teste_5', kind: 'tester', label: 'Teste 5', hash: 'a3fd31f2c1d8c4f2158e9a0c71c49fe54a4b4cf674fd32cbcbe457220f0d40ea' },
 ];
 
 export async function applyPilotFriendInvitesMigration(tx) {
