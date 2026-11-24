@@ -1,5 +1,6 @@
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { handleApiRequest } from '../server/router.mjs';
@@ -19,9 +20,18 @@ const mime = {
 
 const port = Number(process.env.PORT || 4319);
 
+// Mesmos cabeçalhos de segurança da Vercel (vercel.json), para o teste local ser fiel.
+let securityHeaders = {};
+try {
+  const vercel = JSON.parse(readFileSync(path.resolve(__dirname, '../vercel.json'), 'utf8'));
+  const global = (vercel.headers || []).find((h) => h.source === '/(.*)');
+  for (const h of global?.headers || []) securityHeaders[h.key] = h.value;
+} catch { securityHeaders = {}; }
+
 export function createEnomeraServer(customDb = null) {
   return http.createServer(async (req, res) => {
     try {
+      for (const [k, v] of Object.entries(securityHeaders)) res.setHeader(k, k === 'Content-Security-Policy' ? v.replace(' upgrade-insecure-requests', '').replace("connect-src 'self'", "connect-src 'self' http://127.0.0.1:* http://localhost:*") : v);
       const url = new URL(req.url, `http://127.0.0.1:${port}`);
       if (url.pathname.startsWith('/api/')) {
         await handleApiRequest(req, res, customDb);

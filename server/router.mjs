@@ -44,6 +44,7 @@ import {
   reserveSlotByInvitation,
 } from './scheduling.mjs';
 import { seedDatabase } from './seed.mjs';
+import { clientIp, contentDispositionAttachment, enforceRateLimit, rateLimitRulesFor, safeHttpsUrl } from './security.mjs';
 import { handlePilotRoutes } from './pilot.mjs';
 import { getPilotAccess, pilotFreeContract, pilotFreeQuote, PILOT_FREE_UNTIL } from './pilot-free.mjs';
 import {
@@ -53,6 +54,8 @@ import {
 } from './storage.mjs';
 
 const COOKIE_NAME = 'enomera_sid';
+// Conta inexistente também passa pelo scrypt, para o tempo de resposta não revelar quem tem cadastro.
+const DUMMY_PASSWORD = hashPassword('enomera-dummy-password-for-timing');
 const MAX_BODY_BYTES = 35 * 1024 * 1024; // allows base64-encoded 25 MB ZIP
 
 const ENOMERA_VERCEL_HOST_RE = /^(enomera|lotus|lotus-app|ambo-enomera|compasso|compasso-app|minne-enomera|etha-enomera|clara-azevedo-site|helenaduartepsi|mrsaoc-portfolio)(-[a-z0-9-]+)?\.vercel\.app$/;
@@ -169,7 +172,13 @@ function parseCookies(req) {
   return out;
 }
 
-async function readJsonBody(req) {
+// O corpo é lido uma vez e guardado: o limite de tentativas precisa do e-mail antes da rota.
+function readJsonBody(req) {
+  if (!req.__enoBodyPromise) req.__enoBodyPromise = readJsonBodyOnce(req);
+  return req.__enoBodyPromise;
+}
+
+async function readJsonBodyOnce(req) {
   if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) return req.body;
   // sendBeacon/text-plain (rastreador do piloto): a Vercel entrega o corpo já lido como texto.
   if (typeof req.body === 'string' || Buffer.isBuffer(req.body)) {
@@ -632,6 +641,12 @@ export async function handleApiRequest(req, res, customDb = null) {
     await seedDatabase(db);
     const auth = await getSessionFromRequest(db, req);
 
+    const ip = clientIp(req);
+    if (rateLimitRulesFor(method, pathname, ip, {})) {
+      const peek = await readJsonBody(req).catch(() => ({}));
+      await enforceRateLimit(db, rateLimitRulesFor(method, pathname, ip, peek && typeof peek === 'object' ? peek : {}));
+    }
+
     if (await handlePilotRoutes({ db, req, res, method, pathname, url, auth, json, readJsonBody, createProfessionalUser, issueSession, writeAudit })) return;
 
     if (method === 'GET' && pathname === '/api/v1/catalog') {
@@ -846,7 +861,8 @@ export async function handleApiRequest(req, res, customDb = null) {
       const email = String(body.email || '').trim().toLowerCase();
       const password = String(body.password || '');
       const u = (await db.get('SELECT * FROM users WHERE email = ?', email));
-      if (!u || !verifyPassword(password, u.password_hash, u.password_salt)) {
+      const passwordOk = u ? verifyPassword(password, u.password_hash, u.password_salt) : (verifyPassword(password, DUMMY_PASSWORD.hash, DUMMY_PASSWORD.salt) && false);
+      if (!u || !passwordOk) {
         await writeAudit(db, { actorType: 'anonymous', action: 'auth.login', resourceType: 'user', outcome: 'deny', meta: { email } });
         throw Object.assign(new Error('E-mail ou senha inválidos.'), { status: 401, code: 'INVALID_CREDENTIALS' });
       }
@@ -1095,6 +1111,9 @@ export async function handleApiRequest(req, res, customDb = null) {
       }
 
       const pilotFree = await getPilotAccess(db, auth.user.id);
+      if (!pilotFree && !allowSimulatedActivation()) {
+        throw Object.assign(new Error('Ativação simulada desligada neste ambiente. Use a contratação com pagamento.'), { status: 409, code: 'SIMULATED_CHECKOUT_DISABLED' });
+      }
       let quote = calculateSimulatedQuote({ products: body.products, ethaFormat: body.ethaFormat, ethaService: body.ethaService, mode: 'monthly' });
       if (pilotFree) quote = pilotFreeQuote(quote);
       // Percurso aprovado (22 nov): a ativação informa a periodicidade e não cobra nada hoje.
@@ -1163,6 +1182,9 @@ export async function handleApiRequest(req, res, customDb = null) {
       const orderId = orderRetryMatch[1];
       const body = await readJsonBody(req);
       const retryPilotFree = Boolean(await getPilotAccess(db, auth.user.id));
+      if (!retryPilotFree && !allowSimulatedActivation()) {
+        throw Object.assign(new Error('Ativação simulada desligada neste ambiente. Use a contratação com pagamento.'), { status: 409, code: 'SIMULATED_CHECKOUT_DISABLED' });
+      }
       const nextOutcome = retryPilotFree ? 'approved' : ['approved', 'pending', 'declined'].includes(body.simulatedOutcome) ? body.simulatedOutcome : 'approved';
       const methodUsed = retryPilotFree ? 'pilot_free' : body.method === 'simulated_card' ? 'simulated_card' : 'simulated_pix';
 
@@ -1217,7 +1239,14 @@ export async function handleApiRequest(req, res, customDb = null) {
       if (action === 'cancel') {
         (await db.run("UPDATE entitlements SET status = 'read_only', cancelled_at = ?, updated_at = ? WHERE id = ?", now, now, ent.id));
       } else {
-        (await db.run("UPDATE entitlements SET status = 'active', cancelled_at = NULL, current_period_end = ?, updated_at = ? WHERE id = ?", addDaysIso(30), now, ent.id));
+        // Reativar não cria período pago novo: só volta a valer o que já estava pago (ou o piloto).
+        const pilotFree = await getPilotAccess(db, auth.user.id);
+        const stillPaid = ent.current_period_end && Date.parse(ent.current_period_end) > Date.now();
+        if (!pilotFree && !stillPaid && !allowSimulatedActivation()) {
+          throw Object.assign(new Error('O período deste serviço terminou. Contrate de novo para reativar.'), { status: 402, code: 'PAYMENT_REQUIRED', product });
+        }
+        const periodEnd = pilotFree ? PILOT_FREE_UNTIL : stillPaid ? ent.current_period_end : addDaysIso(30);
+        (await db.run("UPDATE entitlements SET status = 'active', cancelled_at = NULL, current_period_end = ?, updated_at = ? WHERE id = ?", periodEnd, now, ent.id));
       }
       await writeAudit(db, { actorUserId: auth.user.id, actorType: 'professional', accountId: auth.account.id, action: `entitlement.${action}`, resourceType: 'entitlement', resourceId: ent.id, meta: { product } });
       return json(res, 200, {
@@ -1332,6 +1361,10 @@ export async function handleApiRequest(req, res, customDb = null) {
     if (method === 'PATCH' && pathname === '/api/v1/professional/profile') {
       await requireProfessional(db, auth);
       const body = await readJsonBody(req);
+      if (body.onlineMeetingUrl != null) body.onlineMeetingUrl = safeHttpsUrl(body.onlineMeetingUrl, { field: 'onlineMeetingUrl' });
+      if (body.sessionPriceCents != null && !(Number.isFinite(Number(body.sessionPriceCents)) && Number(body.sessionPriceCents) >= 0 && Number(body.sessionPriceCents) <= 10_000_000)) {
+        throw Object.assign(new Error('Valor da sessão inválido.'), { status: 400, code: 'INVALID_PRICE' });
+      }
       const now = nowIso();
       (await db.run(`
         UPDATE professional_accounts SET
@@ -2276,7 +2309,7 @@ export async function handleApiRequest(req, res, customDb = null) {
       await writeAudit(db, { actorUserId: auth.user.id, actorType: auth.session.actor_type, accountId: fileRow.account_id, action: 'file.download', resourceType: 'private_file', resourceId: fileRow.id, outcome: 'allow' });
       res.writeHead(200, {
         'Content-Type': fileRow.detected_mime,
-        'Content-Disposition': `attachment; filename="${fileRow.original_name}"`,
+        'Content-Disposition': contentDispositionAttachment(fileRow.original_name),
         'Cache-Control': 'private, no-store',
         'X-Content-Type-Options': 'nosniff',
       });
@@ -2332,6 +2365,7 @@ export async function handleApiRequest(req, res, customDb = null) {
     if (method === 'PUT' && pathname === '/api/v1/etha/project/briefing') {
       await requireProfessional(db, auth, { product: 'etha', write: true });
       const body = await readJsonBody(req);
+      if (body.customContactUrl != null) body.customContactUrl = safeContactUrl(body.customContactUrl);
       const proj = await ensureEthaProject(db, auth.account.id);
       const existingBriefing = JSON.parse(proj.briefing_json || '{}');
       const mergedBriefing = { ...existingBriefing, ...(body.briefing || {}) };
@@ -2420,6 +2454,7 @@ export async function handleApiRequest(req, res, customDb = null) {
         customContactUrl: z.string().max(1000).optional(), crp: z.string().max(100).optional(),
         // Etha por modelo (23/11): respostas guiadas que preenchem o modelo do site.
         answers: z.record(z.string(), z.any()).optional() }).parse(body.content || {});
+      if (content.customContactUrl != null) content.customContactUrl = safeContactUrl(content.customContactUrl);
       if (content.answers && JSON.stringify(content.answers).length > 20000) throw Object.assign(new Error('Respostas grandes demais.'), { status: 400, code: 'ANSWERS_TOO_LARGE' });
       if (content.photoAssetId) await requireOwnedPortrait(db, auth.account.id, content.photoAssetId);
       const stage = body.stage === 'preview' ? 'preview' : 'draft';
@@ -2449,7 +2484,7 @@ export async function handleApiRequest(req, res, customDb = null) {
       if (!version) throw Object.assign(new Error('Nenhuma versão encontrada para publicação em homologação.'), { status: 404, code: 'VERSION_NOT_FOUND' });
       const now = nowIso();
       const ctaMode = body.ctaMode === 'custom' || (body.ctaMode == null && proj.cta_mode === 'custom') ? 'custom' : 'ambo';
-      const customContactUrl = body.customContactUrl ?? proj.custom_contact_url;
+      const customContactUrl = body.customContactUrl != null ? safeContactUrl(body.customContactUrl) : proj.custom_contact_url;
       (await db.run("UPDATE etha_content_versions SET stage = 'published', published_at = ? WHERE id = ?", now, version.id));
       // Honest DNS status: NEVER fakes verified DNS/SSL!
       const domainStatus = proj.domain_name ? 'pending_owner_dns' : 'staging_only';
@@ -2538,12 +2573,29 @@ export async function handleApiRequest(req, res, customDb = null) {
       return json(res, 400, { error: 'Dados inválidos.', code: 'VALIDATION_ERROR', issues: err.issues });
     }
     const status = err.status || 500;
-    const payload = { error: err.message || 'Erro interno no servidor.', code: err.code || 'INTERNAL_ERROR' };
+    // Erro inesperado (banco, biblioteca): detalhe só no log do servidor, nunca na resposta.
+    if (status >= 500 && !err.code) console.error('[core] erro interno', pathname, err);
+    const payload = { error: status >= 500 && !err.code ? 'Erro interno no servidor. Tente de novo em instantes.' : (err.message || 'Erro interno no servidor.'), code: err.code || 'INTERNAL_ERROR' };
+    if (status === 429 && err.retryAfterSec) return json(res, 429, { ...payload, retryAfterSec: err.retryAfterSec }, { 'Retry-After': String(err.retryAfterSec) });
     if (err.suggestions) payload.suggestions = err.suggestions;
     if (err.product) payload.product = err.product;
     if (err.missingEnvVars) payload.missingEnvVars = err.missingEnvVars;
     return json(res, status, payload);
   }
+}
+
+// Ativação sem pagamento (checkout simulado / reativar sem período pago). Ligada por padrão
+// enquanto não há cobrança real; desligar com ENOMERA_ALLOW_SIMULATED_CHECKOUT=false antes de cobrar.
+function allowSimulatedActivation() {
+  return process.env.ENOMERA_ALLOW_SIMULATED_CHECKOUT !== 'false';
+}
+
+// Link de contato do site: https:// (WhatsApp, Instagram, site), mailto: ou tel:. Nunca javascript:.
+function safeContactUrl(value) {
+  const s = String(value ?? '').trim();
+  if (!s) return '';
+  if (/^(mailto:[^\s<>"']+@[^\s<>"']+|tel:\+?[\d\s().-]{8,20})$/i.test(s)) return s;
+  return safeHttpsUrl(s, { field: 'customContactUrl' });
 }
 
 async function activateOrderEntitlementsTx(db, accountId, quote, { pilotFree = false } = {}) {
