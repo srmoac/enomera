@@ -118,6 +118,9 @@ function collect(root) {
 const PAD = 160;
 const onScreen = (r) => (r.width || r.height) && r.bottom > -PAD && r.top < innerHeight + PAD;
 
+// Modo leve (eno-perf.js): sem fantasmas de saída nem transições de cor; congela só o necessário.
+const lite = () => Boolean(window.EnoPerf && window.EnoPerf.lite);
+
 export function motionSnapshot(root) {
   if (!root || reduced()) return null;
   const items = new Map();
@@ -126,26 +129,34 @@ export function motionSnapshot(root) {
   list.forEach(({ el, key }) => {
     const r = el.getBoundingClientRect();
     if (!onScreen(r)) return;
-    const cs = getComputedStyle(el);
+    const light = lite();
+    const cs = light ? null : getComputedStyle(el);
     const p = trackedParent(el, root);
     items.set(key, {
       rect: r,
       text: ownText(el),
       state: stateOf(el),
       on: isOn(el),
-      style: Object.fromEntries(STATE_STYLE.map((k) => [k, cs[k]])),
-      radius: cs.borderRadius,
+      style: cs ? Object.fromEntries(STATE_STYLE.map((k) => [k, cs[k]])) : null,
+      radius: cs ? cs.borderRadius : '',
       parent: p ? cache.get(p) : null,
       el,
     });
   });
   // Congela o HTML (com estilo computado) só de quem tem pai que fica na tela ou é de topo:
   // é quem pode virar fantasma.
-  items.forEach((it) => { it.html = frozenHTML(it.el, styleCache); it.el = null; });
+  const light = lite();
+  items.forEach((it) => {
+    // No leve só congela quem pode virar fantasma barato: número curto ou elemento compartilhado.
+    const need = !light || it.el.hasAttribute('data-m-share') || (it.text && /\d/.test(it.text) && it.rect.height <= 48);
+    it.html = need ? frozenHTML(it.el, styleCache) : null;
+    it.el = null;
+  });
   return { items, scrollY: window.scrollY };
 }
 
 function ghost(html, rect, radius) {
+  if (!html) return null;
   const tpl = document.createElement('template');
   tpl.innerHTML = html.trim();
   const g = tpl.content.firstElementChild;
@@ -220,9 +231,9 @@ export function motionPlay(root, snap, { route = false } = {}) {
       const on = isOn(el);
       if (on && !prev.on) turnedOn.push({ el, key, prev });
       if (!on && prev.on && el.parentElement) turnedOff.set(el.parentElement, el);
-      const cs = getComputedStyle(el);
-      const to = Object.fromEntries(STATE_STYLE.map((k) => [k, cs[k]]));
-      if (STATE_STYLE.some((k) => to[k] !== prev.style[k])) el.animate([{ ...prev.style }, to], { duration: 240, easing: EASE_OUT });
+      const cs = prev.style ? getComputedStyle(el) : null;
+      const to = cs ? Object.fromEntries(STATE_STYLE.map((k) => [k, cs[k]])) : null;
+      if (to && STATE_STYLE.some((k) => to[k] !== prev.style[k])) el.animate([{ ...prev.style }, to], { duration: 240, easing: EASE_OUT });
       el.querySelectorAll('.m-pop').forEach((m) => m.animate([
         { transform: 'scale(.4) rotate(-12deg)', opacity: 0 },
         { transform: 'none', opacity: 1 },
@@ -258,7 +269,7 @@ export function motionPlay(root, snap, { route = false } = {}) {
   snap.items.forEach((prev, key) => {
     if (nowKeys.has(key)) return;
     if (prev.parent && !nowKeys.has(prev.parent) && snap.items.has(prev.parent)) return; // o pai também saiu e já leva este junto
-    if (ghosts >= MAX_GHOSTS) return;
+    if (ghosts >= MAX_GHOSTS || !prev.html) return;
     ghosts++;
     const g = ghost(prev.html, { left: prev.rect.left, top: prev.rect.top - scrollDy, width: prev.rect.width, height: prev.rect.height }, prev.radius);
     if (!g) return;

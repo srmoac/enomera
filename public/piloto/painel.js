@@ -193,7 +193,7 @@
       '<div class="pn-invites">' + d.invites.map(function (i) {
         var l = labels[i.state] || [i.state, 'mute'];
         return '<div class="pn-invite"><div><b>' + esc(i.label) + '</b> <span class="small muted">' + (i.kind === 'admin' ? 'administrador' : i.kind === 'self_test' ? 'seu teste, fora dos totais' : 'convidado') + ' · criado ' + esc(ago(i.createdAt)) + (i.usedAt ? ' · usado ' + esc(ago(i.usedAt)) : '') + '</span></div>' +
-          '<div style="display:flex;gap:8px;align-items:center"><span class="pn-chip ' + l[1] + '">' + l[0] + '</span>' + (i.state === 'open' && i.kind !== 'admin' ? '<button type="button" class="pl-btn is-ghost" data-revoke="' + esc(i.id) + '">Cancelar</button>' : '') + '</div></div>';
+          '<div style="display:flex;gap:8px;align-items:center"><span class="pn-chip ' + l[1] + '">' + l[0] + '</span>' + (i.state === 'open' && i.kind !== 'admin' ? '<button type="button" class="pl-btn is-ghost" data-hold="Segure para cancelar o convite" data-hold-ms="1000" data-revoke="' + esc(i.id) + '">Cancelar</button>' : '') + '</div></div>';
       }).join('') + '</div>' +
       '<form class="pn-form-inline" id="pn-new-invite" novalidate><div class="pl-field"><label for="ni-label">Novo convite para</label><input id="ni-label" maxlength="60" placeholder="Ex.: Convidado 3 · psicóloga de Recife" aria-describedby="ni-err"><p class="pl-err" id="ni-err"></p></div><button class="pl-btn" type="submit">Criar link</button></form>';
   }
@@ -303,8 +303,8 @@
     var steps = [['Novo', o.receivedAt ? 'recebido ' + when(o.receivedAt) : ''], ['Em produção', o.startedAt ? 'desde ' + when(o.startedAt) : ''], ['Entregue', o.deliveredAt ? when(o.deliveredAt) : '']];
     var dt = dueText(o);
     var actions = o.status === 'new' ? '<button type="button" class="pl-btn" data-sob-status="production">Começar produção</button>'
-      : o.status === 'production' ? '<button type="button" class="pl-btn" data-sob-status="delivered">Marcar como entregue</button><button type="button" class="pl-btn is-ghost" data-sob-status="new" data-needs-confirm="Confirmar voltar para novo">Voltar para novo</button>'
-      : '<button type="button" class="pl-btn is-quiet" data-sob-status="production" data-needs-confirm="Confirmar reabrir">Reabrir pedido</button>';
+      : o.status === 'production' ? '<button type="button" class="pl-btn" data-sob-status="delivered">Marcar como entregue</button><button type="button" class="pl-btn is-ghost" data-sob-status="new" data-hold="Segure para voltar para novo">Voltar para novo</button>'
+      : '<button type="button" class="pl-btn is-quiet" data-sob-status="production" data-hold="Segure para reabrir o pedido">Reabrir pedido</button>';
     return '<div class="pn-steps" style="--p:' + (idx / 2) + '"><span class="pn-steps-line" aria-hidden="true"><i></i></span><ol>' + steps.map(function (s, i) {
       return '<li class="' + (i < idx ? 'done' : i === idx ? 'cur' : '') + '"' + (i === idx ? ' aria-current="step"' : '') + '><span class="dot" aria-hidden="true"></span><b>' + s[0] + '</b><small>' + esc(s[1]) + '</small></li>';
     }).join('') + '</ol></div>' +
@@ -657,7 +657,7 @@
     if ((b = t.closest('#h-form [data-form]'))) { document.querySelectorAll('#h-form [data-form]').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); placeLens(); state.heat.form = b.getAttribute('data-form'); drawHeat(); return; }
     if ((b = t.closest('[data-copy]'))) { var v = b.getAttribute('data-copy'); (navigator.clipboard ? navigator.clipboard.writeText(v) : Promise.reject()).then(function () { var lb = b.getAttribute('data-copy-label') || 'Copiar link'; b.textContent = 'Copiado'; setTimeout(function () { if (b.isConnected) b.textContent = lb; }, 1600); }).catch(function () { b.textContent = 'Selecione e copie'; }); return; }
     if ((b = t.closest('[data-revoke]'))) {
-      if (b.getAttribute('data-confirm') !== '1') { b.setAttribute('data-confirm', '1'); b.textContent = 'Confirmar cancelamento'; setTimeout(function () { if (b.isConnected) { b.removeAttribute('data-confirm'); b.textContent = 'Cancelar'; } }, 4000); return; }
+      if (!b.hasAttribute('data-hold') && b.getAttribute('data-confirm') !== '1') { b.setAttribute('data-confirm', '1'); b.textContent = 'Confirmar cancelamento'; setTimeout(function () { if (b.isConnected) { b.removeAttribute('data-confirm'); b.textContent = 'Cancelar'; } }, 4000); return; }
       api('/api/v1/pilot/admin/invites/' + encodeURIComponent(b.getAttribute('data-revoke')) + '/revoke', { method: 'POST', body: {} }).then(function () { load(); }); return;
     }
     if ((b = t.closest('[data-digest]'))) {

@@ -422,12 +422,16 @@ function onScroll() {
   const rect = connection.getBoundingClientRect();
   target = Math.max(0, Math.min(1, -rect.top / Math.max(1, connection.offsetHeight - innerHeight)));
   if (!reduced.matches && !raf) raf = requestAnimationFrame(animate);
-  for (const product of $$('.product')) {
-    const r = product.getBoundingClientRect();
+  // Lê todas as posições antes de escrever: intercalar leitura e escrita forçava um
+  // layout por produto a cada evento de rolagem (pesado em celular fraco).
+  const products = [...$$('.product')].map(product => [product, product.getBoundingClientRect()]);
+  for (const [product, r] of products) {
+    if (r.bottom < -innerHeight || r.top > innerHeight * 2) continue; // longe da tela: nada muda
     const p = Math.max(0, Math.min(1, (innerHeight - r.top) / (innerHeight * .58)));
     product.querySelectorAll('.piece').forEach((piece, i) => {
       const t = Math.min(1, Math.max(0, (p - i * .045) / .70));
-      piece.style.transform = reduced.matches ? 'none' : `translate3d(${(1 - t) * (i % 2 ? -32 : 28)}px,${(1 - t) * (24 + i * 9)}px,0)`;
+      const tf = reduced.matches ? 'none' : `translate3d(${(1 - t) * (i % 2 ? -32 : 28)}px,${(1 - t) * (24 + i * 9)}px,0)`;
+      if (piece.style.transform !== tf) piece.style.transform = tf;
     });
   }
 }
