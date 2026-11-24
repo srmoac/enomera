@@ -1,8 +1,15 @@
 {
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- . ':(exclude).github' ':(exclude)docs/BACKUP-BANCO.md' ':(exclude)scripts/backup-banco.sh' ':(exclude)scripts/restaurar-backup.sh'",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/portal", "destination": "/index.html" },
-    { "source": "/portal/", "destination": "/index.html" }
+    {
+      "source": "/portal",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/portal/",
+      "destination": "/index.html"
+    }
   ]
 }
