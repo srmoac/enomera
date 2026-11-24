@@ -471,23 +471,3 @@ body.has-petal-journey { isolation: isolate; }
   .active-products input { appearance: auto; }
   .active-products input:after { display: none; }
 }
-
-/* Pétalas com física (petal-physics.js): duas camadas, atrás e na frente dos cartões. */
-.petal-phys-svg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-  pointer-events: none;
-}
-.petal-phys .pp-fx { mix-blend-mode: normal; }
-@media (prefers-reduced-motion: reduce) { .petal-phys { display: none !important; } }
-.pp-lens {
-  position: absolute;
-  top: 0;
-  left: 0;
-  border-radius: 50%;
-  pointer-events: none;
-  will-change: transform;
-}
