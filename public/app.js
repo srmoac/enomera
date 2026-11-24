@@ -57,7 +57,7 @@ function renderAmbo() {
   }
   renderedAmboStep = state.amboStep;
   const glow = '<span class="ambo-dock-glow" aria-hidden="true"></span>';
-  const signature = '<p class="signature">ambo</p>';
+  const signature = '<p class="signature">Agendamento</p>';
   if (state.amboStep === 0) {
     box.innerHTML = `${glow}${signature}<h4 class="piece">Consulta com<br>Helena Duarte</h4><div class="profile lg piece"><div class="initials">HD</div><b>Helena Duarte</b><small>Psicóloga · adultos e adolescentes</small></div><p>Online · Presencial</p><p><b>50 min · R$ 220</b></p><p>Primeira consulta por solicitação.</p><button class="button" data-ambo="next">Solicitar primeira consulta</button>`;
   } else if (state.amboStep === 1) {
@@ -118,7 +118,7 @@ function bindConsultButton(c) {
     const minne = serviceById('minne');
     showDetail(
       `Consulta de ${item.name}`,
-      `<p>24 de novembro de 2026 · ${item.time}</p><p>${item.mode} · confirmado · dados fictícios.</p><p>O acompanhamento clínico detalhado pertence ao Minne. Nenhuma chamada real está disponível nesta amostra.</p><div class="product-links"><a class="button" href="/portal">Conhecer o portal</a>${minne?.externalDestination ? `<a class="text-link" href="${minne.externalDestination}" target="_blank" rel="noopener">${minne.externalLabel}</a>` : ''}</div>`
+      `<p>24 de novembro de 2026 · ${item.time}</p><p>${item.mode} · confirmado · dados fictícios.</p><p>O acompanhamento clínico detalhado pertence ao Consultório. Nenhuma chamada real está disponível nesta amostra.</p><div class="product-links"><a class="button" href="/portal">Conhecer o portal</a>${minne?.externalDestination ? `<a class="text-link" href="${minne.externalDestination}" target="_blank" rel="noopener">${minne.externalLabel}</a>` : ''}</div>`
     );
   });
 }
@@ -223,15 +223,15 @@ function renderPortal() {
   const c = $('#portal-content');
   const schedule = () => appointments.map(([time, name, mode]) => `<div class="schedule-row"><span>${time}　${name}</span><span>${mode} · 50 min</span></div>`).join('');
   if (state.portal === 'Meu dia') {
-    c.innerHTML = `<div class="stats">${has('ambo') || has('minne') ? '<button class="stat lg" data-goto="Agenda"><strong>04</strong><span>Consultas hoje</span></button>' : ''}${has('ambo') ? `<button class="stat lg" data-goto="Solicitações"><strong>0${state.requests.length}</strong><span>Solicitações pendentes</span></button>` : ''}${has('minne') ? `<button class="stat lg" data-goto="Registros"><strong>0${state.recordDone ? 0 : 1}</strong><span>Registro a concluir</span></button>` : ''}</div>${has('ambo') || has('minne') ? '<div class="next-appointment lg"><p class="eyebrow">Próximo atendimento · 14h–14h50</p><h2>Ana Oliveira</h2><p>Online · confirmado</p><button class="back" data-appointment>Ver consulta ↗</button></div><h3>Depois, no seu dia</h3>' + schedule().replace(/<div class="schedule-row">.*?<\/div>/, '') : '<div class="portal-panel lg"><h3>Seu acesso aos serviços</h3><p>Ative Ambo ou Minne no cenário demonstrativo para explorar a visão geral da rotina.</p><button class="button" data-goto="Outros serviços">Explorar outros serviços</button></div>'}<p class="notice">O portal reúne acesso e visão geral. A rotina clínica detalhada está no Minne.</p>`;
+    c.innerHTML = `<div class="stats">${has('ambo') || has('minne') ? '<button class="stat lg" data-goto="Agenda"><strong>04</strong><span>Consultas hoje</span></button>' : ''}${has('ambo') ? `<button class="stat lg" data-goto="Solicitações"><strong>0${state.requests.length}</strong><span>Solicitações pendentes</span></button>` : ''}${has('minne') ? `<button class="stat lg" data-goto="Registros"><strong>0${state.recordDone ? 0 : 1}</strong><span>Registro a concluir</span></button>` : ''}</div>${has('ambo') || has('minne') ? '<div class="next-appointment lg"><p class="eyebrow">Próximo atendimento · 14h–14h50</p><h2>Ana Oliveira</h2><p>Online · confirmado</p><button class="back" data-appointment>Ver consulta ↗</button></div><h3>Depois, no seu dia</h3>' + schedule().replace(/<div class="schedule-row">.*?<\/div>/, '') : '<div class="portal-panel lg"><h3>Seu acesso aos serviços</h3><p>Ative Agendamento ou Consultório no cenário demonstrativo para explorar a visão geral da rotina.</p><button class="button" data-goto="Outros serviços">Explorar outros serviços</button></div>'}<p class="notice">O portal reúne acesso e visão geral. A rotina clínica detalhada está no Consultório.</p>`;
   } else if (state.portal === 'Agenda') {
     c.innerHTML = '<div class="portal-panel lg"><h3>Consultas do dia</h3>' + schedule() + '</div><p class="notice">Agenda fictícia. Não há calendário externo conectado.</p>';
   } else if (state.portal === 'Pacientes') {
-    c.innerHTML = '<div class="portal-panel lg"><h3>Pacientes no cenário</h3>' + appointments.map(([, name]) => `<div class="schedule-row"><span>${name}</span><span>Cadastro fictício</span></div>`).join('') + '</div><p class="notice">Dados clínicos ficam na aplicação Minne. O portal não exibe prontuários.</p>';
+    c.innerHTML = '<div class="portal-panel lg"><h3>Pacientes no cenário</h3>' + appointments.map(([, name]) => `<div class="schedule-row"><span>${name}</span><span>Cadastro fictício</span></div>`).join('') + '</div><p class="notice">Dados clínicos ficam na aplicação Consultório. O portal não exibe prontuários.</p>';
   } else if (state.portal === 'Solicitações') {
     c.innerHTML = '<p>Preferências recebidas no cenário fictício. As respostas alteram apenas esta sessão.</p>' + state.requests.map(name => `<div class="portal-panel lg"><h3>${name}</h3><p>Primeira consulta · Online<br>Terças e quintas · tarde</p><button class="button" data-respond="${name}">Responder na demonstração</button></div>`).join('') + (state.requests.length ? '' : '<div class="portal-panel lg"><p role="status">Todas as solicitações desta amostra foram respondidas.</p></div>');
   } else if (state.portal === 'Registros') {
-    c.innerHTML = `<div class="portal-panel lg"><h3>${state.recordDone ? 'Registro concluído na amostra' : 'Um registro a concluir'}</h3><p>Ana Oliveira · consulta de 24 de novembro. Esta área demonstra o acesso ao Minne.</p><label for="demo-note">Anotação fictícia</label><textarea id="demo-note" placeholder="Texto fictício para experimentar a edição">${escape(state.note)}</textarea><button class="button" id="save-note">${state.recordDone ? 'Atualizar amostra local' : 'Marcar como concluído na amostra'}</button><p class="notice" id="note-feedback">O conteúdo fica apenas na memória desta aba e desaparece ao recarregar.</p></div>`;
+    c.innerHTML = `<div class="portal-panel lg"><h3>${state.recordDone ? 'Registro concluído na amostra' : 'Um registro a concluir'}</h3><p>Ana Oliveira · consulta de 24 de novembro. Esta área demonstra o acesso ao Consultório.</p><label for="demo-note">Anotação fictícia</label><textarea id="demo-note" placeholder="Texto fictício para experimentar a edição">${escape(state.note)}</textarea><button class="button" id="save-note">${state.recordDone ? 'Atualizar amostra local' : 'Marcar como concluído na amostra'}</button><p class="notice" id="note-feedback">O conteúdo fica apenas na memória desta aba e desaparece ao recarregar.</p></div>`;
   } else {
     c.innerHTML = `<div class="portal-panel lg"><h3>Serviços ativos no cenário</h3><p>Altere a combinação para explorar como o resumo se adapta.</p><div class="active-products">${services.map(s => `<label><input type="checkbox" data-active="${s.id}" ${has(s.id) ? 'checked' : ''}>${s.name}</label>`).join('')}</div></div>${services.map(s => `<div class="portal-panel lg"><h3>${s.name}</h3><p>${s.description}</p><div class="product-links"><button class="back" data-offer="${s.id}">Conhecer ${s.name} ↗</button>${s.externalDestination ? `<a class="text-link" href="${s.externalDestination}" target="_blank" rel="noopener">${s.externalLabel}</a>` : ''}${s.exampleDestination ? `<a class="text-link" href="${s.exampleDestination}" target="_blank" rel="noopener">${s.exampleLabel}</a>` : ''}</div></div>`).join('')}`;
   }
@@ -270,7 +270,7 @@ function renderPortal() {
       }
     };
   });
-  $('[data-appointment]')?.addEventListener('click', () => showDetail('Consulta de Ana Oliveira', '<p>24 de novembro de 2026 · 14h–14h50</p><p>Online · confirmado · dados fictícios.</p><p>A rotina clínica detalhada pertence ao Minne. Esta amostra não inicia uma chamada real.</p>'));
+  $('[data-appointment]')?.addEventListener('click', () => showDetail('Consulta de Ana Oliveira', '<p>24 de novembro de 2026 · 14h–14h50</p><p>Online · confirmado · dados fictícios.</p><p>A rotina clínica detalhada pertence ao Consultório. Esta amostra não inicia uma chamada real.</p>'));
   if ($('#demo-note')) $('#demo-note').oninput = e => { state.note = e.target.value; };
   if ($('#save-note')) $('#save-note').onclick = () => {
     state.recordDone = true;

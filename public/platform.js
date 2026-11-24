@@ -44,7 +44,7 @@ const APP_ORIGINS = {
 };
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const PRODUCT_NAMES = { ambo: 'Ambo', minne: 'Minne', etha: 'Etha' };
+const PRODUCT_NAMES = { ambo: 'Agendamento', minne: 'Consultório', etha: 'Site' };
 const STATUS_LABELS = {
   active: 'Ativo', trial: 'Em teste', read_only: 'Somente leitura', cancelled: 'Cancelado', canceled: 'Cancelado',
   past_due: 'Pagamento pendente', expired: 'Encerrado', pending: 'Pendente', approved: 'Aprovado', failed: 'Não concluído',
@@ -380,7 +380,7 @@ export async function mountEnomeraPlatform(rootEl) {
     const targetOrigin = APP_ORIGINS[appKey];
     if (!targetOrigin) return;
     if (!state.me) { window.open(targetOrigin + returnPath, '_blank', 'noopener'); return; }
-    // Agenda do Ambo ainda fechada: primeiro o fluxo de configuração, dentro da Enomera.
+    // Agenda do Agendamento ainda fechada: primeiro o fluxo de configuração, dentro da Enomera.
     if (appKey === 'ambo' && returnPath.startsWith('/operacao')) {
       const ov = await apiFetch('/api/v1/ambo/pro/overview');
       if (ov.ok && !ov.data?.setup?.open) { window.location.href = '/configurar?etapa=consultorio'; return; }
@@ -439,7 +439,7 @@ export async function mountEnomeraPlatform(rootEl) {
     `;
   }
 
-  // Um nome e uma foto só: os do perfil profissional (os mesmos do Ambo, Minne e Etha).
+  // Um nome e uma foto só: os do perfil profissional (os mesmos do Agendamento, Consultório e Site).
   function profileName() { return state.profileData?.profile?.displayName || state.me?.account?.displayName || state.me?.user?.fullName || ''; }
   function profilePhoto() { return state.profileData?.profile?.photoUrl || ''; }
 
@@ -497,7 +497,7 @@ export async function mountEnomeraPlatform(rootEl) {
     `;
   }
 
-  // Link do Ambo legível (sem "?pro=" cru): mesmo texto do /configurar.
+  // Link do Agendamento legível (sem "?pro=" cru): mesmo texto do /configurar.
   function amboLinkLabel(slug) {
     const base = APP_ORIGINS.ambo.replace(/^https?:\/\//, '').replace(/\/+$/, '');
     return `${base}/?pro=${slug}`;
@@ -529,13 +529,13 @@ export async function mountEnomeraPlatform(rootEl) {
       }[prod];
       const actions = {
         ambo: `<button type="button" class="eno-btn eno-btn-ambo" data-launch="ambo" data-path="/?pro=${encodeURIComponent(s.account.slug)}&visao=profissional">Ver como o paciente vê ↗</button>
-               <button type="button" class="eno-btn eno-btn-sec" data-launch="ambo" data-path="/operacao">Abrir agenda do Ambo ↗</button>`,
-        minne: `<button type="button" class="eno-btn eno-btn-minne" data-launch="minne" data-path="/?modo=ao-vivo">Abrir Minne ↗</button>
+               <button type="button" class="eno-btn eno-btn-sec" data-launch="ambo" data-path="/operacao">Abrir minha agenda ↗</button>`,
+        minne: `<button type="button" class="eno-btn eno-btn-minne" data-launch="minne" data-path="/?modo=ao-vivo">Abrir Consultório ↗</button>
                 <button type="button" class="eno-btn eno-btn-sec" data-launch="minne" data-path="/?modo=ao-vivo&aba=importar">Importar prontuários ↗</button>`,
-        etha: `<button type="button" class="eno-btn eno-btn-etha" data-launch="etha" data-path="/?modo=ao-vivo">Abrir Etha ↗</button>
+        etha: `<button type="button" class="eno-btn eno-btn-etha" data-launch="etha" data-path="/?modo=ao-vivo">Abrir Site ↗</button>
                <button type="button" class="eno-btn eno-btn-sec" data-launch="helena" data-path="/?site=${encodeURIComponent(s.account.slug)}">Ver site publicado ↗</button>`,
       }[prod];
-      const offer = isPilot() ? `Ativar ${name} grátis` : prod === 'etha' ? 'Adicionar site Etha' : 'Contratar ou testar 30 dias grátis';
+      const offer = isPilot() ? `Ativar ${name} grátis` : prod === 'etha' ? 'Adicionar Enomera Site' : 'Contratar ou testar 30 dias grátis';
       return `
         <article class="eno-card ${ent?.canReadExport ? `eno-card-${prod}` : ''}">
           ${pill}
@@ -661,7 +661,7 @@ export async function mountEnomeraPlatform(rootEl) {
       return `
         <span class="eno-pill eno-pill-ok">PILOTO GRATUITO</span>
         <h2 class="eno-h2">Tudo grátis até o lançamento</h2>
-        <p class="eno-muted">Como convidado do piloto, você usa todos os serviços sem custo até ${esc(pilotUntil())}: planos, combos, anual e a implantação Sob medida da Etha. Nenhum cartão é pedido e nenhuma fatura é gerada.</p>
+        <p class="eno-muted">Como convidado do piloto, você usa todos os serviços sem custo até ${esc(pilotUntil())}: planos, combos, anual e a implantação Site Sob medida. Nenhum cartão é pedido e nenhuma fatura é gerada.</p>
         <p class="eno-muted">Antes do lançamento avisamos com antecedência. Nada é cobrado sem você escolher.</p>
       `;
     }
@@ -717,7 +717,7 @@ export async function mountEnomeraPlatform(rootEl) {
       <section class="eno-card eno-panel-enter" style="max-width:760px">
         <span class="eno-pill eno-pill-ok">VOCÊ ESTÁ NO PILOTO</span>
         <h1 class="eno-h1">Obrigado por testar a Enomera</h1>
-        <p class="eno-muted">Todos os serviços estão liberados sem custo até ${esc(pilotUntil())}. Use Ambo, Minne e Etha como usaria no dia a dia; o que te prende e o que te atrapalha é exatamente o que queremos aprender.</p>
+        <p class="eno-muted">Todos os serviços estão liberados sem custo até ${esc(pilotUntil())}. Use Agendamento, Consultório e Site como usaria no dia a dia; o que te prende e o que te atrapalha é exatamente o que queremos aprender.</p>
         <p class="eno-muted">Registramos só como você usa as telas (cliques, tempo e erros), nunca conteúdo clínico. Detalhes em <a class="eno-link" href="/privacidade#piloto">Privacidade</a>.</p>
         <div class="eno-btn-row"><a class="eno-btn eno-btn-sec" href="/piloto/como-funciona?next=%2Fportal">Ver como os serviços funcionam</a></div>
       </section>`;
@@ -730,7 +730,7 @@ export async function mountEnomeraPlatform(rootEl) {
         <form id="eno-pilot-form" class="eno-list">
           <div class="eno-field"><label for="pl-name">Nome completo</label><input id="pl-name" name="fullName" class="eno-input" required value="${esc(state.me?.user?.fullName || '')}"></div>
           <div class="eno-field"><label for="pl-email">E-mail</label><input id="pl-email" name="email" type="email" class="eno-input" required value="${esc(state.me?.user?.email || '')}"></div>
-          <div class="eno-field"><div class="eno-label-row"><label for="pl-notes">O que deseja avaliar?</label><span class="eno-opt-tag">(opcional)</span></div><input id="pl-notes" name="notes" class="eno-input" placeholder="Ex.: agendamento no Ambo e prontuário no Minne"></div>
+          <div class="eno-field"><div class="eno-label-row"><label for="pl-notes">O que deseja avaliar?</label><span class="eno-opt-tag">(opcional)</span></div><input id="pl-notes" name="notes" class="eno-input" placeholder="Ex.: agendamento no Agendamento e prontuário no Consultório"></div>
           <button type="submit" class="eno-btn">Registrar interesse no piloto (sem cobrança)</button>
         </form>
       </section>
@@ -1547,7 +1547,7 @@ export async function mountEnomeraPlatform(rootEl) {
           onlineMeetingUrl: fd.get('onlineMeetingUrl'),
         },
       });
-      if (res.ok) { state.feedback = { tone: 'ok', text: 'Perfil salvo no backend (refletido no Ambo e Minne).' }; await refreshSessionAndData(); }
+      if (res.ok) { state.feedback = { tone: 'ok', text: 'Perfil salvo no backend (refletido no Agendamento e Consultório).' }; await refreshSessionAndData(); }
     });
 
     rootEl.querySelector('#eno-block-form')?.addEventListener('submit', async (ev) => {

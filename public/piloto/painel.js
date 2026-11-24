@@ -4,7 +4,7 @@
   var TOKEN_KEY = 'enomera_session_token_v1';
   var main = document.getElementById('pn');
   var state = { dias: 14, teste: false, data: null, sort: { key: 'activeMs', dir: -1 }, heat: { product: '', screen: '', participant: '', form: '' }, newLink: null, view: '', sobFilter: 'open' };
-  var PRODUCTS = { enomera: 'Enomera', ambo: 'Ambo', minne: 'Minne', etha: 'Etha', site: 'Site da profissional' };
+  var PRODUCTS = { enomera: 'Enomera', ambo: 'Agendamento', minne: 'Consultório', etha: 'Site', site: 'Site da profissional' };
   var reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   try { localStorage.setItem('eno_uso_off', '1'); } catch (e) {}
 
@@ -198,7 +198,7 @@
       '<form class="pn-form-inline" id="pn-new-invite" novalidate><div class="pl-field"><label for="ni-label">Novo convite para</label><input id="ni-label" maxlength="60" placeholder="Ex.: Convidado 3 · psicóloga de Recife" aria-describedby="ni-err"><p class="pl-err" id="ni-err"></p></div><button class="pl-btn" type="submit">Criar link</button></form>';
   }
 
-  // ── Etha Sob medida ──
+  // ── Site Sob medida ──
   var SITES = 'https://etha-enomera-sites.vercel.app/';
   var SOB_STATUS = { 'new': ['Novo', ''], production: ['Em produção', 'warn'], delivered: ['Entregue', 'ok'] };
   var PUBLICOS = { adultos: 'Adultos', adolescentes: 'Adolescentes', criancas: 'Crianças', casais: 'Casais', familias: 'Famílias', idosos: 'Pessoas idosas' };
@@ -250,10 +250,10 @@
       [['open', 'Em aberto', c['new'] + c.production], ['new', 'Novos', c['new']], ['production', 'Em produção', c.production], ['delivered', 'Entregues', c.delivered], ['all', 'Todos', c.all]].map(function (x) {
         return '<button type="button" data-sob-filter="' + x[0] + '" aria-pressed="' + (f === x[0]) + '">' + x[1] + ' <b class="num">' + x[2] + '</b></button>';
       }).join('') + '</div>';
-    var body = !all.length ? '<div class="pn-empty">Nenhum pedido Sob medida ainda. Ele aparece aqui assim que alguém escolhe Sob medida na Etha, e o material chega junto quando a pessoa envia.</div>'
+    var body = !all.length ? '<div class="pn-empty">Nenhum pedido Sob medida ainda. Ele aparece aqui assim que alguém escolhe Site Sob medida, e o material chega junto quando a pessoa envia.</div>'
       : !shown.length ? '<div class="pn-empty">Nada nesta lista agora.</div>'
       : '<div class="pn-orders pl-stagger">' + shown.map(orderCard).join('') + '</div>';
-    return '<div class="pn-head"><div><h1>Etha Sob medida</h1><p>Sites feitos pela equipe. O prazo é de 2 dias úteis a partir do envio do material, até o fim do dia. Abra um pedido para ver e baixar tudo o que a pessoa mandou.</p></div>' +
+    return '<div class="pn-head"><div><h1>Site Sob medida</h1><p>Sites feitos pela equipe. O prazo é de 2 dias úteis a partir do envio do material, até o fim do dia. Abra um pedido para ver e baixar tudo o que a pessoa mandou.</p></div>' +
       (c.late ? '<span class="pn-chip bad">' + c.late + (c.late === 1 ? ' atrasado' : ' atrasados') + '</span>' : '') + '</div>' + seg + '<div id="pn-sob-list">' + body + '</div>';
   }
 
@@ -310,7 +310,7 @@
     }).join('') + '</ol></div>' +
       '<div class="pn-due ' + dt[1] + '"><span class="track"><span class="fill" style="width:' + duePct(o).toFixed(1) + '%"></span></span><span class="txt">' + esc(dt[0]) + '</span></div>' +
       '<div class="pn-actions">' + actions + '</div><p class="pl-err" id="sob-err" role="alert"></p>' +
-      '<p class="small muted">' + (o.status === 'delivered' ? 'Entregue: o site da pessoa sai sem a marca Etha. Reabrir volta o pedido para produção.' : 'Ao marcar como entregue, o site da pessoa passa a sair sem a marca Etha.') + '</p>';
+      '<p class="small muted">' + (o.status === 'delivered' ? 'Entregue: o site da pessoa sai sem a marca Enomera. Reabrir volta o pedido para produção.' : 'Ao marcar como entregue, o site da pessoa passa a sair sem a marca Enomera.') + '</p>';
   }
 
   function filesBlock(d) {
@@ -344,7 +344,7 @@
     var ident = row('Cores', colors ? '<span class="pn-swatches">' + colors + '</span>' : '') + row('Sensação', chips(list(id.styles))) + row('Páginas', chips(list(id.pages))) + row('Domínio', esc(id.domain || d.site.domain || ''));
     var extra = row('Referências', refs.length ? '<span class="pn-links">' + refs.map(function (r) { return link(urlish(r), r); }).join('') + '</span>' : '') + row('Observações', txt(sm.notes));
     var content = d.content || {}; var full = answersBlock(an) + answersBlock(content.answers, Object.keys(an));
-    return '<div class="pn-drawer-head"><div><p class="small muted">Etha Sob medida · <a href="' + esc(SITES + d.slug) + '" target="_blank" rel="noopener noreferrer">/' + esc(d.slug) + '</a></p><h2 id="pn-drawer-title" style="font-size:22px">' + esc(d.name) + '</h2></div><button type="button" class="pl-btn is-quiet" data-close aria-label="Fechar">Fechar</button></div>' +
+    return '<div class="pn-drawer-head"><div><p class="small muted">Site Sob medida · <a href="' + esc(SITES + d.slug) + '" target="_blank" rel="noopener noreferrer">/' + esc(d.slug) + '</a></p><h2 id="pn-drawer-title" style="font-size:22px">' + esc(d.name) + '</h2></div><button type="button" class="pl-btn is-quiet" data-close aria-label="Fechar">Fechar</button></div>' +
       '<div class="pn-drawer-body pl-stagger">' +
       '<section class="pn-dsec pn-statusbox" id="sob-status">' + stepper(d) + '</section>' +
       '<div class="pn-quick"><button type="button" class="pn-mini" data-copy-brief>Copiar briefing em texto</button><a class="pn-mini is-quiet" href="' + esc(SITES + d.slug) + '" target="_blank" rel="noopener noreferrer">Ver site atual</a></div>' +
@@ -369,7 +369,7 @@
   var sobCur = null;
   function openSob(id) {
     lastFocus = document.activeElement; sobCur = null;
-    drawer.innerHTML = '<div class="pn-drawer-head"><div><p class="small muted">Etha Sob medida</p><h2 id="pn-drawer-title" style="font-size:22px">Carregando pedido…</h2></div><button type="button" class="pl-btn is-quiet" data-close aria-label="Fechar">Fechar</button></div><div class="pn-drawer-body"><div class="pn-skel"></div><div class="pn-skel tall"></div></div>';
+    drawer.innerHTML = '<div class="pn-drawer-head"><div><p class="small muted">Site Sob medida</p><h2 id="pn-drawer-title" style="font-size:22px">Carregando pedido…</h2></div><button type="button" class="pl-btn is-quiet" data-close aria-label="Fechar">Fechar</button></div><div class="pn-drawer-body"><div class="pn-skel"></div><div class="pn-skel tall"></div></div>';
     showDrawer();
     api('/api/v1/pilot/admin/etha-sob-medida/' + encodeURIComponent(id)).then(function (r) {
       if (drawer.hidden) return;

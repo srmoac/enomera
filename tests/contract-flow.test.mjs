@@ -45,7 +45,7 @@ test.after(async () => {
 
 test('Resumo aprovado: produtos, desconto como linha, periodicidade e cobrança hoje R$ 0', () => {
   const combo = buildContractSummary({ products: ['minne', 'ambo'] });
-  assert.equal(combo.label, 'Ambo + Minne');
+  assert.equal(combo.label, 'Agendamento + Consultório');
   assert.equal(combo.billingLabel, 'Mensal');
   assert.deepEqual(combo.lines.map((l) => l.amountCents), [3900, 5900]);
   assert.equal(combo.discount.amountCents, -1900);
@@ -55,7 +55,7 @@ test('Resumo aprovado: produtos, desconto como linha, periodicidade e cobrança 
 
   const solo = buildContractSummary({ products: ['ambo'] });
   assert.equal(solo.discount, null);
-  assert.match(solo.discountHint, /Minne/);
+  assert.match(solo.discountHint, /Consultório/);
   assert.equal(n(solo.total), 'R$ 39,00/mês');
 
   const lic = buildContractSummary({ products: ['ambo', 'minne'], billing: 'permanent' });

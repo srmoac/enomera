@@ -84,9 +84,9 @@ async function notifyPatientOfConfirmation(db, account, out) {
   try {
     const delivery = await sendTransactionalEmail(db, {
       recipient,
-      subject: `Consulta confirmada com ${account.display_name} · Ambo`,
+      subject: `Consulta confirmada com ${account.display_name} · Agendamento`,
       textBody: `${account.display_name} confirmou sua consulta ${modality}: ${when}.${link ? ` Acompanhe ou peça remarcação em ${link}` : ''}`,
-      htmlBody: `<p><b>${escHtml(account.display_name)}</b> confirmou sua consulta ${modality}.</p><p><b>${escHtml(when)}</b></p>${link ? `<p><a href="${escHtml(link)}">Acompanhar ou pedir remarcação no Ambo</a></p>` : ''}`,
+      htmlBody: `<p><b>${escHtml(account.display_name)}</b> confirmou sua consulta ${modality}.</p><p><b>${escHtml(when)}</b></p>${link ? `<p><a href="${escHtml(link)}">Acompanhar ou pedir remarcação no Agendamento</a></p>` : ''}`,
       purpose: 'ambo_request_confirmed',
     });
     return { sent: Boolean(delivery.sentExternally), recipient, reason: delivery.sentExternally ? null : delivery.deliveryStatus };
@@ -114,9 +114,9 @@ async function notifyPatientOfCancellation(db, account, out) {
   try {
     const delivery = await sendTransactionalEmail(db, {
       recipient,
-      subject: `Consulta cancelada com ${account.display_name} · Ambo`,
+      subject: `Consulta cancelada com ${account.display_name} · Agendamento`,
       textBody: `${account.display_name} cancelou a consulta de ${when}.${link ? ` Para escolher outro horário, abra ${link}` : ''}`,
-      htmlBody: `<p><b>${escHtml(account.display_name)}</b> cancelou a consulta de <b>${escHtml(when)}</b>.</p>${link ? `<p><a href="${escHtml(link)}">Escolher outro horário no Ambo</a></p>` : ''}<p>Este e-mail serve como comprovante do cancelamento.</p>`,
+      htmlBody: `<p><b>${escHtml(account.display_name)}</b> cancelou a consulta de <b>${escHtml(when)}</b>.</p>${link ? `<p><a href="${escHtml(link)}">Escolher outro horário no Agendamento</a></p>` : ''}<p>Este e-mail serve como comprovante do cancelamento.</p>`,
       purpose: 'ambo_appointment_cancelled',
     });
     return { sent: Boolean(delivery.sentExternally), recipient, reason: delivery.sentExternally ? null : delivery.deliveryStatus };
@@ -268,7 +268,7 @@ function requireAuth(auth) {
   return auth;
 }
 
-// Ambo: a página pública só recebe pedidos depois que a profissional revisa atendimento e horários
+// Agendamento: a página pública só recebe pedidos depois que a profissional revisa atendimento e horários
 // e abre a agenda (22 nov 2026). Contas de demonstração já nascem abertas.
 // Valores-padrão das colunas (migração 001): nunca são dados que a profissional informou.
 const AMBO_DEFAULT_ADDRESS = 'Pinheiros, São Paulo - SP (endereço completo após confirmação)';
@@ -352,7 +352,7 @@ async function requireProfessional(db, auth, { product = null, write = false, cl
 function requireOperator(auth) {
   requireAuth(auth);
   if (auth.user.role !== 'operator' || auth.session.actor_type !== 'operator') {
-    throw Object.assign(new Error('Acesso restrito à operação da Etha.'), { status: 403, code: 'FORBIDDEN_OPERATOR' });
+    throw Object.assign(new Error('Acesso restrito à operação do Site.'), { status: 403, code: 'FORBIDDEN_OPERATOR' });
   }
   return auth;
 }
@@ -381,7 +381,7 @@ async function buildPublicSiteDto(db, account) {
     if (v) published = { versionNumber: v.version_number, publishedAt: v.published_at, content: JSON.parse(v.content_json) };
   }
   const ctaMode = amboActive && (!proj || proj.cta_mode === 'ambo') ? 'ambo' : 'custom';
-  // Essencial = modelo com a marca Etha. Só o Sob medida entregue é 100% da pessoa.
+  // Essencial = modelo com a marca Enomera. Só o Sob medida entregue é 100% da pessoa.
   let briefing = {};
   try { briefing = JSON.parse(proj?.briefing_json || '{}') || {}; } catch { briefing = {}; }
   const selection = await readAccountSelection(db, account.id).catch(() => null);
@@ -404,7 +404,7 @@ async function buildPublicSiteDto(db, account) {
     amboProfileSlug: amboActive ? account.slug : null,
     customContactUrl: ctaMode === 'custom' ? (proj?.custom_contact_url || published?.content?.customContactUrl || '') : null,
     contactUrl: proj?.custom_contact_url || published?.content?.customContactUrl || null,
-    authorship: 'Site por Etha',
+    authorship: 'Site por Enomera',
     versionNumber: published?.versionNumber || null,
     publishedAt: published?.publishedAt || null,
     domainStatus: proj?.domain_status || 'staging_only',
@@ -924,7 +924,7 @@ export async function handleApiRequest(req, res, customDb = null) {
         targetContact: auth.user.email,
         userId: auth.user.id,
         accountId: auth.account.id,
-        subject: 'Verificação reforçada · Acesso clínico Minne',
+        subject: 'Verificação reforçada · Acesso clínico Consultório',
         ttlMinutes: 10,
       });
       return json(res, 200, { ok: true, expiresAt: ver.expiresAt, delivery: ver.delivery });
@@ -944,7 +944,7 @@ export async function handleApiRequest(req, res, customDb = null) {
       requireAuth(auth);
       const body = await readJsonBody(req);
       const targetOrigin = String(body.targetOrigin || '');
-      if (auth.session.actor_type !== 'professional') throw Object.assign(new Error('Use o acesso do paciente no Ambo.'), { status: 403, code: 'FORBIDDEN_ACTOR' });
+      if (auth.session.actor_type !== 'professional') throw Object.assign(new Error('Use o acesso do paciente no Agendamento.'), { status: 403, code: 'FORBIDDEN_ACTOR' });
       if (!isAllowedOrigin(targetOrigin)) {
         throw Object.assign(new Error('Origem de destino não autorizada para passagem autenticada.'), { status: 400, code: 'INVALID_TARGET_ORIGIN' });
       }
@@ -1224,8 +1224,8 @@ export async function handleApiRequest(req, res, customDb = null) {
         ok: true,
         entitlements: await getAccountEntitlements(db, auth.account.id),
         note: action === 'cancel'
-          ? `${({ ambo: 'Ambo', minne: 'Minne', etha: 'Etha' })[product] || product} ficou só para leitura e exportação. Os outros serviços continuam ativos e nenhum dado foi apagado.`
-          : `${({ ambo: 'Ambo', minne: 'Minne', etha: 'Etha' })[product] || product} reativado.`,
+          ? `${({ ambo: 'Agendamento', minne: 'Consultório', etha: 'Site' })[product] || product} ficou só para leitura e exportação. Os outros serviços continuam ativos e nenhum dado foi apagado.`
+          : `${({ ambo: 'Agendamento', minne: 'Consultório', etha: 'Site' })[product] || product} reativado.`,
       });
     }
 
@@ -1251,10 +1251,10 @@ export async function handleApiRequest(req, res, customDb = null) {
       const pendingSyncs = (await db.all("SELECT * FROM sync_events WHERE account_id = ? AND status != 'synced' ORDER BY created_at DESC LIMIT 10", auth.account.id));
 
       let nextAction = { label: 'Escolher serviços ou começar 30 dias grátis', product: 'enomera' };
-      if (hasAmbo && !hasMinne) nextAction = { label: 'Configurar disponibilidade e link no Ambo', product: 'ambo' };
-      else if (hasMinne && pendingRequests > 0) nextAction = { label: `Responder ${pendingRequests} ${pendingRequests === 1 ? 'solicitação' : 'solicitações'} no Minne`, product: 'minne' };
-      else if (hasAmbo && hasMinne) nextAction = { label: 'Abrir Ambo para compartilhar perfil ou Minne para agenda', product: 'ambo' };
-      else if (hasEtha && !hasAmbo && !hasMinne) nextAction = { label: 'Acompanhar seu site na Etha', product: 'etha' };
+      if (hasAmbo && !hasMinne) nextAction = { label: 'Configurar disponibilidade e link no Agendamento', product: 'ambo' };
+      else if (hasMinne && pendingRequests > 0) nextAction = { label: `Responder ${pendingRequests} ${pendingRequests === 1 ? 'solicitação' : 'solicitações'} no Consultório`, product: 'minne' };
+      else if (hasAmbo && hasMinne) nextAction = { label: 'Abrir Agendamento para compartilhar perfil ou Consultório para agenda', product: 'ambo' };
+      else if (hasEtha && !hasAmbo && !hasMinne) nextAction = { label: 'Acompanhar seu site', product: 'etha' };
 
       return json(res, 200, {
         account: { id: auth.account.id, slug: auth.account.slug, displayName: auth.account.display_name, crpOrCrm: auth.account.crp_or_crm },
@@ -1420,7 +1420,7 @@ export async function handleApiRequest(req, res, customDb = null) {
       if (!acc) throw Object.assign(new Error('Profissional não encontrado.'), { status: 404, code: 'PROFESSIONAL_NOT_FOUND' });
       const ents = await getAccountEntitlements(db, acc.id);
       if (!ents.ambo?.canWrite) {
-        throw Object.assign(new Error('O agendamento Ambo não está ativo para este perfil.'), { status: 404, code: 'AMBO_INACTIVE' });
+        throw Object.assign(new Error('O Agendamento não está ativo para este perfil.'), { status: 404, code: 'AMBO_INACTIVE' });
       }
       const amboState = amboSetupOf(acc);
       const amboFresh = !amboState.demo && !amboState.reviewedAt && !amboState.open;
@@ -1503,7 +1503,7 @@ export async function handleApiRequest(req, res, customDb = null) {
       const slug = String(body.professionalSlug || '').trim();
       const contact = String(body.contact || '').trim().toLowerCase();
       if (!contact) throw Object.assign(new Error('Informe o e-mail ou telefone usado na solicitação.'), { status: 400, code: 'CONTACT_REQUIRED' });
-      // Sem profissional (entrada direta do Ambo): usa a conta com a atividade mais recente deste contato.
+      // Sem profissional (entrada direta do Agendamento): usa a conta com a atividade mais recente deste contato.
       // A resposta é a mesma com ou sem cadastro, então não revela com quem a pessoa se consulta.
       const acc = slug
         ? (await db.get('SELECT * FROM professional_accounts WHERE slug = ?', slug))
@@ -1521,7 +1521,7 @@ export async function handleApiRequest(req, res, customDb = null) {
         targetContact: contact,
         accountId: acc.id,
         patientId: pat?.id || null,
-        subject: `Código de acesso ao Ambo · ${acc.display_name}`,
+        subject: `Código de acesso ao Agendamento · ${acc.display_name}`,
         ttlMinutes: 15,
       });
       return json(res, 200, { ok: true, expiresAt: ver.expiresAt, delivery: ver.delivery });
@@ -1676,12 +1676,12 @@ export async function handleApiRequest(req, res, customDb = null) {
       const delivery = await sendTransactionalEmail(db, {
         channel: body.channel || 'email',
         recipient: targetContact,
-        subject: `Convite para agendar com ${proName} · Ambo`,
+        subject: `Convite para agendar com ${proName} · Agendamento`,
         textBody: inviteUrl
           ? `${proName} convidou você para escolher um horário. Abra o link (uso único, válido até ${expiresLabel}): ${inviteUrl}`
           : `Use seu convite de uso único para escolher um horário com ${proName} (válido até ${expiresLabel}): ${rawToken}`,
         htmlBody: inviteUrl
-          ? `<p><b>${escHtml(proName)}</b> convidou você para escolher um horário.</p><p><a href="${escHtml(inviteUrl)}">Escolher horário no Ambo</a></p><p>O convite é de uso único e vale até ${expiresLabel}.</p>`
+          ? `<p><b>${escHtml(proName)}</b> convidou você para escolher um horário.</p><p><a href="${escHtml(inviteUrl)}">Escolher horário no Agendamento</a></p><p>O convite é de uso único e vale até ${expiresLabel}.</p>`
           : `<p>Use seu convite de uso único para escolher um horário com <b>${escHtml(proName)}</b> (válido até ${expiresLabel}):</p><p><code>${rawToken}</code></p>`,
         purpose: 'ambo_invitation',
       });
@@ -1736,7 +1736,7 @@ export async function handleApiRequest(req, res, customDb = null) {
       return json(res, resData.idempotentReplay ? 200 : 201, resData);
     }
 
-    // Ambo Solo Professional Console (works WITHOUT Minne!)
+    // Agendamento Solo Professional Console (works WITHOUT Consultório!)
     if (method === 'GET' && pathname === '/api/v1/ambo/pro/overview') {
       await requireProfessional(db, auth, { product: 'ambo', write: false });
       const requests = await Promise.all((await db.all('SELECT * FROM consultation_requests WHERE account_id = ? ORDER BY created_at DESC', auth.account.id)).map(async (r) => ({
@@ -1769,7 +1769,7 @@ export async function handleApiRequest(req, res, customDb = null) {
       });
     }
 
-    // Configuração do atendimento no Ambo: modalidades, local, duração, valor e horários semanais.
+    // Configuração do atendimento no Agendamento: modalidades, local, duração, valor e horários semanais.
     // `open: true` abre a página pública para pedidos; `open: false` fecha sem apagar nada.
     if (method === 'PUT' && pathname === '/api/v1/ambo/pro/setup') {
       await requireProfessional(db, auth, { product: 'ambo', write: true });
@@ -2252,7 +2252,7 @@ export async function handleApiRequest(req, res, customDb = null) {
       if (!fileRow) throw Object.assign(new Error('Arquivo não encontrado.'), { status: 404, code: 'FILE_NOT_FOUND' });
 
       if (fileRow.scope === 'minne_clinical') {
-        // STRICTLY professional with clinical membership on THAT account — NEVER patient or Etha operator!
+        // STRICTLY professional with clinical membership on THAT account — NEVER patient or Site operator!
         if (auth.session.actor_type !== 'professional' || auth.account?.id !== fileRow.account_id || !auth.membership?.can_access_clinical) {
           await writeAudit(db, { actorUserId: auth.user.id, actorType: auth.session.actor_type, accountId: fileRow.account_id, action: 'file.download', resourceType: 'private_file', resourceId: fileRow.id, outcome: 'deny' });
           throw Object.assign(new Error('Acesso negado ao arquivo clínico privado.'), { status: 403, code: 'FORBIDDEN_CLINICAL_FILE' });
@@ -2307,7 +2307,7 @@ export async function handleApiRequest(req, res, customDb = null) {
         INSERT INTO etha_waitlist (id, user_id, full_name, email, desired_format, notes, status, created_at)
         VALUES (?, ?, ?, ?, ?, ?, 'waiting', ?)
       `, id, auth?.user?.id || null, fullName, email, body.desiredFormat === 'multi_page' ? 'multi_page' : 'one_page', String(body.notes || ''), nowIso()));
-      return json(res, 201, { id, status: 'waiting', chargedCents: 0, message: 'Você entrou na lista de espera da Etha sem qualquer cobrança.' });
+      return json(res, 201, { id, status: 'waiting', chargedCents: 0, message: 'Você entrou na lista de espera do Site sem qualquer cobrança.' });
     }
 
     if (method === 'GET' && pathname === '/api/v1/etha/project') {
@@ -2352,7 +2352,7 @@ export async function handleApiRequest(req, res, customDb = null) {
       const blockers = [];
       if (!mergedBriefing.approach) blockers.push('Falta descrever abordagem e público atendido');
       if (fileIds.length === 0 && !mergedBriefing.photosConfirmed) blockers.push('Falta anexar foto profissional em alta resolução');
-      if (!body.ctaMode && !proj.cta_mode) blockers.push('Definir destino do botão de contato (Ambo ou canal próprio)');
+      if (!body.ctaMode && !proj.cta_mode) blockers.push('Definir destino do botão de contato (Agendamento ou canal próprio)');
 
       const nextStatus = blockers.length > 0 ? 'blocked_materials' : (proj.status === 'briefing' || proj.status === 'blocked_materials' ? 'in_production' : proj.status);
       const now = nowIso();
@@ -2418,7 +2418,7 @@ export async function handleApiRequest(req, res, customDb = null) {
         subheadline: z.string().max(2000).optional(), about: z.string().max(15000).optional(),
         ctaLabel: z.string().max(100).optional(), photoAssetId: z.string().nullable().optional(),
         customContactUrl: z.string().max(1000).optional(), crp: z.string().max(100).optional(),
-        // Etha por modelo (23/11): respostas guiadas que preenchem o modelo do site.
+        // Site por modelo (23/11): respostas guiadas que preenchem o modelo do site.
         answers: z.record(z.string(), z.any()).optional() }).parse(body.content || {});
       if (content.answers && JSON.stringify(content.answers).length > 20000) throw Object.assign(new Error('Respostas grandes demais.'), { status: 400, code: 'ANSWERS_TOO_LARGE' });
       if (content.photoAssetId) await requireOwnedPortrait(db, auth.account.id, content.photoAssetId);
@@ -2499,7 +2499,7 @@ export async function handleApiRequest(req, res, customDb = null) {
     if (method === 'POST' && opProjAction) {
       requireOperator(auth);
       const proj = (await db.get('SELECT * FROM etha_projects WHERE id = ?', opProjAction[1]));
-      if (!proj) throw Object.assign(new Error('Projeto Etha não encontrado.'), { status: 404, code: 'PROJECT_NOT_FOUND' });
+      if (!proj) throw Object.assign(new Error('Projeto Site não encontrado.'), { status: 404, code: 'PROJECT_NOT_FOUND' });
       const body = await readJsonBody(req);
       const now = nowIso();
       let createdVersionId = null;

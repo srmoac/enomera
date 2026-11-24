@@ -8,11 +8,11 @@ Versão piloto · 22 de novembro de 2026
 
 A Enomera é um conjunto de serviços digitais para profissionais independentes de psicologia e psiquiatria, criado e conduzido por Marcos Martins ("Enomera", "nós"). Os serviços são:
 
-- **Etha**: site profissional montado a partir das suas respostas a perguntas guiadas (Essencial) ou feito pela nossa equipe com o seu material (Sob medida).
-- **Ambo**: agendamento e área do paciente.
-- **Minne**: gestão clínica, com agenda, pacientes, registros e prontuário.
+- **Enomera Site**: site profissional montado a partir das suas respostas a perguntas guiadas (Essencial) ou feito pela nossa equipe com o seu material (Sob medida).
+- **Enomera Agendamento**: página para o paciente pedir consulta e área do paciente.
+- **Enomera Consultório**: gestão clínica, com agenda, pacientes, registros e prontuário.
 
-Estes Termos valem entre a Enomera e o profissional que cria uma conta ("você"). Pacientes que usam o Ambo também aceitam a parte destes Termos que trata do uso da área do paciente (item 9).
+Estes Termos valem entre a Enomera e o profissional que cria uma conta ("você"). Pacientes que usam o Agendamento também aceitam a parte destes Termos que trata do uso da área do paciente (item 9).
 
 ## 2. Aceite
 
@@ -26,9 +26,9 @@ Ao criar uma conta ou usar qualquer serviço, você declara que leu e aceita est
 
 ## 4. Piloto, teste e preços
 
-- Quem entra no piloto **por convite** usa todos os serviços, planos e a implantação Sob medida da Etha **sem custo até 31 de janeiro de 2027**, sem cadastrar cartão. Nenhuma cobrança é feita nesse período e nada passa a ser cobrado sem um aviso por e-mail com antecedência e a sua confirmação.
+- Quem entra no piloto **por convite** usa todos os serviços, planos e a implantação do Site Sob medida **sem custo até 31 de janeiro de 2027**, sem cadastrar cartão. Nenhuma cobrança é feita nesse período e nada passa a ser cobrado sem um aviso por e-mail com antecedência e a sua confirmação.
 - Fora do convite, os primeiros **30 dias são gratuitos**. Nenhuma cobrança é feita nesse período.
-- Ao fim do período gratuito, se você tiver escolhido continuar, a assinatura passa a ser cobrada pelo plano escolhido. Valores mensais do piloto: Ambo R$ 39; Etha R$ 49; Minne R$ 59; Ambo + Minne R$ 79; Ambo + Etha R$ 69; Etha + Minne R$ 89; os três R$ 99. O plano anual custa o equivalente a 10 mensalidades.
+- Ao fim do período gratuito, se você tiver escolhido continuar, a assinatura passa a ser cobrada pelo plano escolhido. Valores mensais do piloto: Agendamento R$ 39; Site R$ 49; Consultório R$ 59; Agendamento + Consultório R$ 79; Agendamento + Site R$ 69; Site + Consultório R$ 89; os três R$ 99. O plano anual custa o equivalente a 10 mensalidades.
 - Os pagamentos são processados pelo Asaas (Pix, boleto ou cartão). A Enomera não recebe nem guarda dados do seu cartão.
 - Podemos mudar preços com aviso de pelo menos 30 dias por e-mail. A mudança só vale a partir do ciclo seguinte ao aviso.
 
@@ -51,7 +51,7 @@ Ao criar uma conta ou usar qualquer serviço, você declara que leu e aceita est
 - Você é o responsável técnico pelo atendimento e pelo conteúdo que registra, inclusive pelo prontuário, nos termos das normas do seu conselho profissional (CFP ou CFM).
 - Em relação aos dados dos seus pacientes, você é o **controlador** e a Enomera é **operadora** (Lei 13.709/2018, LGPD). Cabe a você informar seus pacientes sobre o uso dos serviços e ter base legal para tratar os dados deles. O [Acordo de Tratamento de Dados](/privacidade#acordo) faz parte destes Termos.
 - Não use os serviços para conteúdo ilegal, para enviar mensagens não solicitadas ou para tentar acessar dados de outras contas.
-- Os textos, fotos e marcas que você publica na Etha precisam ser seus ou ter autorização de uso.
+- Os textos, fotos e marcas que você publica no Site precisam ser seus ou ter autorização de uso.
 
 ## 7. O que a Enomera se compromete a fazer
 
@@ -66,13 +66,13 @@ Ao criar uma conta ou usar qualquer serviço, você declara que leu e aceita est
 - Durante o piloto, os serviços podem ter falhas e mudanças. Faremos o possível para corrigir rapidamente e não perder dados.
 - Na medida permitida pela lei, a responsabilidade da Enomera por danos ligados aos serviços fica limitada ao valor pago por você nos 12 meses anteriores ao fato. Esse limite não se aplica a dolo, culpa grave ou a direitos do consumidor que a lei não permite limitar.
 
-## 9. Pacientes na área do Ambo
+## 9. Pacientes na área do Agendamento
 
-O paciente usa a área do Ambo a convite do profissional, para pedir e acompanhar consultas. O paciente deve informar dados verdadeiros e não compartilhar o acesso. Pedidos sobre dados clínicos devem ser feitos ao profissional responsável; a Enomera ajuda o profissional a atendê-los.
+O paciente usa a área do Agendamento a convite do profissional, para pedir e acompanhar consultas. O paciente deve informar dados verdadeiros e não compartilhar o acesso. Pedidos sobre dados clínicos devem ser feitos ao profissional responsável; a Enomera ajuda o profissional a atendê-los.
 
 ## 10. Propriedade intelectual
 
-O software, a marca Enomera e as marcas Etha, Ambo e Minne são da Enomera. O conteúdo que você cria (textos, fotos, registros) continua sendo seu; você nos autoriza a guardá-lo e exibi-lo apenas para prestar os serviços.
+O software, a marca Enomera e os serviços Enomera Site, Enomera Agendamento e Enomera Consultório são da Enomera. O conteúdo que você cria (textos, fotos, registros) continua sendo seu; você nos autoriza a guardá-lo e exibi-lo apenas para prestar os serviços.
 
 ## 11. Mudanças nestes Termos
 

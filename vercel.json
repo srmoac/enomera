@@ -46,6 +46,30 @@
     {
       "source": "/checkout",
       "destination": "/index.html"
+    },
+    {
+      "source": "/agendamento",
+      "destination": "https://ambo-enomera-preview.vercel.app/agendamento"
+    },
+    {
+      "source": "/agendamento/:path*",
+      "destination": "https://ambo-enomera-preview.vercel.app/agendamento/:path*"
+    },
+    {
+      "source": "/consultorio",
+      "destination": "https://minne-preview-enomera.vercel.app/consultorio"
+    },
+    {
+      "source": "/consultorio/:path*",
+      "destination": "https://minne-preview-enomera.vercel.app/consultorio/:path*"
+    },
+    {
+      "source": "/site",
+      "destination": "https://etha-enomera-preview.vercel.app/site"
+    },
+    {
+      "source": "/site/:path*",
+      "destination": "https://etha-enomera-preview.vercel.app/site/:path*"
     }
   ],
   "headers": [
@@ -61,6 +85,19 @@
           "value": "*"
         }
       ]
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "enomera-painel.vercel.app"
+        }
+      ],
+      "destination": "/portal",
+      "permanent": false
     }
   ]
 }

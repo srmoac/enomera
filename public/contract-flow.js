@@ -6,9 +6,9 @@ import { otpFieldHTML } from './otp-field.js';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 export const PRODUCT_INFO = {
-  ambo: { name: 'Ambo', description: 'Agendamento e área do paciente', monthly: 'R$ 39', annual: 'R$ 390' },
-  minne: { name: 'Minne', description: 'Gestão clínica, agenda e prontuários', monthly: 'R$ 59', annual: 'R$ 590' },
-  etha: { name: 'Etha', description: 'Site profissional e hospedagem', monthly: 'R$ 49', annual: 'R$ 490' },
+  ambo: { name: 'Agendamento', description: 'Página para o paciente pedir consulta, com lembretes', monthly: 'R$ 39', annual: 'R$ 390' },
+  minne: { name: 'Consultório', description: 'Pacientes, agenda do dia e prontuários', monthly: 'R$ 59', annual: 'R$ 590' },
+  etha: { name: 'Site', description: 'Seu site profissional, com hospedagem', monthly: 'R$ 49', annual: 'R$ 490' },
 };
 
 const ORDER = ['ambo', 'minne', 'etha'];
@@ -22,15 +22,15 @@ export function isPilotFree() { return PILOT_FREE; }
 // Planos prontos (preços aprovados em 22/11: 39 · 79 · 99 por mês; anual = 10 mensalidades).
 // "Completo" é o recomendado: é o que mais economiza e cobre site, agenda e prontuário.
 export const PLANS = [
-  { id: 'agenda', name: 'Agenda', products: ['ambo'], monthly: 39, separate: 39, for: 'Para começar a receber pedidos de consulta.',
+  { id: 'agenda', name: 'Agendamento', products: ['ambo'], monthly: 39, separate: 39, for: 'Para começar a receber pedidos de consulta.',
     items: ['Página de agendamento com seus horários', 'Área do paciente com lembretes', 'Pedidos de primeira consulta'] },
-  { id: 'consultorio', name: 'Consultório', products: ['ambo', 'minne'], monthly: 79, separate: 98, for: 'Agenda e prontuário no mesmo lugar.',
-    items: ['Tudo do Agenda', 'Prontuários e evolução clínica (Minne)', 'Agenda do dia ligada aos pedidos'] },
+  { id: 'consultorio', name: 'Agendamento + Consultório', products: ['ambo', 'minne'], monthly: 79, separate: 98, for: 'Agenda e prontuário no mesmo lugar.',
+    items: ['Tudo do Agendamento', 'Prontuários e evolução clínica (Enomera Consultório)', 'Agenda do dia ligada aos pedidos'] },
   { id: 'completo', name: 'Completo', products: ['ambo', 'minne', 'etha'], monthly: 99, separate: 147, recommended: true, for: 'Site, agenda e prontuário: a prática inteira.',
-    items: ['Tudo do Consultório', 'Site profissional (Etha)', 'Hospedagem e atualizações'] },
+    items: ['Tudo de Agendamento + Consultório', 'Site profissional (Enomera Site)', 'Hospedagem e atualizações'] },
 ];
 
-// Etha em dois níveis (22/11): Essencial sem taxa; Sob medida com implantação única.
+// Site em dois níveis (22/11): Essencial sem taxa; Sob medida com implantação única.
 export const ETHA_SERVICES = [
   { id: 'essencial', name: 'Essencial', price: 'Incluído', detail: 'Você responde 6 perguntas e o site sai do nosso modelo, com as suas informações.' },
   { id: 'sob_medida', name: 'Sob medida', price: '+ R$ 790 único', detail: 'A equipe monta o site com você: textos, fotos e páginas. Até 3x, cobrado só quando você aprovar o site.' },
@@ -206,7 +206,7 @@ function renderCompactSummary(contract) {
 function footerNotes() {
   if (PILOT_FREE) return `
     <footer class="eno-flow-foot">
-      <p>Piloto gratuito: todos os planos, combos e a implantação da Etha sem custo até o lançamento.</p>
+      <p>Piloto gratuito: todos os planos, combos e a implantação do Site sem custo até o lançamento.</p>
       <small>Nenhum cartão e nenhuma cobrança.</small>
     </footer>
   `;
@@ -224,9 +224,9 @@ function renderOwnedAll() {
     <section class="eno-flow eno-flow-choice" data-flow-step="choice">
       <div class="eno-flow-main">
         <h1 class="eno-flow-title">Você já tem o plano Completo.</h1>
-        <p class="eno-flow-lead">Ambo, Minne e Etha estão ativos na sua conta. Não há nada para contratar de novo.</p>
+        <p class="eno-flow-lead">Agendamento, Consultório e Site estão ativos na sua conta. Não há nada para contratar de novo.</p>
         <div class="eno-plan-list">
-          ${['ambo', 'minne', 'etha'].map((p) => `<div class="eno-plan is-current"><span class="eno-plan-head"><span class="eno-plan-radio" aria-hidden="true">✓</span><span class="eno-plan-name">${PRODUCT_INFO[p].name}</span><span class="eno-plan-badge">Ativo</span></span><span class="eno-plan-for">${{ ambo: 'Agendamento online e pedidos', minne: 'Pacientes, agenda e prontuário', etha: 'Seu site profissional' }[p]}</span></div>`).join('')}
+          ${['ambo', 'minne', 'etha'].map((p) => `<div class="eno-plan is-current"><span class="eno-plan-head"><span class="eno-plan-radio" aria-hidden="true">✓</span><span class="eno-plan-name">${PRODUCT_INFO[p].name}</span><span class="eno-plan-badge">Ativo</span></span><span class="eno-plan-for">${{ ambo: 'Pedidos de consulta online', minne: 'Pacientes, agenda e prontuário', etha: 'Seu site profissional' }[p]}</span></div>`).join('')}
         </div>
         <div class="eno-btn-row" style="margin-top:20px">
           <a class="eno-btn" href="/configurar">Configurar meus serviços</a>
@@ -350,7 +350,7 @@ export function renderReview({ combo, contract, me, activating }) {
   const billing = combo.viewMode === 'permanent' ? 'permanent' : 'monthly';
   const chosen = combo.products;
   const names = namesWithE(chosen);
-  // Mostra Ambo e Minne sempre; o que não foi escolhido aparece como "não incluído".
+  // Mostra Agendamento e Consultório sempre; o que não foi escolhido aparece como "não incluído".
   const cards = ORDER.filter((p) => chosen.includes(p));
   const cta = `
     <div class="eno-slide-host" id="eno-checkout-slide" data-slide-state="${activating ? 'busy' : 'idle'}" data-slide-label="${PILOT_FREE ? 'Deslize para ativar grátis' : 'Deslize para ativar'}"></div>

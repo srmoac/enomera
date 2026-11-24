@@ -31,7 +31,7 @@ function fmtDur(ms) {
   if (m < 60) return `${m} min`;
   return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')} min`;
 }
-const PNAME = { enomera: 'Enomera', ambo: 'Ambo', minne: 'Minne', etha: 'Etha', site: 'site' };
+const PNAME = { enomera: 'Enomera', ambo: 'Agendamento', minne: 'Consultório', etha: 'Site', site: 'site' };
 const pn = (k) => PNAME[k] || k;
 const pl = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const delta = (a, b) => (b == null ? null : a - b);

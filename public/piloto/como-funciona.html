@@ -125,27 +125,27 @@
     { eyebrow: 'Piloto Enomera', title: (NOME ? 'Oi, ' + esc(NOME) + '. ' : '') + 'Uma conta, três serviços',
       lead: 'Com a conta Enomera você usa o site, o agendamento e a gestão do consultório. Eles conversam entre si: o que muda em um aparece no outro.',
       art: '<div class="tr-art"><div class="tr-hub">' +
-        '<div class="tr-node etha">Etha<small>seu site</small></div>' +
+        '<div class="tr-node etha">Site<small>seu site</small></div>' +
         '<span class="ln l"></span><div class="tr-node hub"><img src="/assets/brand.svg" width="20" height="17" alt="">Enomera</div><span class="ln r"></span>' +
-        '<div class="tr-node ambo">Ambo<small>o paciente marca</small></div><div class="tr-node minne">Minne<small>seu consultório</small></div></div></div>' },
-    { eyebrow: 'Etha · seu site', title: 'Seu site profissional, feito por nós',
-      lead: 'Você responde algumas perguntas e envia suas fotos. A gente monta o site no modelo da Etha com as suas informações. O botão de agendar já leva para o Ambo.',
+        '<div class="tr-node ambo">Agendamento<small>o paciente marca</small></div><div class="tr-node minne">Consultório<small>pacientes e prontuário</small></div></div></div>' },
+    { eyebrow: 'Enomera Site', title: 'Seu site profissional, feito por nós',
+      lead: 'Você responde algumas perguntas e envia suas fotos. A gente monta o seu site no nosso modelo, com as suas informações. O botão de agendar já leva para o Agendamento.',
       art: '<div class="tr-art"><div class="tr-browser"><div class="bar"><i></i><i></i><i></i><span>etha · /seu-nome</span></div>' +
         '<div class="body"><div class="tr-line" style="width:46%"></div><div class="tr-line" style="width:82%;height:14px"></div><div class="tr-line" style="width:64%"></div><span class="tr-btn">Agendar consulta</span></div></div></div>' },
-    { eyebrow: 'Ambo · agendamento', title: 'Você abre a agenda, o paciente pede o horário',
-      lead: 'Primeiro você define dias, horários, valor e local de atendimento. Só depois o paciente consegue pedir uma consulta. Os pedidos chegam no próprio Ambo, na aba Pedidos, e você confirma por lá. Dá para usar só o Ambo.',
+    { eyebrow: 'Enomera Agendamento', title: 'Você abre a agenda, o paciente pede o horário',
+      lead: 'Primeiro você define dias, horários, valor e local de atendimento. Só depois o paciente consegue pedir uma consulta. Os pedidos chegam no próprio Agendamento, na aba Pedidos, e você confirma por lá. Dá para usar só o Agendamento.',
       art: '<div class="tr-art"><div class="tr-week">' +
         ['Seg', 'Ter', 'Qua', 'Qui', 'Sex'].map(function (d, i) { return '<div class="tr-day"><b>' + d + '</b><span class="s' + (i === 2 ? ' off' : '') + '">9h</span><span class="s' + (i === 4 ? ' off' : '') + '">14h</span><span class="s">18h</span></div>'; }).join('') +
         '</div></div>' },
-    { eyebrow: 'Minne · gestão', title: 'Pedidos, agenda e prontuário no mesmo lugar',
-      lead: 'O Minne é a gestão do consultório: pacientes, agenda do dia e prontuário. Se você também tem o Ambo, cada pedido confirmado vira paciente e entra na agenda do Minne sozinho.',
+    { eyebrow: 'Enomera Consultório', title: 'Pedidos, agenda e prontuário no mesmo lugar',
+      lead: 'O Consultório é a gestão da sua prática: pacientes, agenda do dia e prontuário. Se você também tem o Agendamento, cada pedido confirmado vira paciente e entra na agenda do Consultório sozinho.',
       art: '<div class="tr-art" style="gap:8px">' +
         '<div class="tr-row"><span class="av">AO</span><span>Ana Oliveira<small>pediu ter., 14h</small></span><span class="pill">Novo</span></div>' +
         '<div class="tr-row"><span class="av">RS</span><span>Rafael Souza<small>qui., 18h · online</small></span><span class="pill ok">Confirmada</span></div></div>' },
     { eyebrow: 'Como testar', title: 'Tudo grátis no piloto. Por onde começar',
       lead: '',
       art: '<ol class="tr-steps"><li><div><b>Escolha os serviços</b><span>Todos os planos estão liberados, sem cartão e sem cobrança.</span></div></li>' +
-        '<li><div><b>Configure seu atendimento</b><span>No Ambo, libere seus horários antes de convidar alguém para agendar.</span></div></li>' +
+        '<li><div><b>Configure seu atendimento</b><span>No Agendamento, libere seus horários antes de convidar alguém para agendar.</span></div></li>' +
         '<li><div><b>Use como no dia a dia e conte o que estranhou</b><span>O piloto registra como você usa as telas, nunca o que você escreve.</span></div></li></ol>' }
   ];
   var vp = document.getElementById('vp'), dots = document.getElementById('dots'), next = document.getElementById('next'), back = document.getElementById('back');

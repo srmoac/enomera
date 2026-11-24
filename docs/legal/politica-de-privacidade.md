@@ -6,7 +6,7 @@ Versão piloto · 22 de novembro de 2026
 
 ## 1. Quem é responsável
 
-A Enomera, criada e conduzida por Marcos Martins, é a **controladora** dos dados dos profissionais que criam conta e dos visitantes do site. Para os dados dos pacientes registrados no Ambo e no Minne, o **controlador é o profissional** que os atende, e a Enomera atua como **operadora**, seguindo as instruções dele (veja o item 10).
+A Enomera, criada e conduzida por Marcos Martins, é a **controladora** dos dados dos profissionais que criam conta e dos visitantes do site. Para os dados dos pacientes registrados no Agendamento e no Consultório, o **controlador é o profissional** que os atende, e a Enomera atua como **operadora**, seguindo as instruções dele (veja o item 10).
 
 Encarregado pelo tratamento de dados (DPO): Marcos Martins · mrsaocwork@gmail.com
 
@@ -17,13 +17,13 @@ Encarregado pelo tratamento de dados (DPO): Marcos Martins · mrsaocwork@gmail.c
 - Cadastro: nome, e-mail, especialidade, registro profissional (CRP ou CRM), cidade.
 - Cobrança: CPF ou CNPJ, plano escolhido e situação dos pagamentos. Dados de cartão ficam só com o Asaas.
 - Uso: registros de acesso (data, hora, endereço IP) e ações importantes na conta, para segurança.
-- Conteúdo da Etha: textos e fotos que você publica no seu site.
+- Conteúdo do Site: textos e fotos que você publica no seu site.
 
 **Pacientes (tratados em nome do profissional)**
 
 - Identificação e contato: nome, e-mail, telefone, data de nascimento e, para menores, dados do responsável.
 - Agenda: pedidos, consultas, remarcações.
-- Dados de saúde: registros e prontuário escritos pelo profissional no Minne. São **dados pessoais sensíveis** (art. 5º, II, e art. 11 da LGPD).
+- Dados de saúde: registros e prontuário escritos pelo profissional no Consultório. São **dados pessoais sensíveis** (art. 5º, II, e art. 11 da LGPD).
 
 **Visitantes do site**
 
@@ -34,7 +34,7 @@ Encarregado pelo tratamento de dados (DPO): Marcos Martins · mrsaocwork@gmail.c
 
 **Registro de uso do piloto (participantes convidados)**
 
-Quem entra no piloto por convite concorda, no cadastro, com um registro de uso em Enomera, Ambo, Minne, Etha e no site publicado pela Etha. Registramos:
+Quem entra no piloto por convite concorda, no cadastro, com um registro de uso na Enomera (Agendamento, Consultório e Site) e no site publicado pelo Enomera Site. Registramos:
 
 - telas abertas, tempo de uso ativo, rolagem e quando a pessoa volta;
 - onde toca ou clica: posição relativa na tela e o nome do botão ou link (por exemplo, "Confirmar horário");

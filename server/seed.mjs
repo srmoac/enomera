@@ -99,7 +99,7 @@ export async function seedDatabase(db) {
     if (again) return { seeded: false, reason: 'already_seeded' };
     const now = nowIso();
 
-    // 1. Fictional Demo Professional: Helena Duarte (Full Suite: Ambo + Minne + Etha)
+    // 1. Fictional Demo Professional: Helena Duarte (Full Suite: Agendamento + Consultório + Site)
     const helenaUserId = 'usr_helena_demo';
     const helenaAccId = 'acc_helena_demo';
     const helenaPwd = hashPassword('HelenaDemo!2026');
@@ -168,7 +168,7 @@ export async function seedDatabase(db) {
       `INSERT INTO clinical_note_versions (id, note_id, account_id, version_number, author_user_id, author_display_name, blocks_json, change_reason, created_at)
        VALUES ('ver_ana_demo_1', ?, ?, 1, ?, 'Helena Duarte', ?, 'Registro inicial de demonstração', ?)`,
       anaNoteId, helenaAccId, helenaUserId,
-      JSON.stringify([{ id: 'b1', type: 'paragraph', text: 'Registro clínico fictício exclusivo da profissional Helena Duarte — jamais acessível ao paciente ou à operação Etha.' }]),
+      JSON.stringify([{ id: 'b1', type: 'paragraph', text: 'Registro clínico fictício exclusivo da profissional Helena Duarte — jamais acessível ao paciente ou à operação Site.' }]),
       now
     );
 
@@ -198,7 +198,7 @@ export async function seedDatabase(db) {
       ethaVerId, ethaProjId, helenaAccId, JSON.stringify(publishedContent), helenaUserId, helenaUserId, now, now, now
     );
 
-    // 2. Second Isolated Demo Professional: Dr. Paulo Mendes (Minne Solo — tests tenant isolation)
+    // 2. Second Isolated Demo Professional: Dr. Paulo Mendes (Consultório Solo — tests tenant isolation)
     const pauloUserId = 'usr_paulo_demo';
     const pauloAccId = 'acc_paulo_demo';
     const pauloPwd = hashPassword('PauloDemo!2026');
@@ -223,7 +223,7 @@ export async function seedDatabase(db) {
       randomId('ent'), pauloAccId, addDaysIso(30), now
     );
 
-    // 3. Etha Delivery Operator: Marcos Martins (ZERO clinical access!)
+    // 3. Site Delivery Operator: Marcos Martins (ZERO clinical access!)
     const marcosUserId = 'usr_marcos_operator';
     const marcosPwd = hashPassword('MarcosOps!2026');
     await tx.run(

@@ -1,4 +1,4 @@
-// Área Etha Sob medida do painel do piloto (Marcos, 23/11/2026): o administrador vê o material
+// Área Site Sob medida do painel do piloto (Marcos, 23/11/2026): o administrador vê o material
 // de cada pedido (briefing, respostas, fotos e anexos com download), o status
 // (novo → em produção → entregue) e o prazo de 2 dias úteis.
 import { nowIso } from './crypto.mjs';
@@ -59,7 +59,7 @@ export async function listSobMedida(db) {
 
 export async function sobMedidaDetail(db, projectId) {
   const r = await db.get(`${BASE_SQL} WHERE p.id = ?`, projectId);
-  if (!r) throw Object.assign(new Error('Pedido da Etha não encontrado.'), { status: 404, code: 'PROJECT_NOT_FOUND' });
+  if (!r) throw Object.assign(new Error('Pedido do Site não encontrado.'), { status: 404, code: 'PROJECT_NOT_FOUND' });
   const briefing = parse(r.briefing_json);
   const last = await db.get('SELECT version_number, stage, content_json, created_at FROM etha_content_versions WHERE project_id = ? ORDER BY version_number DESC LIMIT 1', r.id);
   const content = last ? parse(last.content_json) : {};
@@ -89,7 +89,7 @@ export async function sobMedidaDetail(db, projectId) {
 
 export async function setSobMedidaStatus(db, projectId, status, adminUserId) {
   const proj = await db.get('SELECT id, briefing_json FROM etha_projects WHERE id = ?', projectId);
-  if (!proj) throw Object.assign(new Error('Pedido da Etha não encontrado.'), { status: 404, code: 'PROJECT_NOT_FOUND' });
+  if (!proj) throw Object.assign(new Error('Pedido do Site não encontrado.'), { status: 404, code: 'PROJECT_NOT_FOUND' });
   const briefing = parse(proj.briefing_json);
   const now = nowIso();
   const sm = { ...(briefing.sobMedida || {}) };
@@ -101,7 +101,7 @@ export async function setSobMedidaStatus(db, projectId, status, adminUserId) {
   return { projectId: proj.id, status: statusOf(sm), startedAt: sm.startedAt || null, deliveredAt: sm.deliveredAt || null };
 }
 
-/** Envia um arquivo do pedido (só fotos e anexos da Etha daquela conta; nunca material clínico). */
+/** Envia um arquivo do pedido (só fotos e anexos do Site daquela conta; nunca material clínico). */
 export async function serveSobMedidaFile(db, res, projectId, fileId, download) {
   const detail = await sobMedidaDetail(db, projectId);
   const meta = detail.files.find((f) => f.id === fileId);

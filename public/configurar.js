@@ -38,9 +38,9 @@ const has = (p) => { const e = S.me?.entitlements?.[p]; return Boolean(e && e.ca
 
 const STEP_DEFS = {
   voce: { prod: 'enomera', label: 'Você' },
-  consultorio: { prod: 'ambo', label: 'Consultório' },
+  consultorio: { prod: 'ambo', label: 'Atendimento' },
   horarios: { prod: 'ambo', label: 'Horários' },
-  link: { prod: 'ambo', label: 'Link do Ambo' },
+  link: { prod: 'ambo', label: 'Link do Agendamento' },
   pacientes: { prod: 'minne', label: 'Pacientes' },
   site: { prod: 'etha', label: 'Site' },
   pronto: { prod: 'enomera', label: 'Pronto' },
@@ -65,8 +65,8 @@ function summary(key) {
   if (key === 'consultorio') return [[...f.modalities].map((m) => (m === 'online' ? 'Online' : 'Presencial')).join(' e '), `${f.duration} min`, f.price === '' ? '' : (Number(f.price) ? 'R$ ' + f.price : 'valor a combinar')].filter(Boolean).join(' · ');
   if (key === 'horarios') { const n = Object.values(f.hours).reduce((a, set) => a + (set ? set.size : 0), 0); const d = Object.values(f.hours).filter((set) => set && set.size).length; const b = (S.blocks || []).length; return n ? `${n} ${n === 1 ? 'horário' : 'horários'} em ${d} ${d === 1 ? 'dia' : 'dias'}${b ? ` · ${b} ${b === 1 ? 'folga' : 'folgas'}` : ''}` : 'Nenhum horário liberado'; }
   if (key === 'link') return f.open ? 'Agenda aberta para pedidos' : 'Agenda fechada';
-  if (key === 'pacientes') return 'Importar ou adicionar pacientes no Minne';
-  if (key === 'site') return 'Perguntas do seu site na Etha';
+  if (key === 'pacientes') return 'Importar ou adicionar pacientes no Consultório';
+  if (key === 'site') return 'Perguntas do seu site';
   return '';
 }
 
@@ -106,7 +106,7 @@ function initForm() {
 const VIEWS = {
   voce() {
     const f = S.form;
-    return { title: 'Primeiro, você', lead: 'Isso aparece no Ambo, no Minne e no seu site. Você muda quando quiser.', body: `
+    return { title: 'Primeiro, você', lead: 'Isso aparece no Agendamento, no Consultório e no seu site. Você muda quando quiser.', body: `
       <div class="cf-photo"><span class="cf-avatar" id="avatar" style="${f.photoUrl ? `background-image:url('${esc(f.photoUrl)}')` : ''}"></span>
         <div style="display:grid;gap:6px"><span class="cf-label">Sua foto</span><label class="eg-btn is-glass is-sm" style="cursor:pointer">${f.photoUrl ? 'Trocar foto' : 'Escolher foto'}<input type="file" accept="image/png,image/jpeg,image/webp" id="photo" hidden></label></div></div>
       <div class="cf-field"><label class="cf-label" for="f-name">Nome profissional</label><input class="cf-input" id="f-name" autocomplete="name" placeholder="Ex.: Dra. Helena Duarte" value="${esc(f.displayName)}"><span class="cf-hint" id="h-name"></span></div>
@@ -115,7 +115,7 @@ const VIEWS = {
   },
   consultorio() {
     const f = S.form; const pres = f.modalities.has('presencial');
-    return { title: 'Seu consultório', lead: 'Como você atende, onde e por quanto.', body: `
+    return { title: 'Seu atendimento', lead: 'Como você atende, onde e por quanto.', body: `
       <div class="cf-row" role="group" aria-label="Modalidade">${chip('data-mod="online"', 'Online', f.modalities.has('online'))}${chip('data-mod="presencial"', 'Presencial', pres)}</div>
       <div id="addr" ${pres ? '' : 'hidden'} style="display:${pres ? 'grid' : 'none'};gap:12px">
         <div class="cf-field cf-cep"><label class="cf-label" for="f-cep">CEP do consultório</label><input class="cf-input" id="f-cep" inputmode="numeric" autocomplete="postal-code" placeholder="00000-000" maxlength="9" value="${esc(f.cep)}"><span class="st" id="cep-st" aria-hidden="true"></span><span class="cf-hint" id="h-cep">Digite o CEP e a gente preenche o endereço.</span></div>
@@ -126,7 +126,7 @@ const VIEWS = {
           <div class="cf-field"><label class="cf-label" for="f-city">Cidade</label><input class="cf-input" id="f-city" value="${esc(f.city ? f.city + (f.uf ? ', ' + f.uf : '') : '')}"></div></div>
       </div>
       <div id="meet" ${f.modalities.has('online') ? '' : 'hidden'} style="display:${f.modalities.has('online') ? 'grid' : 'none'};gap:12px">
-        <div class="cf-field"><label class="cf-label" for="f-meet">Link da sua sala online <span class="muted">(opcional)</span></label><input class="cf-input" id="f-meet" type="url" inputmode="url" autocomplete="off" placeholder="meet.google.com/abc-defg-hij" value="${esc(f.meetUrl)}"><span class="cf-hint" id="h-meet">Use o link fixo do seu Google Meet, Zoom ou Jitsi. O paciente vê no Ambo 15 minutos antes de cada consulta online.</span></div>
+        <div class="cf-field"><label class="cf-label" for="f-meet">Link da sua sala online <span class="muted">(opcional)</span></label><input class="cf-input" id="f-meet" type="url" inputmode="url" autocomplete="off" placeholder="meet.google.com/abc-defg-hij" value="${esc(f.meetUrl)}"><span class="cf-hint" id="h-meet">Use o link fixo do seu Google Meet, Zoom ou Jitsi. O paciente vê no Agendamento 15 minutos antes de cada consulta online.</span></div>
       </div>
       <span class="cf-label">Duração da sessão</span>
       <div class="cf-row" role="group" aria-label="Duração">${[30, 45, 50, 60].map((d) => chip(`data-dur="${d}"`, `${d} min`, Number(f.duration) === d)).join('')}</div>
@@ -147,14 +147,14 @@ const VIEWS = {
     const url = `${ORIGIN.ambo}/?pro=${encodeURIComponent(S.me?.account?.slug || '')}`;
     const total = Object.values(S.form.hours).reduce((n, s) => n + s.size, 0);
     const mods = [...S.form.modalities].map((m) => (m === 'online' ? 'online' : 'presencial')).join(' e ');
-    return { title: 'Seu link do Ambo', lead: 'É por aqui que o paciente pede consulta. Compartilhe no WhatsApp ou no Instagram.', body: `
+    return { title: 'Seu link do Agendamento', lead: 'É por aqui que o paciente pede consulta. Compartilhe no WhatsApp ou no Instagram.', body: `
       <div class="cf-link eg-surface"><code>${esc(url.replace(/^https?:\/\//, ''))}</code><button type="button" class="eg-btn is-glass is-sm" id="copy" data-url="${esc(url)}">Copiar</button></div>
       <div class="cf-row"><a class="eg-btn is-glass is-sm" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent('Agende sua consulta comigo: ' + url)}">WhatsApp</a><a class="eg-btn is-glass is-sm" target="_blank" rel="noopener" href="${esc(url)}&visao=profissional">Ver como o paciente vê ↗</a></div>
       ${S.form.open ? '<p class="cf-ok">✓ Sua agenda está aberta para pedidos.</p>' : `<p class="cf-ok">✓ Pronto para abrir: ${total} ${total === 1 ? 'horário' : 'horários'} na semana, ${esc(mods)}, ${S.form.price ? 'R$ ' + esc(S.form.price) : 'valor a combinar'}.</p>`}
-      <p class="muted small">${has('minne') ? 'Os pedidos chegam no Ambo, na aba Pedidos, e quando você confirma o paciente entra no Minne.' : 'Os pedidos chegam no próprio Ambo, na aba Pedidos, e você confirma por lá.'}</p>` };
+      <p class="muted small">${has('minne') ? 'Os pedidos chegam no Agendamento, na aba Pedidos, e quando você confirma o paciente entra no Consultório.' : 'Os pedidos chegam no próprio Agendamento, na aba Pedidos, e você confirma por lá.'}</p>` };
   },
   pacientes() {
-    return { title: 'Seus pacientes', lead: 'Traga quem você já atende. Cada pedido confirmado no Ambo também vira paciente aqui.', body: `
+    return { title: 'Seus pacientes', lead: 'Traga quem você já atende. Cada pedido confirmado no Agendamento também vira paciente aqui.', body: `
       <button type="button" class="eg-btn is-glass" data-launch="minne" data-path="/?modo=ao-vivo&aba=importar">Importar planilha ou prontuários</button>
       <span class="cf-label">Ou adicione um por um</span>
       <div class="cf-field"><label class="cf-label" for="p-name">Nome do paciente</label><input class="cf-input" id="p-name" autocomplete="off" placeholder="Nome completo"></div>
@@ -163,10 +163,10 @@ const VIEWS = {
       <div class="cf-list" id="plist">${S.patients.map((p) => `<div><span>${esc(p.full_name)}</span><span class="muted">${esc(p.phone || '')}</span></div>`).join('')}</div>` };
   },
   site() {
-    return { title: 'Seu site', lead: 'Você responde algumas perguntas e envia suas fotos. A gente monta o site no modelo da Etha com as suas informações.', body: `
+    return { title: 'Seu site', lead: 'Você responde algumas perguntas e envia suas fotos. A gente monta o seu site no nosso modelo, com as suas informações.', body: `
       <p>Já preenchemos com o que você contou aqui: nome, CRP, foto${has('ambo') ? ', atendimento e endereço' : ''}. Faltam a sua abordagem, para quem você atende e a frase de abertura.</p>
       <button type="button" class="eg-btn" data-launch="etha" data-path="/?modo=ao-vivo">Responder as perguntas do site</button>
-      <p class="muted small">Abre a Etha numa nova aba. Quando terminar, volte aqui para concluir.</p>` };
+      <p class="muted small">Abre o Site numa nova aba. Quando terminar, volte aqui para concluir.</p>` };
   },
   hub() {
     const rows = S.steps.filter((k) => k !== 'pronto').map((k) => {
@@ -179,9 +179,9 @@ const VIEWS = {
   pronto() {
     const name = (S.form.displayName || '').split(' ').filter((w) => !/^dr[a]?\.?$/i.test(w))[0] || '';
     const rows = [];
-    if (has('ambo')) rows.push(['ambo', 'Ambo', S.form.open ? 'Agenda aberta · link pronto' : 'Agenda configurada, ainda fechada', '/operacao']);
-    if (has('minne')) rows.push(['minne', 'Minne', 'Pacientes, agenda e prontuário', '/?modo=ao-vivo']);
-    if (has('etha')) rows.push(['etha', 'Etha', 'Seu site', '/?modo=ao-vivo']);
+    if (has('ambo')) rows.push(['ambo', 'Agendamento', S.form.open ? 'Agenda aberta · link pronto' : 'Agenda configurada, ainda fechada', '/operacao']);
+    if (has('minne')) rows.push(['minne', 'Consultório', 'Pacientes, agenda e prontuário', '/?modo=ao-vivo']);
+    if (has('etha')) rows.push(['etha', 'Site', 'Seu site', '/?modo=ao-vivo']);
     return { title: `Tudo pronto${name ? ', ' + esc(name) : ''}`, lead: rows.length > 1 ? 'Seus serviços estão configurados e conversando entre si.' : 'Seu serviço está configurado.', body: rows.map(([k, n, t, path]) => `
       <div class="cf-sum eg-surface" data-produto="${k}"><span class="dot" aria-hidden="true"></span><div><b>${n}</b><span>${esc(t)}</span></div><button type="button" class="eg-btn is-glass is-sm" data-launch="${k}" data-path="${path}">Abrir</button></div>`).join('') };
   },
@@ -407,7 +407,7 @@ function blocksHtml() {
   const hourChips = (attr, from, to) => Array.from({ length: to - from + 1 }, (_, k) => from + k).map((h) => chip(`${attr}="${h}"`, `${h}h`, false, 'is-sm')).join('');
   return `
     <section class="cf-blocks">
-      <div class="cf-blocks-head"><div><span class="cf-label">Folgas e férias</span><span class="cf-hint" style="display:block">Dias em que o Ambo não oferece horário.</span></div>
+      <div class="cf-blocks-head"><div><span class="cf-label">Folgas e férias</span><span class="cf-hint" style="display:block">Dias em que o Agendamento não oferece horário.</span></div>
         <button type="button" class="eg-btn is-glass is-sm" id="b-new">Adicionar</button></div>
       <div class="cf-list" id="b-list">${(S.blocks || []).map(blockRow).join('')}</div>
       <div class="cf-bnew" id="b-panel" hidden>
@@ -470,7 +470,7 @@ function wireBlocks(root) {
     const list = root.querySelector('#b-list');
     list.insertAdjacentHTML('beforeend', blockRow(block, S.blocks.length - 1));
     list.lastElementChild.animate?.([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: 'cubic-bezier(.23,1,.32,1)' });
-    toast({ title: 'Folga salva', text: 'esses horários somem do Ambo' });
+    toast({ title: 'Folga salva', text: 'esses horários somem do Agendamento' });
     B.start = ''; B.end = ''; cal?.set({ start: '' }); rangeHint.className = 'cf-hint'; rangeHint.textContent = 'Toque no primeiro dia. Para um período, toque também no último.';
     open(false);
   });
@@ -487,7 +487,7 @@ function wireBlocks(root) {
   });
 }
 
-// ---------- Foto: recorte em círculo, como no Minne (arrastar, zoom e pinça) ----------
+// ---------- Foto: recorte em círculo, como no Consultório (arrastar, zoom e pinça) ----------
 function openCropper(file, root) {
   if (!/^image\/(png|jpe?g|webp)$/.test(file.type)) { toast({ tone: 'warn', text: 'Use uma foto em JPG, PNG ou WebP.' }); return; }
   const url = URL.createObjectURL(file);

@@ -25,7 +25,7 @@ export const services = [
     section: '#ambo',
     destination: ecosystem.ambo || '#ambo',
     externalDestination: ecosystem.ambo,
-    externalLabel: 'Abrir o Ambo ↗',
+    externalLabel: 'Abrir o Agendamento ↗',
     availability: ecosystem.ambo ? 'published-product' : 'embedded-demo',
     embeddedDemo: true,
     legacy: 'https://lotus-app-phi.vercel.app/'
@@ -38,7 +38,7 @@ export const services = [
     section: '#minne',
     destination: ecosystem.minne,
     externalDestination: ecosystem.minne,
-    externalLabel: 'Abrir o Minne ↗',
+    externalLabel: 'Abrir o Consultório ↗',
     availability: 'published-product',
     embeddedDemo: true
   },
@@ -50,7 +50,7 @@ export const services = [
     section: '#etha',
     destination: ecosystem.etha,
     externalDestination: ecosystem.etha,
-    externalLabel: 'Conhecer o site da Etha ↗',
+    externalLabel: 'Conhecer o Enomera Site ↗',
     exampleDestination: ecosystem.helena,
     exampleLabel: 'Explorar o site da Helena ↗',
     availability: 'published-product',

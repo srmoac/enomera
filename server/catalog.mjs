@@ -1,6 +1,6 @@
 export const CATALOG_VERSION = '2026-11-22-aprovado';
 
-// Preços aprovados por Marcos em 22/11/2026 (19:28). Ambo + Etha e Etha + Minne foram
+// Preços aprovados por Marcos em 22/11/2026 (19:28). Agendamento + Site e Site + Consultório foram
 // definidos pela equipe (decisão reversível). Anual = 10x o mensal. Nenhuma cobrança real.
 const MONTHLY_BY_COMBO = {
   ambo: 3900,
@@ -25,7 +25,7 @@ export const COMMERCIAL_CATALOG = {
   products: {
     ambo: {
       id: 'ambo',
-      name: 'Ambo',
+      name: 'Agendamento',
       role: 'Agendamento e área do paciente',
       monthlyCents: 3900,
       annualCents: 3900 * ANNUAL_MONTHS,
@@ -33,7 +33,7 @@ export const COMMERCIAL_CATALOG = {
     },
     minne: {
       id: 'minne',
-      name: 'Minne',
+      name: 'Consultório',
       role: 'Gestão clínica, agenda, prontuários e importação',
       monthlyCents: 5900,
       annualCents: 5900 * ANNUAL_MONTHS,
@@ -41,22 +41,22 @@ export const COMMERCIAL_CATALOG = {
     },
     etha: {
       id: 'etha',
-      name: 'Etha',
+      name: 'Site',
       role: 'Site profissional e hospedagem',
       monthlyCents: 4900,
       annualCents: 4900 * ANNUAL_MONTHS,
       includes: 'Site profissional montado a partir de 6 perguntas, com prévia, publicação e hospedagem.',
     },
   },
-  // Etha em dois níveis (aprovado por Marcos em 22/11 22:08 UTC): Essencial (modelo, sem taxa)
+  // Site em dois níveis (aprovado por Marcos em 22/11 22:08 UTC): Essencial (modelo, sem taxa)
   // e Sob medida (montado pela equipe, implantação única de R$ 790 em até 3x, cobrada na aprovação do site).
   ethaServices: {
-    essencial: { id: 'essencial', name: 'Etha Essencial', setupCents: 0, description: 'Você preenche o briefing e o site sai de um modelo pronto.' },
-    sob_medida: { id: 'sob_medida', name: 'Etha Sob medida', setupCents: 79000, installments: 3, description: 'A equipe monta o site com você, do briefing à publicação.' },
+    essencial: { id: 'essencial', name: 'Site Essencial', setupCents: 0, description: 'Você preenche o briefing e o site sai de um modelo pronto.' },
+    sob_medida: { id: 'sob_medida', name: 'Site Sob medida', setupCents: 79000, installments: 3, description: 'A equipe monta o site com você, do briefing à publicação.' },
   },
   bundle: {
     id: 'combos',
-    rule: 'Combos: Ambo + Minne R$ 79, Ambo + Etha R$ 69, Etha + Minne R$ 89 e os três por R$ 99 por mês. Anual = 10 mensalidades.',
+    rule: 'Combos: Agendamento + Consultório R$ 79, Agendamento + Site R$ 69, Site + Consultório R$ 89 e os três por R$ 99 por mês. Anual = 10 mensalidades.',
   },
   pendingDecisions: [],
 };
@@ -77,7 +77,7 @@ export function formatBrl(cents) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((cents || 0) / 100);
 }
 
-const NAMES = { ambo: 'Ambo', minne: 'Minne', etha: 'Etha' };
+const NAMES = { ambo: 'Agendamento', minne: 'Consultório', etha: 'Site' };
 
 /**
  * Cálculo autoritativo no servidor. O cliente manda só os produtos; o servidor calcula tudo.
@@ -85,13 +85,13 @@ const NAMES = { ambo: 'Ambo', minne: 'Minne', etha: 'Etha' };
  */
 export function normalizeEthaService(v) { return v === 'sob_medida' ? 'sob_medida' : 'essencial'; }
 
-/** Implantação única da Etha Sob medida (fora da mensalidade; cobrada só na aprovação do site). */
+/** Implantação única da Site Sob medida (fora da mensalidade; cobrada só na aprovação do site). */
 export function ethaSetup(products = [], ethaService) {
   if (!products.includes('etha') || normalizeEthaService(ethaService) !== 'sob_medida') return null;
   const svc = COMMERCIAL_CATALOG.ethaServices.sob_medida;
   const per = Math.round(svc.setupCents / svc.installments);
   return {
-    label: 'Implantação Etha Sob medida',
+    label: 'Implantação Site Sob medida',
     amountCents: svc.setupCents,
     amount: formatBrl(svc.setupCents),
     installments: svc.installments,
@@ -171,9 +171,9 @@ export function calculateSimulatedQuote({ products = [], ethaFormat = null, etha
 }
 
 const CONTRACT_ORDER = ['ambo', 'minne', 'etha'];
-const PRODUCT_LABELS = { ambo: 'Ambo', minne: 'Minne', etha: 'Etha' };
+const PRODUCT_LABELS = { ambo: 'Agendamento', minne: 'Consultório', etha: 'Site' };
 
-/** Normaliza a combinação escolhida (produtos, periodicidade e formato da Etha). */
+/** Normaliza a combinação escolhida (produtos, periodicidade e formato do Site). */
 export function normalizeSelection(input = {}) {
   const raw = Array.isArray(input.products) ? input.products : [];
   const products = CONTRACT_ORDER.filter((p) => raw.includes(p));

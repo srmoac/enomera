@@ -26,7 +26,7 @@ export const PILOT_PRICES_CENTS = {
 };
 
 const ORDER = ['ambo', 'etha', 'minne'];
-const NAMES = { ambo: 'Ambo', etha: 'Etha', minne: 'Minne' };
+const NAMES = { ambo: 'Agendamento', etha: 'Site', minne: 'Consultório' };
 
 export function normalizeProducts(list) {
   const raw = Array.isArray(list) ? list : [];

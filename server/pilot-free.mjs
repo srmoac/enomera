@@ -1,6 +1,6 @@
 // Piloto gratuito (Marcos, 22 nov 2026): para quem entrou por convite do piloto,
 // todos os serviços são gratuitos — planos, combos, anual e a implantação Sob medida
-// da Etha. Nada é cobrado, nenhum cartão é pedido e nenhuma fatura é gerada até o
+// do Site. Nada é cobrado, nenhum cartão é pedido e nenhuma fatura é gerada até o
 // lançamento (janeiro de 2027).
 
 export const PILOT_FREE_UNTIL = '2027-01-31T23:59:59.000Z';
