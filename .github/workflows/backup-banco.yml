@@ -1,0 +1,70 @@
+name: Backup diário do banco
+
+# Todo dia às 03:17 (horário de Brasília) e também sob demanda (botão "Run workflow").
+# Precisa de dois segredos em Settings > Secrets and variables > Actions:
+#   DATABASE_URL       endereço do banco do Neon (o mesmo da Vercel)
+#   BACKUP_PASSPHRASE  frase-senha longa que só o Marcos guarda; sem ela o backup não abre
+# O arquivo sai cifrado (AES-256) e fica 90 dias em "Artifacts" na execução.
+on:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup-banco
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts
+      - name: Conferir segredos
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          missing=""
+          [ -n "$DATABASE_URL" ] || missing="$missing DATABASE_URL"
+          [ -n "$BACKUP_PASSPHRASE" ] || missing="$missing BACKUP_PASSPHRASE"
+          if [ -n "$missing" ]; then
+            echo "::error::Faltam os segredos:$missing (Settings > Secrets and variables > Actions)"
+            exit 1
+          fi
+      - name: Instalar cliente Postgres da mesma versão do banco
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt noble-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client >/dev/null
+          major=$(psql "${DATABASE_URL/-pooler./.}" -tAc 'SHOW server_version_num' | cut -c1-2)
+          echo "Banco na versão $major do Postgres"
+          sudo apt-get install -y -qq "postgresql-client-$major" >/dev/null
+          echo "PG_BIN=/usr/lib/postgresql/$major/bin" >> "$GITHUB_ENV"
+      - name: Gerar backup cifrado
+        id: dump
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: bash scripts/backup-banco.sh backup
+      - name: Guardar por 90 dias
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.dump.outputs.name }}
+          path: ${{ steps.dump.outputs.file }}
+          retention-days: 90
+          compression-level: 0
+          if-no-files-found: error
+      - name: Resumo
+        run: |
+          echo "### Backup do banco: ok" >> "$GITHUB_STEP_SUMMARY"
+          echo "${{ steps.dump.outputs.name }} · ${{ steps.dump.outputs.size }} · ${{ steps.dump.outputs.tables }} tabelas com dados. Cifrado; guardado 90 dias em Artifacts." >> "$GITHUB_STEP_SUMMARY"
