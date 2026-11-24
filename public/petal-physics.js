@@ -82,7 +82,7 @@ export function createPetalPhysics({ shapes, fills }) {
   const sheenFor = (L, i, side) => {
     const g = mk(L.defs, 'linearGradient', { id: `pp-sheen-${side}-${i}`, gradientUnits: 'userSpaceOnUse' });
     const s0 = mk(g, 'stop', { offset: '0', 'stop-color': '#fff', 'stop-opacity': '0' });
-    const s1 = mk(g, 'stop', { offset: '.62', 'stop-color': '#fff', 'stop-opacity': '0' });
+    const s1 = mk(g, 'stop', { offset: '.5', 'stop-color': '#fff', 'stop-opacity': '0' });
     const s2 = mk(g, 'stop', { offset: '1', 'stop-color': '#2b3a78', 'stop-opacity': '0' });
     return { g, s1, s2 };
   };
@@ -280,14 +280,17 @@ export function createPetalPhysics({ shapes, fills }) {
     const k = 70, c = 6.4; // sub-amortecido de leve: assenta em ~0,8 s com uma ondulação suave
     it.vbz += (k * (tz - it.bz) - c * it.vbz) * h;
     it.vbx += (k * (tx - it.bx) - c * it.vbx) * h;
-    it.bz += it.vbz * h;
-    it.bx += it.vbx * h;
+    it.vbz = clamp(it.vbz, -5, 5);
+    it.vbx = clamp(it.vbx, -4, 4);
+    it.bz = clamp(it.bz + it.vbz * h, -.5, .5);
+    it.bx = clamp(it.bx + it.vbx * h, -.3, .3);
     // empurrão (cursor/toque) volta com mola criticamente amortecida
     const ko = 46, co = 2 * Math.sqrt(ko);
     it.vox += (-ko * it.ox - co * it.vox) * h;
     it.voy += (-ko * it.oy - co * it.voy) * h;
-    it.ox += it.vox * h;
-    it.oy += it.voy * h;
+    const oMax = g.L * pose.s * .14;
+    it.ox = clamp(it.ox + it.vox * h, -oMax, oMax);
+    it.oy = clamp(it.oy + it.voy * h, -oMax, oMax);
     it.flutter = Math.max(it.flutter * Math.exp(-h / .5), clamp(speed * .05, 0, .07));
     it.phase += h * (7 + speed * 6);
 
@@ -298,17 +301,23 @@ export function createPetalPhysics({ shapes, fills }) {
     // volta. O que está dentro do cartão passa a ficar atrás do vidro; o que está fora, na frente.
     const prox = it.prox;
     const card = cardOf(i);
+    // só fura chegando (rolando em direção à doca); saindo, volta para trás como no clássico
+    const dp = prox - (it.pPrev ?? prox);
+    it.pPrev = prox;
+    if (Math.abs(dp) > 1e-4) it.appr = dp > 0 ? 1 : -1;
+    const arriving = it.appr !== -1;
     // Camada enquanto não fura: perto do próprio cartão a pétala vem para a frente. A troca só acontece
     // quando ela não está sobre nenhum cartão (ninguém vê o salto); se não der, fica atrás, como antes.
     if (it.state === 0) {
-      const desired = !!front_ || prox > .02;
+      // no voo fica atrás do conteúdo (não cobre títulos nem outros cartões); só vem para a frente para furar o próprio cartão
+      const desired = prox > .02 && arriving;
       if (desired !== it.layerFront) {
         const bb = it.bbox;
         const over = bb && cards().some(el => {
           const r = el.getBoundingClientRect();
           return bb.x1 > r.left && bb.x0 < r.right && bb.y1 > r.top && bb.y0 < r.bottom;
         });
-        if (!over || front_) it.layerFront = desired;
+        if (!over || !desired) it.layerFront = desired;
       }
     }
     const rc = card && (it.state || (it.layerFront && prox > .02)) ? card.getBoundingClientRect() : null;
@@ -359,7 +368,7 @@ export function createPetalPhysics({ shapes, fills }) {
     const depthOf = pt => !rc || !E ? -1 : E === 't' ? pt.y - rc.top : E === 'b' ? rc.bottom - pt.y : E === 'l' ? pt.x - rc.left : rc.right - pt.x;
     const insideRc = pt => rc && pt.x > rc.left && pt.x < rc.right && pt.y > rc.top && pt.y < rc.bottom;
 
-    if (it.state === 0 && rc && it.layerFront && prox > .02 && insideRc(B0)) {
+    if (it.state === 0 && rc && it.layerFront && arriving && prox > .02 && insideRc(B0)) {
       // encostou: a borda mais próxima é por onde ela entra
       const d = { t: B0.y - rc.top, b: rc.bottom - B0.y, l: B0.x - rc.left, r: rc.right - B0.x };
       it.edge = Object.keys(d).reduce((m, k) => (d[k] < d[m] ? k : m), 't');
@@ -400,8 +409,8 @@ export function createPetalPhysics({ shapes, fills }) {
     const bend = Math.abs(it.bz) + Math.abs(bxE) * .6 + it.flutter * 2;
     const grad = {
       x1: baseP.x, y1: baseP.y, x2: tipP.x, y2: tipP.y,
-      light: clamp(.06 + bend * .55, 0, .42),
-      dark: clamp(bend * .22 + sq * .1, 0, .24)
+      light: clamp(.02 + bend * .16, 0, .1),
+      dark: clamp(bend * .1 + sq * .06, 0, .1)
     };
 
     const d = toD(pts);
@@ -627,11 +636,12 @@ export function createPetalPhysics({ shapes, fills }) {
       if (dist > R) return;
       const f = (1 - dist / R) ** 2 * strength;
       const sp = clamp(Math.hypot(vx, vy), 0, 2.5);
-      it.vox += (dx / (dist || 1)) * f * (140 + sp * 160);
-      it.voy += (dy / (dist || 1)) * f * (140 + sp * 160);
-      it.vbz += f * (3 + sp * 3);
-      it.vbx += f * Math.sign(-(vx * dy - vy * dx) || 1) * (1.6 + sp * 2);
-      it.flutter = Math.min(.09, it.flutter + f * .05);
+      // impulso por evento é pequeno e limitado: mouse de 120 Hz+ não pode acumular até virar lâmina
+      it.vox = clamp(it.vox + (dx / (dist || 1)) * f * (50 + sp * 60), -260, 260);
+      it.voy = clamp(it.voy + (dy / (dist || 1)) * f * (50 + sp * 60), -260, 260);
+      it.vbz += f * (.8 + sp);
+      it.vbx += f * Math.sign(-(vx * dy - vy * dx) || 1) * (.5 + sp * .7);
+      it.flutter = Math.min(.05, it.flutter + f * .02);
       any = true;
     });
     return any;
