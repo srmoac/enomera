@@ -243,13 +243,16 @@ export function renderChoice({ combo, contract, signedIn, returnedFromReview, cu
   const sel = (p) => combo.products.includes(p);
   const plan = planFor(combo.products);
   customOpen = customOpen || (!plan && combo.products.length > 0);
-  const ctaLabel = returnedFromReview ? 'Voltar à revisão' : PILOT_FREE ? 'Continuar grátis' : 'Começar 30 dias grátis';
-  const cta = `<button type="button" class="eno-btn eno-flow-cta" id="eno-flow-continue" data-m-key="flow-cta" data-m-state="${combo.products.length ? 'on' : 'off'}" ${combo.products.length ? '' : 'disabled'}>${ctaLabel}</button>
-    <p class="eno-flow-reassure" data-m-key="reassure">${PILOT_FREE ? 'Piloto gratuito · sem cartão · nada é cobrado' : 'Sem cartão agora · nenhuma cobrança hoje · cancele quando quiser'}</p>`;
-  const mobileBar = combo.products.length && contract ? `
+  // Plano atual selecionado: nada a contratar, o botão diz isso em vez de "Começar".
+  const isCurrent = signedIn && owned.length > 0 && combo.products.length === owned.length && owned.every((p) => combo.products.includes(p));
+  const canGo = combo.products.length > 0 && !isCurrent;
+  const ctaLabel = isCurrent ? 'Este já é o seu plano' : returnedFromReview ? 'Voltar à revisão' : (signedIn && owned.length) ? 'Trocar para este plano' : PILOT_FREE ? 'Continuar grátis' : 'Começar 30 dias grátis';
+  const cta = `<button type="button" class="eno-btn eno-flow-cta" id="eno-flow-continue" data-m-key="flow-cta" data-m-state="${canGo ? 'on' : 'off'}" ${canGo ? '' : 'disabled'}>${ctaLabel}</button>
+    <p class="eno-flow-reassure" data-m-key="reassure">${isCurrent ? 'Escolha outro plano para trocar. O atual continua ativo.' : PILOT_FREE ? 'Piloto gratuito · sem cartão · nada é cobrado' : 'Sem cartão agora · nenhuma cobrança hoje · cancele quando quiser'}</p>`;
+  const mobileBar = canGo && contract ? `
     <div class="eno-plan-bar eno-show-sm" data-m-key="plan-bar">
       <span><b data-m-key="bar-name" data-m-num>${esc(plan ? plan.name : comboLabel(combo.products))}</b><small data-m-key="bar-total" data-m-num>${PILOT_FREE ? 'Grátis no piloto' : `${esc(contract.total)}${contract.setup ? ' + R$ 790 único' : ''}`}</small></span>
-      <button type="button" class="eno-btn" data-flow-continue>${returnedFromReview ? 'Voltar à revisão' : 'Começar grátis'}</button>
+      <button type="button" class="eno-btn" data-flow-continue>${returnedFromReview ? 'Voltar à revisão' : (signedIn && owned.length) ? 'Trocar de plano' : 'Começar grátis'}</button>
     </div>` : '';
   return `
     <section class="eno-flow eno-flow-choice" data-flow-step="choice">

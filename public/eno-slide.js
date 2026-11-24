@@ -15,6 +15,11 @@
   var ARROW = '<svg class="es-ico es-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"/></svg>';
   var CHECK = '<svg class="es-ico es-check" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.2 4.2L19 7"/></svg>';
   var SPIN = '<span class="es-spin" aria-hidden="true"></span>';
+  // Vibração: usa EnoHaptic (eno-gestures.js, que também cobre o iPhone) quando estiver carregado.
+  function hz(kind) {
+    if (window.EnoHaptic && window.EnoHaptic[kind]) return window.EnoHaptic[kind]();
+    try { if (navigator.vibrate) navigator.vibrate(kind === 'tick' ? 10 : kind === 'error' ? [30, 50, 30] : [12, 40, 18]); } catch (e) {}
+  }
 
   function mount(host, opts) {
     opts = opts || {};
@@ -27,7 +32,7 @@
     var label = host.querySelector('.es-label');
     var text = host.querySelector('.es-text');
     var knob = host.querySelector('.es-knob');
-    var state = 'idle', x = 0, max = 0, startX = 0, dragging = false, moved = false;
+    var state = 'idle', x = 0, max = 0, startX = 0, dragging = false, moved = false, past = false;
     knob.setAttribute('aria-label', (opts.label || 'Deslize para confirmar') + '. Ou pressione Enter.');
 
     function measure() { max = Math.max(0, host.clientWidth - knob.offsetWidth - 8); }
@@ -59,17 +64,18 @@
       measure();
       await animateTo(max, 'cubic-bezier(.23,1,.32,1)', 220);
       setState('busy');
-      try { if (navigator.vibrate) navigator.vibrate(10); } catch (e) {}
+      hz('tick');
       var ok = true;
       try { ok = opts.onConfirm ? (await opts.onConfirm()) !== false : true; } catch (e) { ok = false; }
       if (!host.isConnected) return;
       if (ok) {
         setState('done');
-        try { if (navigator.vibrate) navigator.vibrate([12, 40, 18]); } catch (e) {}
+        hz('success');
         if (!reduce()) host.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.02)' }, { transform: 'scale(1)' }], { duration: 360, easing: SPRING });
       } else {
         state = 'idle'; host.dataset.state = 'idle'; knob.disabled = false; text.textContent = opts.label || 'Deslize para confirmar';
         host.setAttribute('aria-busy', 'false');
+        hz('error');
         await animateTo(0, SPRING, 620);
         if (!reduce()) host.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(5px)' }, { transform: 'translateX(-3px)' }, { transform: 'translateX(0)' }], { duration: 360, easing: 'cubic-bezier(.23,1,.32,1)' });
       }
@@ -86,11 +92,15 @@
       var raw = e.clientX - startX;
       if (Math.abs(raw - x) > 2) moved = true;
       x = raw < 0 ? raw * 0.15 : raw > max ? max + (raw - max) * 0.15 : raw;
+      // Um toque leve quando passa do ponto em que soltar já confirma.
+      var nowPast = x >= max * 0.85;
+      if (nowPast && !past) hz('tick');
+      past = nowPast;
       paint();
     });
     function release() {
       if (!dragging) return;
-      dragging = false; host.classList.remove('is-drag');
+      dragging = false; past = false; host.classList.remove('is-drag');
       if (x >= max * 0.85) complete();
       else animateTo(0, SPRING, 620);
     }
