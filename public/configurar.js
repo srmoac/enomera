@@ -30,7 +30,7 @@ const toast = (o) => window.EnoFeedback && window.EnoFeedback.toast(o);
 const stage = document.getElementById('stage');
 const nextBtn = document.getElementById('next');
 const backBtn = document.getElementById('back');
-const S = { me: null, profile: null, setup: null, patients: [], steps: [], i: 0, busy: false, form: {} };
+const S = { me: null, profile: null, setup: null, patients: [], steps: [], i: 0, busy: false, form: {}, mode: 'wizard', view: '' };
 
 const DAYS = [[1, 'Seg'], [2, 'Ter'], [3, 'Qua'], [4, 'Qui'], [5, 'Sex'], [6, 'Sáb'], [0, 'Dom']];
 const HOURS = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21];
@@ -44,7 +44,31 @@ const STEP_DEFS = {
   pacientes: { prod: 'minne', label: 'Pacientes' },
   site: { prod: 'etha', label: 'Site' },
   pronto: { prod: 'enomera', label: 'Pronto' },
+  hub: { prod: 'enomera', label: 'Configurações' },
 };
+
+// Etapas obrigatórias e o que conta como feito. Quem já terminou não refaz o passo a passo:
+// cai no painel de configurações (hub) e abre só o item que quer mudar (feedback do Flay, 24 nov).
+const REQUIRED = ['voce', 'consultorio', 'horarios', 'link'];
+function isDone(key) {
+  const f = S.form;
+  if (key === 'voce') return (f.displayName || '').trim().length >= 3;
+  if (key === 'consultorio') return Boolean(S.setup && S.setup.sessionPriceCents != null);
+  if (key === 'horarios') return Object.values(f.hours).some((set) => set && set.size);
+  if (key === 'link') return Boolean(f.open);
+  return true;
+}
+const missing = () => S.steps.filter((k) => REQUIRED.includes(k) && !isDone(k));
+function summary(key) {
+  const f = S.form;
+  if (key === 'voce') return [f.displayName, f.crpOrCrm, f.specialty].filter(Boolean).join(' · ');
+  if (key === 'consultorio') return [[...f.modalities].map((m) => (m === 'online' ? 'Online' : 'Presencial')).join(' e '), `${f.duration} min`, f.price === '' ? '' : (Number(f.price) ? 'R$ ' + f.price : 'valor a combinar')].filter(Boolean).join(' · ');
+  if (key === 'horarios') { const n = Object.values(f.hours).reduce((a, set) => a + (set ? set.size : 0), 0); const d = Object.values(f.hours).filter((set) => set && set.size).length; const b = (S.blocks || []).length; return n ? `${n} ${n === 1 ? 'horário' : 'horários'} em ${d} ${d === 1 ? 'dia' : 'dias'}${b ? ` · ${b} ${b === 1 ? 'folga' : 'folgas'}` : ''}` : 'Nenhum horário liberado'; }
+  if (key === 'link') return f.open ? 'Agenda aberta para pedidos' : 'Agenda fechada';
+  if (key === 'pacientes') return 'Importar ou adicionar pacientes no Minne';
+  if (key === 'site') return 'Perguntas do seu site na Etha';
+  return '';
+}
 
 function computeSteps() {
   const s = ['voce'];
@@ -144,6 +168,14 @@ const VIEWS = {
       <button type="button" class="eg-btn" data-launch="etha" data-path="/?modo=ao-vivo">Responder as perguntas do site</button>
       <p class="muted small">Abre a Etha numa nova aba. Quando terminar, volte aqui para concluir.</p>` };
   },
+  hub() {
+    const rows = S.steps.filter((k) => k !== 'pronto').map((k) => {
+      const done = isDone(k); const opt = !REQUIRED.includes(k);
+      return `<button type="button" class="cf-hubrow eg-surface" data-edit="${k}" data-produto="${STEP_DEFS[k].prod}"><span class="dot" aria-hidden="true"></span><span class="cf-hubtxt"><b>${STEP_DEFS[k].label}</b><span>${esc(summary(k))}</span></span><span class="cf-hubst ${done ? 'ok' : 'todo'}">${opt ? 'Abrir' : done ? '✓' : 'Falta'}</span><svg class="cf-hubgo" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>`;
+    }).join('');
+    const left = missing();
+    return { title: 'Suas configurações', lead: left.length ? `Falta ${left.length === 1 ? '1 item' : left.length + ' itens'} para tudo funcionar. O resto já está salvo.` : 'Está tudo configurado. Toque num item para mudar.', body: `<div class="cf-hub">${rows}</div>` };
+  },
   pronto() {
     const name = (S.form.displayName || '').split(' ').filter((w) => !/^dr[a]?\.?$/i.test(w))[0] || '';
     const rows = [];
@@ -157,24 +189,28 @@ const VIEWS = {
 
 // ---------- Render e transição (só a etapa entra; topo e barra ficam parados) ----------
 function paint() {
-  const key = S.steps[S.i]; const prod = STEP_DEFS[key].prod;
+  const key = S.view; const prod = STEP_DEFS[key].prod;
+  const hub = S.mode === 'hub'; const edit = S.mode === 'edit';
   document.body.setAttribute('data-produto', prod);
+  document.body.setAttribute('data-mode', S.mode);
   document.getElementById('pill').textContent = prod.toUpperCase();
-  document.getElementById('count').textContent = `Etapa ${S.i + 1} de ${S.steps.length} · ${STEP_DEFS[key].label}`;
+  document.getElementById('count').textContent = hub ? (missing().length ? 'Quase lá' : 'Tudo configurado') : edit ? `Configurações · ${STEP_DEFS[key].label}` : `Etapa ${S.i + 1} de ${S.steps.length} · ${STEP_DEFS[key].label}`;
+  const later = document.getElementById('later'); if (later) later.textContent = hub || edit ? 'Voltar ao portal' : 'Terminar depois';
   const bar = document.getElementById('bar');
   if (bar.children.length !== S.steps.length) bar.innerHTML = S.steps.map((k) => `<i style="--seg:${COLOR[STEP_DEFS[k].prod]}"></i>`).join('');
-  [...bar.children].forEach((el, k) => el.classList.toggle('on', k <= S.i));
-  backBtn.hidden = S.i === 0;
-  nextBtn.textContent = key === 'pronto' ? 'Ir para o portal' : key === 'link' ? (S.form.open ? 'Continuar' : 'Abrir agenda') : key === 'site' ? 'Já respondi, continuar' : 'Continuar';
+  [...bar.children].forEach((el, k) => el.classList.toggle('on', hub || edit ? isDone(S.steps[k]) : k <= S.i));
+  backBtn.hidden = hub || (!edit && S.i === 0);
+  backBtn.textContent = edit ? 'Cancelar' : 'Voltar';
+  nextBtn.textContent = hub ? 'Ir para o portal' : edit ? 'Salvar' : key === 'pronto' ? 'Ir para o portal' : key === 'link' ? (S.form.open ? 'Continuar' : 'Abrir agenda') : key === 'site' ? 'Já respondi, continuar' : 'Continuar';
   // Abrir a agenda é um compromisso com pacientes: vira um gesto de deslizar (padrao-ux-motion §20).
-  const slideMode = key === 'link' && !S.form.open && Boolean(window.EnoSlide);
+  const slideMode = !hub && key === 'link' && !S.form.open && Boolean(window.EnoSlide);
   let slot = document.getElementById('dock-slide');
   if (slideMode && !slot) {
     slot = document.createElement('div'); slot.id = 'dock-slide';
     nextBtn.after(slot);
     window.EnoSlide.mount(slot, { label: 'Deslize para abrir', busyLabel: 'Abrindo…', doneLabel: 'Agenda aberta', onConfirm: async () => {
       const ok = await save('link');
-      if (ok) setTimeout(() => { show(S.i + 1, 'next'); }, 900);
+      if (ok) setTimeout(() => { if (S.mode === 'edit') showHub('prev', 'link'); else show(S.i + 1, 'next'); }, 900);
       return ok;
     } });
   }
@@ -184,13 +220,15 @@ function paint() {
 }
 function stepHtml(key) {
   const v = VIEWS[key]();
-  return `<section class="cf-step" data-step="${key}"><h1 tabindex="-1">${v.title}</h1><p class="lead">${v.lead}</p><div class="cf-card eg-surface">${v.body}</div>${['pacientes', 'site'].includes(key) ? '<button type="button" class="cf-skip" data-skip style="justify-self:start">Pular por agora</button>' : ''}</section>`;
+  return `<section class="cf-step" data-step="${key}"><h1 tabindex="-1">${v.title}</h1><p class="lead">${v.lead}</p><div class="cf-card eg-surface">${v.body}</div>${S.mode === 'wizard' && ['pacientes', 'site'].includes(key) ? '<button type="button" class="cf-skip" data-skip style="justify-self:start">Pular por agora</button>' : ''}</section>`;
 }
 function show(k, dir) {
   const old = stage.firstElementChild;
   const h0 = stage.offsetHeight;
-  S.i = k;
-  const tmp = document.createElement('div'); tmp.innerHTML = stepHtml(S.steps[k]); const nu = tmp.firstElementChild;
+  const key = typeof k === 'string' ? k : S.steps[k];
+  if (typeof k === 'number') S.i = k;
+  S.view = key;
+  const tmp = document.createElement('div'); tmp.innerHTML = stepHtml(key); const nu = tmp.firstElementChild;
   if (!old || reduce() || !dir) { stage.innerHTML = ''; stage.appendChild(nu); }
   else {
     old.classList.add(`out-${dir}`); stage.appendChild(nu); nu.classList.add(`in-${dir}`);
@@ -198,10 +236,18 @@ function show(k, dir) {
     setTimeout(() => old.remove(), 170);
   }
   paint(); wire(nu);
-  if (S.steps[k] === 'pronto' && dir && !reduce()) flyDots(nu);
+  if (key === 'pronto' && dir && !reduce()) flyDots(nu);
   if (dir) { nu.querySelector('h1').focus({ preventScroll: true }); window.scrollTo({ top: 0, behavior: reduce() ? 'auto' : 'smooth' }); }
-  try { history.replaceState(null, '', `?etapa=${S.steps[k]}`); } catch {}
+  try { history.replaceState(null, '', key === 'hub' ? location.pathname : `?etapa=${key}`); } catch {}
 }
+function showHub(dir, savedKey) {
+  S.mode = 'hub'; show('hub', dir);
+  if (!savedKey) return;
+  const row = stage.querySelector(`.cf-step:last-child [data-edit="${savedKey}"]`);
+  if (row) { row.classList.add('is-saved'); setTimeout(() => row.classList.remove('is-saved'), 1400); }
+  toast({ title: 'Salvo', text: STEP_DEFS[savedKey].label.toLowerCase() + ' atualizado' });
+}
+function openEdit(key) { S.mode = 'edit'; show(S.steps.indexOf(key), 'next'); }
 
 // Pronto: cada ponto de produto sai do seu trecho da barra de progresso e pousa na linha dele.
 function flyDots(root) {
@@ -224,6 +270,7 @@ function flyDots(root) {
 function toggle(btn, on) { btn.setAttribute('aria-pressed', String(on)); }
 function wire(root) {
   const f = S.form;
+  root.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => openEdit(b.dataset.edit)));
   root.querySelectorAll('[data-spec]').forEach((b) => b.addEventListener('click', () => { f.specialty = b.dataset.spec; root.querySelectorAll('[data-spec]').forEach((x) => toggle(x, x === b)); }));
   root.querySelectorAll('[data-mod]').forEach((b) => b.addEventListener('click', () => {
     const m = b.dataset.mod; const on = !f.modalities.has(m);
@@ -524,6 +571,7 @@ async function save(key) {
     const line = pres ? `${f.street}, ${f.number}${f.complement ? ' · ' + f.complement : ''} · ${f.district ? f.district + ' · ' : ''}${f.city}${f.uf ? '/' + f.uf : ''}` : '';
     const r = await api('/api/v1/ambo/pro/setup', { method: 'PUT', body: { modalities: [...f.modalities], address, inPersonAddress: line, city: f.city || (pres ? '' : 'Online'), sessionDurationMin: f.duration, sessionPriceCents: Number(priceStr) * 100 } });
     if (!r.ok) { toast({ tone: 'err', text: r.data.error || 'Não deu para salvar agora.' }); return false; }
+    S.setup = { ...(S.setup || {}), sessionPriceCents: Number(priceStr) * 100, modalities: [...f.modalities] };
     return true;
   }
   if (key === 'horarios') {
@@ -549,6 +597,16 @@ async function save(key) {
 
 async function go(delta, skip = false) {
   if (S.busy) return;
+  if (S.mode === 'hub') { if (delta > 0) location.href = '/portal'; return; }
+  if (S.mode === 'edit') {
+    if (delta < 0) { showHub('prev'); return; }
+    S.busy = true; nextBtn.setAttribute('aria-busy', 'true');
+    const slow = setTimeout(() => { nextBtn.innerHTML = '<span class="pl-spin" aria-hidden="true"></span>Salvando'; }, 300);
+    let ok = false; try { ok = await save(S.view); } finally { clearTimeout(slow); S.busy = false; nextBtn.removeAttribute('aria-busy'); nextBtn.textContent = 'Salvar'; }
+    if (!ok) return;
+    showHub('prev', S.view);
+    return;
+  }
   const k = S.i + delta; if (k < 0 || k >= S.steps.length) { if (delta > 0) location.href = '/portal'; return; }
   if (delta > 0 && !skip) {
     S.busy = true; nextBtn.setAttribute('aria-busy', 'true'); const label = nextBtn.textContent;
@@ -575,6 +633,14 @@ backBtn.addEventListener('click', () => go(-1));
   initForm();
   S.steps = computeSteps();
   const want = new URLSearchParams(location.search).get('etapa');
-  const start = Math.max(0, S.steps.indexOf(want));
+  const left = missing();
+  if (!left.length && want !== 'pronto') {
+    // Já configurou tudo: painel de configurações; com ?etapa= abre direto aquele item para editar.
+    if (want && S.steps.includes(want)) { S.mode = 'edit'; show(S.steps.indexOf(want), null); }
+    else { S.mode = 'hub'; show('hub', null); }
+    return;
+  }
+  // Ainda falta algo: o passo a passo começa no primeiro item que falta, não do zero.
+  const start = S.steps.includes(want) ? S.steps.indexOf(want) : Math.max(0, S.steps.indexOf(left[0]));
   show(start, null);
 })();
