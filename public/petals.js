@@ -535,7 +535,7 @@ export async function mountPetalJourney() {
       petal.outer.style.visibility = visible ? 'visible' : 'hidden';
       petal.outer.style.transform = `translate3d(${p.x.toFixed(2)}px,${p.y.toFixed(2)}px,0) scale(${p.s.toFixed(4)})`;
       petal.outer.style.opacity = p.o.toFixed(3);
-      petal.plane.style.transform = (Math.abs(p.rx) > .05 || Math.abs(p.ry) > .05)
+      petal.plane.style.transform = (!(window.EnoPerf && window.EnoPerf.lite) && (Math.abs(p.rx) > .05 || Math.abs(p.ry) > .05))
         ? `perspective(1000px) rotateZ(${p.r.toFixed(2)}deg) rotateX(${p.rx.toFixed(2)}deg) rotateY(${p.ry.toFixed(2)}deg)`
         : `rotateZ(${p.r.toFixed(2)}deg)`;
     });

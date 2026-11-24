@@ -234,6 +234,7 @@ export function initLiquidGlass(root = document, { selector = '.lg', light = tru
   let pointer = null, lightFrame = 0;
   function queueLight() {
     if (!light || reduceMotion.matches || lightFrame) return;
+    if (window.EnoPerf && window.EnoPerf.lite) return; // modo leve: luz parada (eno-perf.js)
     lightFrame = requestAnimationFrame(() => {
       lightFrame = 0;
       const vh = innerHeight || 1;
