@@ -439,7 +439,10 @@ export async function mountPetalJourney() {
 
   const eps = { x: .14, y: .14, r: .05, rx: .06, ry: .06, s: .0014, o: .003 };
 
+  // ?petalas=lento: relógio 4x mais lento, só para gravar câmera lenta de verdade
+  const timeScale = new URLSearchParams(location.search).get('petalas') === 'lento' ? .25 : 1;
   function tick(now) {
+    now *= timeScale;
     frame = 0;
     if (hidden || (!plan && !portal)) return;
     const snap = snapNext || reduced.matches;

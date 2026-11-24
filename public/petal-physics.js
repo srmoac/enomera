@@ -107,8 +107,9 @@ export function createPetalPhysics({ shapes, fills }) {
   // Fenda e ondas no vidro (sempre na camada da frente, acima do cartão).
   const fx = mk(front.svg, 'g', { class: 'pp-fx' });
   // Membrana: o vidro do cartão é puxado para fora no furo (cone de tensão, rugas que irradiam).
-  const tentGrad = mk(front.defs, 'radialGradient', { id: 'pp-tent' });
-  [['0', '#fff', '.0'], ['.32', '#fff', '.45'], ['.6', '#fff', '.1'], ['.8', '#25306a', '.08'], ['1', '#25306a', '0']]
+  // Covinha da membrana: só sombra suave (côncava), nada de brilho branco em volta.
+  const tentGrad = mk(front.defs, 'radialGradient', { id: 'pp-tent', fx: '.42', fy: '.38' });
+  [['0', '#1f2a5e', '.2'], ['.45', '#1f2a5e', '.09'], ['1', '#1f2a5e', '0']]
     .forEach(([o, c, a]) => mk(tentGrad, 'stop', { offset: o, 'stop-color': c, 'stop-opacity': a }));
   front.svg.insertBefore(fx, front.svg.firstChild.nextSibling); // por baixo da parte da frente da pétala
   const tents = [0, 1, 2].map(() => mk(fx, 'ellipse', { fill: 'url(#pp-tent)', opacity: '0' }));
@@ -161,7 +162,7 @@ export function createPetalPhysics({ shapes, fills }) {
     shadow: mk(fx, 'path', { fill: 'none', stroke: '#2a3570', 'stroke-opacity': '0', 'stroke-width': '2.2', 'stroke-linecap': 'round' }),
     light: mk(fx, 'path', { fill: 'none', stroke: '#fff', 'stroke-opacity': '0', 'stroke-width': '1.4', 'stroke-linecap': 'round' })
   }));
-  const ripplePool = [0, 1, 2, 3, 4, 5].map(() => mk(fx, 'ellipse', { fill: 'none', stroke: '#fff', 'stroke-width': '1.3', opacity: '0' }));
+  const ripplePool = [0, 1, 2, 3, 4, 5].map(() => mk(fx, 'ellipse', { fill: 'none', stroke: '#1f2a5e', 'stroke-width': '1', opacity: '0' }));
   const ripples = [];
 
   let active = false;
@@ -341,12 +342,21 @@ export function createPetalPhysics({ shapes, fills }) {
       });
       if (card) slitInfo = { a, b, mx, my, len: Math.sqrt(best), ang: Math.atan2(b.y - a.y, b.x - a.x), card, w: L * .3 };
     }
+    // antes de furar: a ponta encosta e empurra a membrana (cross entre 1 e 1,18 = ponta logo à frente do plano)
+    it.press = null;
+    if (piercing && !slitInfo && cross > .97 && it.side) {
+      const amt = smooth((1.2 - cross) / .23) * pose.o;
+      const card = amt > .02 && cards().find(el => {
+        const r = el.getBoundingClientRect();
+        return tipP.x > r.left + 4 && tipP.x < r.right - 4 && tipP.y > r.top + 4 && tipP.y < r.bottom - 4;
+      });
+      if (card) it.press = { mx: tipP.x, my: tipP.y, amt, card, len: L * .22, ang: 0 };
+    }
     const nowCrossing = !!slitInfo;
-    if (nowCrossing && !it.crossing) ripple(slitInfo, now, 1);
     // um cutucão forte enquanto atravessa também ondula o vidro
     if (nowCrossing && Math.abs(it.vbz) > 2.4 && now - (it.lastPokeRipple || 0) > 500) {
       it.lastPokeRipple = now;
-      ripple(slitInfo, now, .6);
+      ripple(slitInfo, now, .5);
     }
     it.crossing = nowCrossing;
     it.slit = slitInfo && { ...slitInfo, o: pose.o * smooth(clamp((prox - .08) / .3)) };
@@ -373,117 +383,114 @@ export function createPetalPhysics({ shapes, fills }) {
     let ti = 0;
     for (const el of cards()) {
       let c = cardState.get(el);
-      if (!c) { c = { tx: 0, ty: 0, vx: 0, vy: 0, lz: 0, vlz: 0, anchor: null, T: { x: 0, y: 0 }, tf: '' }; cardState.set(el, c); }
-      const it = items.find(q => q.slit && q.slit.card === el);
-      const wrap = el.offsetParent || el.parentElement;
-      const wr = wrap.getBoundingClientRect();
-      const r0 = { left: wr.left + el.offsetLeft, top: wr.top + el.offsetTop, w: el.offsetWidth, h: el.offsetHeight };
-      let tTx = 0, tTy = 0, tLz = 0;
-      if (it) {
-        const sl = it.slit;
-        const u = (sl.mx - r0.left) / r0.w, v = (sl.my - r0.top) / r0.h;
-        if (!c.anchor) {
-          c.anchor = { u, v };
-          c.vlz -= 34 * sl.o; // a ponta afunda o vidro ao entrar
-        }
-        // o furo "aprende" a nova posição devagar: só o movimento rápido vira tensão
-        const k = 1 - Math.exp(-dt / .45);
-        c.anchor.u += (u - c.anchor.u) * k;
-        c.anchor.v += (v - c.anchor.v) * k;
-        const ax = r0.left + c.anchor.u * r0.w, ay = r0.top + c.anchor.v * r0.h;
-        c.T = { x: sl.mx - ax, y: sl.my - ay };
-        const tl = Math.hypot(c.T.x, c.T.y);
-        const cap = tl > 26 ? 26 / tl : 1;
-        tTx = c.T.x * .42 * cap;
-        tTy = c.T.y * .42 * cap;
-        tLz = sl.o * Math.min(2.6, tl * .09); // a base da pétala na frente puxa o vidro para fora
-        c.u = c.anchor.u; c.v = c.anchor.v;
-        c.pull = sl.o;
-      } else if (c.anchor) {
-        // soltou: o vidro volta de uma vez e balança
-        c.vx -= c.T.x * 9; c.vy -= c.T.y * 9;
-        c.vlz += 26 * (c.pull || 1);
-        c.anchor = null;
-        c.pull = 0;
+      if (!c) { c = { P: 0, vP: 0, lz: 0, vlz: 0, tx: 0, ty: 0, vx: 0, vy: 0, pierced: false, spot: null, T: { x: 0, y: 0 }, tf: '' }; cardState.set(el, c); }
+      const pierce = items.find(q => q.slit && q.slit.card === el);
+      const press = !pierce && items.find(q => q.press && q.press.card === el);
+      const spot = pierce ? pierce.slit : press ? press.press : null;
+
+      // Membrana (óvulo): a ponta encosta e afunda a superfície (P cresce), a tensão sobe até furar;
+      // no furo ela estoura: a covinha some num tranco, a superfície volta, balança e fecha em volta.
+      let targetP = 0;
+      if (press) targetP = press.press.amt;
+      if (c.popAt) targetP = Math.max(targetP, .9);
+      else if (pierce) targetP = .1 * pierce.slit.o; // fica uma covinha mínima onde está cravada
+      if (pierce && !c.pierced) {
+        c.pierced = true;
+        // Se a rolagem foi rápida e a ponta não chegou a afundar a membrana, a sequência acontece no
+        // tempo: afunda por ~150 ms, então estoura. Se já estava afundada, estoura na hora.
+        if (c.P < .45) { c.vP += 9 - c.P * 10; c.popAt = now + 150; }
+        else c.popAt = now;
       }
-      const K = 140, C = 9.5; // pouco amortecido: assenta com 2 ou 3 balanços
-      c.vx += (K * (tTx - c.tx) - C * c.vx) * dt;
-      c.vy += (K * (tTy - c.ty) - C * c.vy) * dt;
-      c.vlz += (K * (tLz - c.lz) - C * c.vlz) * dt;
-      c.tx += c.vx * dt; c.ty += c.vy * dt; c.lz += c.vlz * dt;
-      const settled = Math.abs(c.tx) < .12 && Math.abs(c.ty) < .12 && Math.abs(c.lz) < .02 && Math.abs(c.vlz) < .08 && Math.abs(c.vx) < .08 && Math.abs(c.vy) < .08;
+      if (c.popAt && now >= c.popAt) {
+        c.popAt = 0;
+        c.vP -= 6 + c.P * 9;  // estouro: a covinha volta num tranco, passa do ponto e balança
+        c.vlz += 5;
+        if (c.spot) ripple(c.spot, now, 1);
+      } else if (!pierce && c.pierced && !press) {
+        c.pierced = false;  // saiu: pequeno tranco de fechar
+        c.vP -= 3;
+        ripple(c.spot || { mx: 0, my: 0, len: 0, ang: 0 }, now, .6);
+      }
+      if (spot) c.spot = { mx: spot.mx, my: spot.my, len: spot.len, ang: spot.ang || 0 };
+
+      // tensão: o cartão segue um pouco a pétala presa (bem menos que antes)
+      if (pierce) {
+        const wrap = el.offsetParent || el.parentElement;
+        const wr = wrap.getBoundingClientRect();
+        const r0 = { left: wr.left + el.offsetLeft, top: wr.top + el.offsetTop, w: el.offsetWidth, h: el.offsetHeight };
+        const u = (pierce.slit.mx - r0.left) / r0.w, v = (pierce.slit.my - r0.top) / r0.h;
+        if (!c.anchor) c.anchor = { u, v };
+        const k = 1 - Math.exp(-dt / .4);
+        c.anchor.u += (u - c.anchor.u) * k; c.anchor.v += (v - c.anchor.v) * k;
+        c.T = { x: pierce.slit.mx - (r0.left + c.anchor.u * r0.w), y: pierce.slit.my - (r0.top + c.anchor.v * r0.h) };
+        c.u = c.anchor.u; c.v = c.anchor.v;
+      } else {
+        c.anchor = null;
+        c.T = { x: 0, y: 0 };
+        if (press) {
+          const r = el.getBoundingClientRect();
+          c.u = (press.press.mx - r.left) / r.width; c.v = (press.press.my - r.top) / r.height;
+        }
+      }
+      const tl = Math.hypot(c.T.x, c.T.y), cap = tl > 10 ? 10 / tl : 1;
+      const tTx = c.T.x * .18 * cap, tTy = c.T.y * .18 * cap;
+      // pressionar empurra o canto para dentro (afasta da tela); estourar devolve
+      const tLz = -targetP * .9;
+
+      const KP = 210, CP = 13;   // covinha: firme, um pouco elástica
+      c.vP += (KP * (targetP - c.P) - CP * c.vP) * dt; c.P += c.vP * dt;
+      const K = 160, C = 12;
+      c.vlz += (K * (tLz - c.lz) - C * c.vlz) * dt; c.lz += c.vlz * dt;
+      c.vx += (K * (tTx - c.tx) - C * c.vx) * dt; c.tx += c.vx * dt;
+      c.vy += (K * (tTy - c.ty) - C * c.vy) * dt; c.ty += c.vy * dt;
+
+      const moving = Math.abs(c.vP) > .02 || Math.abs(c.P - targetP) > .004 || Math.abs(c.vlz) > .05 || Math.abs(c.lz - tLz) > .01
+        || Math.abs(c.vx) > .05 || Math.abs(c.vy) > .05 || Math.abs(c.tx - tTx) > .05 || Math.abs(c.ty - tTy) > .05;
+      if (moving || c.popAt) busy = true;
+
+      // cartão: só transforma enquanto há movimento perceptível (parado fica 2D e nítido)
       let tf = '';
-      if (!settled) {
-        busy = true;
+      if (Math.abs(c.lz) > .02 || Math.abs(c.tx) > .15 || Math.abs(c.ty) > .15) {
         const u = c.u ?? .5, v = c.v ?? .5;
         const ry = -(u - .5) * 2 * c.lz, rx = (v - .5) * 2 * c.lz;
         tf = `perspective(1400px) translate3d(${c.tx.toFixed(2)}px,${c.ty.toFixed(2)}px,0) rotateX(${rx.toFixed(3)}deg) rotateY(${ry.toFixed(3)}deg)`;
         el.style.transformOrigin = `${(100 - u * 100).toFixed(1)}% ${(100 - v * 100).toFixed(1)}%`;
-      } else if (!c.anchor) {
-        c.vx = c.vy = c.vlz = 0; c.tx = c.ty = c.lz = 0;
       }
       if (tf !== c.tf) { c.tf = tf; el.style.transform = tf; if (!tf) el.style.transformOrigin = ''; }
 
-      // cone de tensão e rugas desenhados sobre o furo
-      const tent = tents[ti], wr7 = wrinkles[ti];
+      const tent = tents[ti], wr7 = wrinkles[ti], lens = lenses[ti];
       ti++;
-      if (it) {
-        const sl = it.slit;
-        const tl = Math.hypot(c.T.x, c.T.y);
-        const ang = tl > .5 ? Math.atan2(c.T.y, c.T.x) : sl.ang + Math.PI / 2;
-        const R = sl.len * .5 + 14 + Math.min(40, tl * 1.4) + Math.max(0, -c.lz) * 5;
-        const cx = sl.mx - Math.cos(ang) * tl * .5, cy = sl.my - Math.sin(ang) * tl * .5;
-        tent.setAttribute('cx', cx.toFixed(1)); tent.setAttribute('cy', cy.toFixed(1));
-        tent.setAttribute('rx', (R * (1 + tl * .012)).toFixed(1)); tent.setAttribute('ry', (R * .78).toFixed(1));
-        tent.setAttribute('transform', `rotate(${(ang / DEG).toFixed(1)} ${cx.toFixed(1)} ${cy.toFixed(1)})`);
-        tent.setAttribute('opacity', (sl.o * clamp(.3 + tl * .035 + Math.abs(c.lz) * .12, 0, .8)).toFixed(3));
-        const tension = clamp(.12 + tl / 22 + Math.abs(c.lz) * .15, 0, 1) * sl.o;
-        wr7.forEach((w, k) => {
-          // rugas saem do furo e se curvam para o lado oposto ao puxão
-          const a = ang + Math.PI + (k - 3) * .42;
-          const r1 = sl.len * .3 + 4, r2 = r1 + (10 + Math.min(34, tl * 1.5)) * (1 - Math.abs(k - 3) * .14);
-          const bend = (k - 3) * 3;
-          const x1 = sl.mx + Math.cos(a) * r1, y1 = sl.my + Math.sin(a) * r1;
-          const x2 = sl.mx + Math.cos(a) * r2, y2 = sl.my + Math.sin(a) * r2;
-          const qx = (x1 + x2) / 2 - Math.sin(a) * bend, qy = (y1 + y2) / 2 + Math.cos(a) * bend;
-          w.setAttribute('d', `M${x1.toFixed(1)} ${y1.toFixed(1)}Q${qx.toFixed(1)} ${qy.toFixed(1)} ${x2.toFixed(1)} ${y2.toFixed(1)}`);
-          w.setAttribute('opacity', (tension * (k % 2 ? .22 : .5)).toFixed(3));
-        });
-      } else {
-        tent.setAttribute('opacity', '0');
-        wr7.forEach(w => w.setAttribute('opacity', '0'));
-      }
-      const lens = lenses[ti - 1];
+      wr7.forEach(w => w.setAttribute('opacity', '0'));
+      const sp = c.spot;
+      const depth = Math.max(0, c.P); // só a covinha (para dentro) desenha sombra/deforma
+      const R = sp ? clamp(sp.len * .55 + 22 + depth * 30, 26, 90) : 0;
+      if (sp && depth > .01) {
+        tent.setAttribute('cx', sp.mx.toFixed(1)); tent.setAttribute('cy', sp.my.toFixed(1));
+        tent.setAttribute('rx', R.toFixed(1)); tent.setAttribute('ry', (R * .9).toFixed(1));
+        tent.removeAttribute('transform');
+        tent.setAttribute('opacity', clamp(depth * 1.1, 0, .9).toFixed(3));
+      } else tent.setAttribute('opacity', '0');
+
       if (lens) {
-        const strength = it ? it.slit.o : 0;
-        const sl = it ? it.slit : c.lens;
-        const tl = Math.hypot(c.T.x, c.T.y);
-        // pinça: quase nada parado; cresce com a tensão, ao afundar e no balanço
-        const pinch = sl ? Math.min(90, strength * (8 + Math.min(56, tl * 2.4)) + Math.max(0, -c.lz) * 12 + Math.abs(c.vlz) * .3) : 0;
-        const dx = clamp(-(c.T.x * strength) * .9 - c.vx * .015, -36, 36);
-        const dy = clamp(-(c.T.y * strength) * .9 - c.vy * .015, -36, 36);
-        const amount = pinch + Math.abs(dx) + Math.abs(dy);
-        // histerese: entra acima de 16, sai abaixo de 9 (parada, o filtro não roda)
-        const want = sl && (lens.on ? amount > 9 : amount > 16);
+        // lente pequena e fraca: o vidro afunda em volta da ponta (pinça) e mais nada
+        const pinch = sp ? Math.min(56, depth * 52) : 0;
+        const want = sp && (lens.on ? pinch > 2.5 : pinch > 5);
         if (want) {
-          c.lens = { mx: sl.mx, my: sl.my, len: sl.len };
-          const D = Math.round(clamp(sl.len * 1.7 + 110, 150, 300) / 10) * 10;
+          const D = Math.round(clamp(R * 2.4, 90, 200) / 10) * 10;
           if (D !== lens.D) {
             lens.D = D;
             for (const n of [lens.filter, lens.im1, lens.im2]) { n.setAttribute('width', D); n.setAttribute('height', D); }
             lens.div.style.width = lens.div.style.height = D + 'px';
           }
           if (!lens.on) { lens.on = true; lens.div.hidden = false; }
-          lens.div.style.transform = `translate3d(${(sl.mx - D / 2).toFixed(1)}px,${(sl.my - D / 2).toFixed(1)}px,0)`;
+          lens.div.style.transform = `translate3d(${(sp.mx - D / 2).toFixed(1)}px,${(sp.my - D / 2).toFixed(1)}px,0)`;
           lens.pinch.setAttribute('scale', pinch.toFixed(1));
-          lens.dragX.setAttribute('scale', dx.toFixed(1));
-          lens.dragY.setAttribute('scale', dy.toFixed(1));
-          if (!it) busy = true;
-        } else if (lens.on) {
-          lens.on = false; lens.div.hidden = true;
-        }
-        if (!it && !want) c.lens = null;
+          lens.dragX.setAttribute('scale', '0');
+          lens.dragY.setAttribute('scale', '0');
+          busy = true;
+        } else if (lens.on) { lens.on = false; lens.div.hidden = true; }
       }
+      if (!spot && !moving) c.spot = null;
     }
     return busy;
   }
@@ -500,10 +507,10 @@ export function createPetalPhysics({ shapes, fills }) {
       const d = `M${(a.x - ex).toFixed(1)} ${(a.y - ey).toFixed(1)}L${(b.x + ex).toFixed(1)} ${(b.y + ey).toFixed(1)}`;
       s.shadow.setAttribute('d', d);
       s.glow.setAttribute('d', d);
-      s.glow.setAttribute('stroke-opacity', (o * .22).toFixed(3));
+      s.glow.setAttribute('stroke-opacity', '0');
       s.light.setAttribute('d', `M${(a.x - ex).toFixed(1)} ${(a.y - ey + 1.6).toFixed(1)}L${(b.x + ex).toFixed(1)} ${(b.y + ey + 1.6).toFixed(1)}`);
-      s.shadow.setAttribute('stroke-opacity', (o * .16).toFixed(3));
-      s.light.setAttribute('stroke-opacity', (o * .6).toFixed(3));
+      s.shadow.setAttribute('stroke-opacity', (o * .22).toFixed(3));
+      s.light.setAttribute('stroke-opacity', (o * .35).toFixed(3));
     }
     for (; n < slit.length; n++) {
       slit[n].shadow.setAttribute('stroke-opacity', '0');
@@ -518,13 +525,13 @@ export function createPetalPhysics({ shapes, fills }) {
       if (e >= 1) { el.setAttribute('opacity', '0'); return; }
       alive = true;
       const grow = 1 - (1 - e) ** 3;
-      const rx = r.len * .55 + 64 * grow * r.strength;
+      const rx = r.len * .4 + 46 * grow * r.strength;
       el.setAttribute('cx', r.x.toFixed(1));
       el.setAttribute('cy', r.y.toFixed(1));
       el.setAttribute('rx', rx.toFixed(1));
-      el.setAttribute('ry', (rx * .34).toFixed(1));
+      el.setAttribute('ry', (rx * .62).toFixed(1));
       el.setAttribute('transform', `rotate(${(r.ang / DEG).toFixed(1)} ${r.x.toFixed(1)} ${r.y.toFixed(1)})`);
-      el.setAttribute('opacity', (.55 * r.strength * (1 - e) ** 2).toFixed(3));
+      el.setAttribute('opacity', (.16 * r.strength * (1 - e) ** 2).toFixed(3));
     });
     while (ripples.length && now - ripples[0].start > 1150) ripples.shift();
     return alive || cardBusy;
