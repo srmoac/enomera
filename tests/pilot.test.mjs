@@ -57,6 +57,14 @@ test('Piloto: convite único, consentimento, eventos ligados à pessoa e painel 
     assert.equal(r.data.identified, true);
     assert.equal(Number((await db.get('SELECT COUNT(*) AS c FROM pilot_events WHERE participant_id IS NULL')).c), 0);
 
+    // Aviso de privacidade: visitante sem permissão (nc) e sem conta de convidado não grava nada.
+    r = await call('/api/v1/pilot/events', { d: 'dVisitanteNc01', p: 'site', s: 'sVisit01', nc: 1, e: [ev('view')] });
+    assert.equal(r.data.track, false); assert.equal(r.data.reason, 'sem_consentimento');
+    assert.equal(await db.get("SELECT id FROM pilot_devices WHERE id = 'dVisitanteNc01'"), undefined);
+    // Convidado com nc (recusou no aviso, mas consentiu no cadastro): continua contando e recebe a chave.
+    r = await call('/api/v1/pilot/events', { d: 'dConvidadoNc01', p: 'ambo', s: 'sConv001', nc: 1, sh: sha256Hex(acc.data.sessionToken), e: [ev('view')] });
+    assert.equal(r.data.identified, true); assert.ok(r.data.ref);
+
     // Piloto gratuito: planos, combos, anual e Sob medida saem a R$ 0, sem cartão nem fatura.
     const sel = { products: ['ambo', 'minne', 'etha'], ethaService: 'sob_medida', billing: 'permanent', mode: 'monthly' };
     const paid = await call('/api/v1/catalog/quote', sel);

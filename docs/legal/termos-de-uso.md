@@ -1,6 +1,6 @@
 # Termos de Uso da Enomera
 
-Versão piloto · 22 de novembro de 2026
+Versão piloto · 25 de novembro de 2026 (antes: 22 de novembro de 2026)
 
 > Este texto foi escrito pela própria equipe da Enomera para o piloto e **ainda não foi revisado por advogado**. Ele vale para o uso do piloto e será revisto antes da abertura comercial ampla. Dúvidas: mrsaocwork@gmail.com.
 
@@ -43,12 +43,13 @@ Ao criar uma conta ou usar qualquer serviço, você declara que leu e aceita est
 ## 5. Cancelamento
 
 - Você pode cancelar a qualquer momento pelo portal ou por e-mail. O cancelamento vale ao fim do período já pago; não há multa.
-- No plano anual, se cancelar nos primeiros 7 dias após a cobrança, devolvemos o valor integral (direito de arrependimento, art. 49 do Código de Defesa do Consumidor). Depois disso, o serviço segue até o fim do ano contratado.
+- Em qualquer plano, se você desistir em até 7 dias da contratação ou da primeira cobrança, devolvemos o valor integral (direito de arrependimento, art. 49 do Código de Defesa do Consumidor). No plano anual, depois desse prazo, o serviço segue até o fim do ano contratado.
 - Após o cancelamento, sua conta fica em modo somente leitura por 90 dias, para você exportar seus dados. Depois disso, os dados são apagados, exceto o que a lei nos obriga a guardar (veja a Política de Privacidade).
 
 ## 6. Suas responsabilidades como profissional
 
 - Você é o responsável técnico pelo atendimento e pelo conteúdo que registra, inclusive pelo prontuário, nos termos das normas do seu conselho profissional (CFP ou CFM).
+- No seu site e na sua página de agendamento, informe nome completo, profissão e número de registro (CRP ou CRM; e RQE quando anunciar especialidade médica), e não prometa resultados, como pedem as normas de publicidade do seu conselho. O Enomera Site pede esses dados, mas o conteúdo publicado é seu.
 - Em relação aos dados dos seus pacientes, você é o **controlador** e a Enomera é **operadora** (Lei 13.709/2018, LGPD). Cabe a você informar seus pacientes sobre o uso dos serviços e ter base legal para tratar os dados deles. O [Acordo de Tratamento de Dados](/privacidade#acordo) faz parte destes Termos.
 - Não use os serviços para conteúdo ilegal, para enviar mensagens não solicitadas ou para tentar acessar dados de outras contas.
 - Os textos, fotos e marcas que você publica no Site precisam ser seus ou ter autorização de uso.

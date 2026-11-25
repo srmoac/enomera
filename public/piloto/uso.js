@@ -7,6 +7,7 @@
  * Não lê o valor de nenhum campo. Textos passam por filtro que tira e-mails, números e nomes próprios.
  * Elementos com data-uso-privado (ou dentro dele) não têm texto registrado.
  * Só conta para alguém quando o aparelho pertence a um participante convidado; sem isso, apagado em 24 h.
+ * Quem não é convidado só é medido depois de permitir no aviso de privacidade (/eno-consent.js).
  */
 (function () {
   'use strict';
@@ -16,9 +17,39 @@
   var CORE = (function () { try { return new URL(script.src).origin; } catch (e) { return location.origin; } })();
   var ENDPOINT = CORE + '/api/v1/pilot/events';
   var LS = (function () { try { var k = '__eno_t'; localStorage.setItem(k, '1'); localStorage.removeItem(k); return localStorage; } catch (e) { return null; } })();
-  var get = function (k) { try { return LS ? LS.getItem(k) : null; } catch (e) { return null; } };
-  var set = function (k, v) { try { if (LS) LS.setItem(k, v); } catch (e) {} };
+  // Consentimento (LGPD): quem não é convidado do piloto só é medido se permitir no aviso de privacidade.
+  // Sem permissão, nada é gravado no aparelho; os eventos ficam só na memória da página e só seguem
+  // se a pessoa entrar com uma conta de convidado (que já consentiu no cadastro). Senão, são descartados.
+  var MEM = {};
+  var ALLOWED = false;
+  var rawGet = function (k) { try { return LS ? LS.getItem(k) : null; } catch (e) { return null; } };
+  var get = function (k) { return Object.prototype.hasOwnProperty.call(MEM, k) ? MEM[k] : rawGet(k); };
+  var set = function (k, v) {
+    if (!ALLOWED && /^eno_uso_/.test(k) && k !== 'eno_uso_off' && k !== 'eno_uso_pu') { MEM[k] = v; return; }
+    try { if (LS) LS.setItem(k, v); } catch (e) {}
+  };
+  var USO_KEYS = ['eno_uso_d', 'eno_uso_s', 'eno_uso_sa', 'eno_uso_sh'];
+  function persistMemory() { USO_KEYS.forEach(function (k) { if (MEM[k] != null) { try { if (LS) LS.setItem(k, MEM[k]); } catch (e) {} delete MEM[k]; } }); }
+  function forgetDevice() { USO_KEYS.forEach(function (k) { try { if (LS) LS.removeItem(k); } catch (e) {} }); }
+  function consentChoice() {
+    try { if (window.EnoConsent) return window.EnoConsent.get(); } catch (e) {}
+    try { var o = JSON.parse(rawGet('eno_consent_v1') || 'null'); return o ? !!o.a : null; } catch (e) { return null; }
+  }
   if (get('eno_uso_off') === '1') { window.__enomeraUso = { off: true }; return; }
+  ALLOWED = consentChoice() === true || !!rawGet('eno_uso_pu');
+  if (!ALLOWED) {
+    // Identificadores gravados antes do aviso existir: guarda na memória e apaga do aparelho.
+    USO_KEYS.forEach(function (k) { var v = rawGet(k); if (v != null) MEM[k] = v; });
+    forgetDevice();
+  }
+  // Aviso de privacidade: componente único servido pela Core.
+  if (!window.EnoConsent && !document.querySelector('script[src*="eno-consent.js"]')) {
+    try {
+      var cs = document.createElement('script');
+      cs.src = (function () { try { return new URL('/eno-consent.js', script.src).toString(); } catch (e) { return '/eno-consent.js'; } })();
+      cs.defer = true; (document.head || document.documentElement).appendChild(cs);
+    } catch (e) {}
+  }
 
   function rid(n) { var a = new Uint8Array(n || 12); (window.crypto || {}).getRandomValues ? crypto.getRandomValues(a) : a.forEach(function (_, i) { a[i] = Math.random() * 256; }); return Array.prototype.map.call(a, function (b) { return ('0' + b.toString(36)).slice(-2); }).join('').slice(0, 22); }
   var DEVICE = get('eno_uso_d'); if (!DEVICE || !/^[A-Za-z0-9_-]{8,48}$/.test(DEVICE)) { DEVICE = 'd' + rid(14); set('eno_uso_d', DEVICE); }
@@ -78,10 +109,16 @@
     queue.push(ev);
     if (queue.length >= 40) flush(); else if (!flushTimer) flushTimer = setTimeout(flush, 8000);
   }
-  function payload(events) { var b = { d: DEVICE, p: PRODUCT, s: SESSION, f: form(), e: events }; if (SH) b.sh = SH; if (PU) b.pu = PU; return JSON.stringify(b); }
+  function payload(events) { var b = { d: DEVICE, p: PRODUCT, s: SESSION, f: form(), e: events }; if (SH) b.sh = SH; if (PU) b.pu = PU; if (!ALLOWED) b.nc = 1; return JSON.stringify(b); }
+  function allow() {
+    if (ALLOWED) return; ALLOWED = true; persistMemory();
+    if (queue.length) flush();
+  }
   function flush(useBeacon) {
     clearTimeout(flushTimer); flushTimer = null;
     if (!queue.length || !trackOn) return;
+    // Sem permissão e sem conta: nada sai do aparelho. Guarda pouco na memória, caso a pessoa entre como convidada.
+    if (!ALLOWED && !SH) { if (queue.length > 200) queue.splice(0, queue.length - 200); return; }
     var events = queue.splice(0, 100); var body = payload(events);
     if (useBeacon && navigator.sendBeacon) { try { if (navigator.sendBeacon(ENDPOINT, new Blob([body], { type: 'text/plain' }))) return; } catch (e) {} }
     try {
@@ -91,6 +128,7 @@
           if (!r) return;
           if (r.track === false) { trackOn = false; queue = []; if (r.reason === 'admin' || r.reason === 'withdrawn') set('eno_uso_off', '1'); }
           if (r.ref && r.ref !== PU) { PU = r.ref; set('eno_uso_pu', r.ref); }
+          if (r.ref) allow();
         }).catch(function () {});
     } catch (e) {}
     if (queue.length) flushTimer = setTimeout(flush, 1500);
@@ -251,6 +289,16 @@
     if (mo) mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-current', 'aria-selected', 'data-uso-tela'] });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
+
+  // Escolha no aviso de privacidade, a qualquer momento.
+  addEventListener('enoconsent', function (e) {
+    var ok = !!(e && e.detail && e.detail.analytics);
+    if (ok) { trackOn = true; allow(); return; }
+    if (rawGet('eno_uso_pu')) return; // convidado: vale o consentimento do cadastro (retirada pelo painel ou e-mail)
+    ALLOWED = false; queue = [];
+    USO_KEYS.forEach(function (k) { var v = rawGet(k); if (v != null) MEM[k] = v; });
+    forgetDevice();
+  });
 
   window.__enomeraUso = {
     produto: PRODUCT,

@@ -1,6 +1,6 @@
 # Política de Privacidade da Enomera
 
-Versão piloto · 22 de novembro de 2026
+Versão piloto · 25 de novembro de 2026 (antes: 22 de novembro de 2026)
 
 > Este texto foi escrito pela própria equipe da Enomera para o piloto e **ainda não foi revisado por advogado**. Ele descreve com honestidade como tratamos dados hoje e será revisto antes da abertura comercial ampla.
 
@@ -27,8 +27,8 @@ Encarregado pelo tratamento de dados (DPO): Marcos Martins · mrsaocwork@gmail.c
 
 **Visitantes do site**
 
-- Não usamos cookies de publicidade nem de rastreamento. Usamos apenas um cookie de sessão, necessário para manter você conectado.
-- Durante o piloto, as páginas guardam no seu navegador um identificador aleatório do aparelho, usado só pelo registro de uso do piloto (veja abaixo). Se o aparelho não pertencer a um participante convidado, os eventos ligados a ele são apagados em até 24 horas.
+- Não usamos cookies de publicidade nem ferramentas de rastreamento de terceiros. O que guardamos no seu navegador está no item [Cookies e armazenamento no navegador](#cookies).
+- A medição de uso só acontece se você permitir no aviso de privacidade, ou se você entrou no piloto por convite e aceitou no cadastro.
 
 <a id="piloto"></a>
 
@@ -44,6 +44,19 @@ Quem entra no piloto por convite concorda, no cadastro, com um registro de uso n
 
 Não registramos o que é escrito: prontuário, nomes ou dados de pacientes, mensagens e valores de campos ficam fora. Os textos de botões passam por um filtro que retira e-mails, números e nomes próprios antes do envio. Base legal: consentimento (art. 7º, I, da LGPD). Só a administração da Enomera vê esses dados, guardados na mesma infraestrutura da plataforma (Vercel e Neon). Eles são apagados até 90 dias depois do fim do piloto ou na hora em que o participante pedir para sair, por e-mail para mrsaocwork@gmail.com.
 
+<a id="cookies"></a>
+
+**Cookies e armazenamento no navegador**
+
+Usamos um cookie e o armazenamento local do navegador (localStorage e sessionStorage) em dois grupos:
+
+| Grupo | O que é | Precisa de permissão? |
+| --- | --- | --- |
+| Necessários | Cookie `enomera_sid` (sessão de login, só acessível pelo servidor) e chaves de sessão de cada serviço; rascunhos que você ainda não enviou (pedido de consulta, perguntas do Site, contratação); preferências de tela, como modo leve, tema e avisos já vistos; a sua escolha neste aviso (`eno_consent_v1`). | Não. Sem eles o serviço não funciona ou perde o que você digitou. |
+| Medição de uso | Identificadores aleatórios do aparelho e da visita (`eno_uso_d`, `eno_uso_s`, `eno_uso_sa`, `eno_uso_sh`, `eno_uso_pu`) usados pelo registro de uso descrito abaixo. | Sim. Só são gravados se você clicar em Permitir, ou se você entrou no piloto por convite e aceitou no cadastro. |
+
+Se você recusar, nada da medição é gravado no seu aparelho e nenhum evento é enviado. Você pode mudar a escolha quando quiser pelo link "Preferências de privacidade" no rodapé, e apagar tudo limpando os dados do site no seu navegador. Os dados de cookies e do armazenamento ficam no seu aparelho e não são compartilhados com terceiros.
+
 ## 3. Para que usamos e com qual base legal
 
 | Finalidade | Base legal (LGPD) |
@@ -53,6 +66,7 @@ Não registramos o que é escrito: prontuário, nomes ou dados de pacientes, men
 | Cobrar a assinatura e emitir comprovantes | Execução de contrato e obrigação legal (art. 7º, V e II) |
 | Registros de acesso por 6 meses | Obrigação legal (Marco Civil da Internet, art. 15) |
 | Segurança, prevenção a fraude e melhoria dos serviços | Legítimo interesse (art. 7º, IX), sem uso de dados de saúde |
+| Medição de uso para visitantes que permitiram no aviso | Consentimento (art. 7º, I), que pode ser retirado a qualquer momento |
 | Guardar prontuário e registros clínicos | A pedido do profissional, para cumprir as obrigações dele (art. 11, II, "a" e "f") |
 
 Não usamos dados de pacientes para nenhuma finalidade própria da Enomera.
@@ -74,7 +88,7 @@ Não vendemos dados. Também podemos compartilhar dados quando a lei ou uma orde
 
 ## 5. Transferência internacional
 
-Parte dos fornecedores guarda dados fora do Brasil. Fazemos essa transferência com base no art. 33 da LGPD, usando fornecedores que oferecem garantias contratuais de proteção de dados e medidas de segurança compatíveis com a lei brasileira.
+Parte dos fornecedores guarda dados fora do Brasil. Fazemos essa transferência com base no art. 33 da LGPD e no Regulamento de Transferência Internacional de Dados (Resolução CD/ANPD nº 19/2024), usando fornecedores com cláusulas contratuais de proteção de dados e medidas de segurança compatíveis com a lei brasileira. Estamos incorporando as cláusulas-padrão contratuais aprovadas pela ANPD aos contratos com esses fornecedores; até lá, dados clínicos dos pacientes só são guardados com as proteções do item 7. Você pode pedir a lista atualizada de fornecedores e países pelo e-mail do item 13.
 
 ## 6. Por quanto tempo guardamos
 
@@ -119,10 +133,24 @@ Esta seção faz parte dos Termos de Uso e vale entre você, profissional (contr
 7. **Fim do contrato.** Ao fim do contrato, você recebe a exportação completa dos dados. Depois do prazo do item 6, a Enomera apaga os dados, salvo obrigação legal de guarda.
 8. **Comprovação.** A Enomera fornece, quando pedido, as informações necessárias para demonstrar o cumprimento deste acordo.
 
-## 11. Mudanças nesta Política
+<a id="pacientes"></a>
+
+## 11. Aviso aos pacientes
+
+Se você é paciente e pediu uma consulta, entrou na área do paciente ou é atendido por um profissional que usa a Enomera:
+
+- **Quem decide sobre os seus dados é o profissional** que atende você. A Enomera guarda e processa esses dados em nome dele, sem usá-los para nada próprio.
+- **O que é guardado:** nome, contato, data de nascimento, os pedidos e horários de consulta e o que você escrever no pedido (por exemplo, o motivo da busca, que é opcional). O prontuário é escrito pelo profissional e fica sob sigilo profissional.
+- **Para quê:** organizar o seu agendamento e o seu atendimento. Dados de saúde são tratados para a tutela da sua saúde, por profissional de saúde (art. 11, II, "f", da LGPD).
+- **Com quem:** com ninguém além do profissional e dos fornecedores de hospedagem do item 4. Não vendemos dados nem usamos para publicidade.
+- **Seus direitos:** peça acesso, correção ou cópia ao profissional que atende você. Se preferir, escreva para o e-mail do item 13 e nós repassamos o pedido a ele e o ajudamos a responder.
+
+Não escreva no pedido de consulta nada que você não queira que o profissional leia antes do primeiro encontro. Em situação de crise ou risco, procure o CVV (ligue 188, 24 horas) ou o SAMU (192): o Agendamento não é um canal de urgência.
+
+## 12. Mudanças nesta Política
 
 Avisaremos mudanças importantes por e-mail e nesta página, com a data da nova versão.
 
-## 12. Contato
+## 13. Contato
 
 Marcos Martins · Encarregado de dados · mrsaocwork@gmail.com

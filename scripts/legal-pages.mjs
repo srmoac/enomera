@@ -52,7 +52,7 @@ h1{font:500 clamp(30px,6vw,42px)/1.18 Manrope,system-ui,sans-serif;letter-spacin
 a{color:var(--accent)}.legal-note{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:16px 0}
 .legal-table{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:15px}th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
 li{margin:4px 0}footer{max-width:760px;margin:0 auto;padding:0 16px 40px;color:var(--muted);font-size:14px}
-</style></head><body><header><a href="/" style="gap:8px"><img src="/assets/brand.svg" width="28" height="24" alt="">enomera</a><nav aria-label="Documentos"><a href="/termos">Termos</a><span aria-hidden="true">·</span><a href="/privacidade">Privacidade</a></nav></header><main>${body}</main><footer>Enomera · Atendimento remoto nacional</footer><script src="/piloto/uso.js" data-produto="enomera" defer></script></body></html>`;
+</style></head><body><header><a href="/" style="gap:8px"><img src="/assets/brand.svg" width="28" height="24" alt="">enomera</a><nav aria-label="Documentos"><a href="/termos">Termos</a><span aria-hidden="true">·</span><a href="/privacidade">Privacidade</a></nav></header><main>${body}</main><footer>Enomera · Atendimento remoto nacional · <a href="#cookies" data-eno-consent>Preferências de privacidade</a></footer><script src="/piloto/uso.js" data-produto="enomera" defer></script></body></html>`;
 }
 
 export async function buildLegalPages(outDir = 'dist') {
