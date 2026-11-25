@@ -8,7 +8,6 @@ import {
   applyIntentPose,
   SERVICE_PETAL
 } from './petal-model.js';
-import { createPetalPhysics } from './petal-physics.js';
 
 export async function mountPetalJourney() {
   const response = await fetch('/assets/flower.svg');
@@ -53,16 +52,13 @@ export async function mountPetalJourney() {
     document.body.append(slot);
     slots.push(slot);
     return {
-      slot, outer, plane, svg,
+      slot, outer, plane, svg, shape,
       pose: null,
       vel: { x: 0, y: 0, r: 0 },
-      z: 1
+      z: 1,
+      // desvio na troca de profundidade: sai de cima do cartão, troca de camada fora dele e volta
+      dodge: { phase: 0, x: 0, y: 0, dx: 0, dy: 0, back: false }
     };
-  });
-
-  const physics = createPetalPhysics({
-    shapes: paths.map(p => p.getAttribute('d')),
-    fills: paths.map(p => p.getAttribute('fill'))
   });
 
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
@@ -419,7 +415,6 @@ export async function mountPetalJourney() {
       const prox = clamp(1 - dist / radius);
       const smoothProx = prox * prox * (3 - 2 * prox);
       const focused = owner.mode === 'intent' && owner.service === service;
-      physics.setProx(petalIdx, smoothProx);
       level = focused ? Math.max(smoothProx, .52) : smoothProx;
     }
 
@@ -439,7 +434,70 @@ export async function mountPetalJourney() {
 
   const eps = { x: .14, y: .14, r: .05, rx: .06, ry: .06, s: .0014, o: .003 };
 
-  // ?petalas=lento: relógio 4x mais lento, só para gravar câmera lenta de verdade
+  // Troca de profundidade sem atravessar o cartão. A coreografia pede a pétala na frente (z 12) ou atrás
+  // (z 1). Se na hora da troca ela estiver por cima de um cartão, ela primeiro desvia: sai pela borda mais
+  // próxima, troca de camada já fora dele e volta para a posição, agora do outro lado do vidro.
+  const dodgeCards = ['#etha-frame', '#ambo-demo', '#minne-demo'];
+  let dodgeEls = null;
+  function overlapPush(petal, dg) {
+    dodgeEls ??= dodgeCards.map(s => document.querySelector(s)).filter(Boolean);
+    const bb = petal.shape.getBoundingClientRect();
+    if (!bb.width) return null;
+    const m = 10;
+    let best = null;
+    for (const el of dodgeEls) {
+      const r = el.getBoundingClientRect();
+      if (bb.right <= r.left - m || bb.left >= r.right + m || bb.bottom <= r.top - m || bb.top >= r.bottom + m) continue;
+      // quanto falta, em cada direção, para a pétala inteira sair do cartão
+      const need = { l: bb.right - r.left + m, r: r.right - bb.left + m, t: bb.bottom - r.top + m, b: r.bottom - bb.top + m };
+      if (!dg.dx && !dg.dy) {
+        const k = Object.keys(need).reduce((a, c) => (need[c] < need[a] ? c : a), 'l');
+        dg.dx = k === 'l' ? -1 : k === 'r' ? 1 : 0;
+        dg.dy = k === 't' ? -1 : k === 'b' ? 1 : 0;
+      }
+      const n = dg.dx < 0 ? need.l : dg.dx > 0 ? need.r : dg.dy < 0 ? need.t : need.b;
+      if (!best || n > best) best = n;
+    }
+    return best;
+  }
+  function zDodge(petal, wantZ, dt, snap) {
+    const dg = petal.dodge;
+    const setZ = z => { petal.z = z; petal.slot.style.zIndex = String(z); };
+    if (snap || reduced.matches) {
+      dg.phase = 0; dg.x = dg.y = 0;
+      if (petal.z !== wantZ) setZ(wantZ);
+      return false;
+    }
+    if (dg.phase === 0) {
+      if (petal.z === wantZ) return false;
+      dg.dx = dg.dy = 0;
+      const n = overlapPush(petal, dg);
+      if (!n) { setZ(wantZ); return false; }
+      dg.phase = 1; dg.back = wantZ < petal.z; dg.t = 0;
+    }
+    if (dg.phase === 1) {
+      if (petal.z === wantZ) dg.phase = 2;            // a coreografia desistiu da troca: só volta
+      else {
+        const n = overlapPush(petal, dg);
+        dg.t = (dg.t || 0) + dt;
+        // já fora do cartão (só a folga de 10 px faltando) ou desviando há tempo demais: troca de camada aqui
+        if (!n || n < 14 || dg.t > 420) { setZ(wantZ); dg.phase = 2; }
+        else {
+          const rate = 1 - Math.exp(-dt / 70);        // sai rápido, como quem desvia
+          dg.x += dg.dx * n * rate; dg.y += dg.dy * n * rate;
+          return true;
+        }
+      }
+    }
+    // volta para a posição da coreografia, agora do outro lado do vidro
+    if (petal.z !== wantZ) { dg.phase = 1; dg.back = wantZ < petal.z; dg.t = 0; return true; }
+    const rate = 1 - Math.exp(-dt / 240);
+    dg.x -= dg.x * rate; dg.y -= dg.y * rate;
+    if (Math.abs(dg.x) < .3 && Math.abs(dg.y) < .3) { dg.x = dg.y = 0; dg.phase = 0; return false; }
+    return true;
+  }
+
+  // ?petalas=lento: relógio 4x mais lento, só para gravar câmera lenta
   const timeScale = new URLSearchParams(location.search).get('petalas') === 'lento' ? .25 : 1;
   function tick(now) {
     now *= timeScale;
@@ -536,16 +594,13 @@ export async function mountPetalJourney() {
       }
 
       const wantZ = goal.front ? 12 : 1;
-      if (petal.z !== wantZ) {
-        petal.z = wantZ;
-        petal.slot.style.zIndex = String(wantZ);
-      }
+      if (zDodge(petal, wantZ, dt, snap)) moving = true;
 
-      petal.goalFront = !!goal.front;
-      if (physics.active) return;
       const visible = p.y > -560 && p.y < dimensions.h + 560;
       petal.outer.style.visibility = visible ? 'visible' : 'hidden';
-      petal.outer.style.transform = `translate3d(${p.x.toFixed(2)}px,${p.y.toFixed(2)}px,0) scale(${p.s.toFixed(4)})`;
+      const dg = petal.dodge;
+      const sMul = dg.phase ? 1 + (dg.back ? -.06 : .05) * Math.min(1, Math.hypot(dg.x, dg.y) / 70) : 1;
+      petal.outer.style.transform = `translate3d(${(p.x + dg.x).toFixed(2)}px,${(p.y + dg.y).toFixed(2)}px,0) scale(${(p.s * sMul).toFixed(4)})`;
       petal.outer.style.opacity = p.o.toFixed(3);
       petal.plane.style.transform = (!(window.EnoPerf && window.EnoPerf.lite) && (Math.abs(p.rx) > .05 || Math.abs(p.ry) > .05))
         ? `perspective(1000px) rotateZ(${p.r.toFixed(2)}deg) rotateX(${p.rx.toFixed(2)}deg) rotateY(${p.ry.toFixed(2)}deg)`
@@ -556,17 +611,6 @@ export async function mountPetalJourney() {
       syncDockGlow('etha', 1, y, ethaGlow, ethaFrameEl);
       syncDockGlow('ambo', 2, y, amboGlow, null);
       syncDockGlow('minne', 0, y, minneGlow, null);
-    }
-
-    if (physics.active) {
-      for (let i = 0; i < petals.length; i++) {
-        const petal = petals[i];
-        if (!petal.pose) continue;
-        const visible = petal.pose.y > -560 && petal.pose.y < dimensions.h + 560;
-        if (!visible) continue;
-        if (physics.render(i, petal.pose, petal.vel, petal.goalFront, dt, now)) moving = true;
-      }
-      if (physics.renderFx(now)) moving = true;
     }
 
     if (moving || (!reduced.matches && (now - started < 1250 || settleEnergy > .004 || (owner.expiresAt && now < owner.expiresAt)))) {
@@ -778,34 +822,12 @@ export async function mountPetalJourney() {
         petals: petals.map((p, i) => ({
           i,
           z: p.z,
+          dodge: p.dodge.phase ? { phase: p.dodge.phase, x: Math.round(p.dodge.x), y: Math.round(p.dodge.y) } : null,
           pose: p.pose ? { ...p.pose } : null
         }))
       };
     }
   };
-
-  // Física: o cursor desvia as pétalas; no toque, encostar perto dá um sopro.
-  let lastPtr = null;
-  const posesNow = () => petals.map(p => p.pose);
-  addEventListener('pointermove', e => {
-    if (!physics.active) return;
-    const t = performance.now();
-    if (e.pointerType !== 'mouse') return;
-    const vx = lastPtr ? (e.clientX - lastPtr.x) / Math.max(8, t - lastPtr.t) : 0;
-    const vy = lastPtr ? (e.clientY - lastPtr.y) / Math.max(8, t - lastPtr.t) : 0;
-    lastPtr = { x: e.clientX, y: e.clientY, t };
-    if (physics.poke(e.clientX, e.clientY, vx, vy, posesNow(), .55)) schedule();
-  }, { passive: true });
-  addEventListener('pointerdown', e => {
-    if (!physics.active || e.pointerType === 'mouse') return;
-    if (physics.poke(e.clientX, e.clientY, 0, 0, posesNow(), 1.2)) schedule();
-  }, { passive: true });
-
-  physics.start(on => {
-    for (const s of slots) s.hidden = on;
-    snapNext = false;
-    schedule();
-  });
 
   measure();
   document.fonts.ready.then(measure);
