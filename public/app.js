@@ -1,5 +1,8 @@
-import { services, billingFor, serviceById } from './services.js';
+import { services, billingFor, serviceById, comboPrice } from './services.js';
 import { mountEnomeraPlatform } from './platform.js';
+import { motionAutoInnerHTML } from './motion-flip.js';
+
+motionAutoInnerHTML();
 
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -56,13 +59,13 @@ function renderAmbo() {
   const glow = '<span class="ambo-dock-glow" aria-hidden="true"></span>';
   const signature = '<p class="signature">ambo</p>';
   if (state.amboStep === 0) {
-    box.innerHTML = `${glow}${signature}<h4 class="piece">Consulta com<br>Helena Duarte</h4><div class="profile glass piece"><div class="initials">HD</div><b>Helena Duarte</b><small>Psicóloga · adultos e adolescentes</small></div><p>Online · Presencial</p><p><b>50 min · R$ 180</b></p><p>Primeira consulta por solicitação.</p><button class="button" data-ambo="next">Solicitar primeira consulta</button>`;
+    box.innerHTML = `${glow}${signature}<h4 class="piece">Consulta com<br>Helena Duarte</h4><div class="profile lg piece"><div class="initials">HD</div><b>Helena Duarte</b><small>Psicóloga · adultos e adolescentes</small></div><p>Online · Presencial</p><p><b>50 min · R$ 220</b></p><p>Primeira consulta por solicitação.</p><button class="button" data-ambo="next">Solicitar primeira consulta</button>`;
   } else if (state.amboStep === 1) {
-    box.innerHTML = `${glow}${signature}<p class="eyebrow">PRIMEIRA CONSULTA · 01 / 03</p><h4>Como prefere<br>ser atendido?</h4><div class="choice-group" aria-label="Modalidade">${['Online', 'Presencial'].map(x => `<button data-mode="${x}" aria-pressed="${state.mode === x}">${x}</button>`).join('')}</div><b>Seus dias</b><div class="choice-group" aria-label="Dias">${['Seg', 'Ter', 'Qua', 'Qui', 'Sex'].map(x => `<button data-day="${x}" aria-pressed="${state.days.includes(x)}">${x}</button>`).join('')}</div><label for="period">Seu período</label><select id="period">${['Manhã', 'Tarde', 'Noite'].map(x => `<option ${state.period === x ? 'selected' : ''}>${x}</option>`).join('')}</select><p>Nenhum horário será reservado nesta etapa.</p><p class="ambo-hint" role="status" ${state.days.length ? 'hidden' : ''}>Selecione ao menos um dia para continuar.</p><button class="button" data-ambo="next" ${state.days.length ? '' : 'disabled'}>Continuar</button><button class="back" data-ambo="back">Voltar</button>`;
+    box.innerHTML = `${glow}${signature}<p class="eyebrow">PRIMEIRA CONSULTA · 01 / 03</p><h4>Como prefere<br>ser atendido?</h4><div class="choice-group" aria-label="Modalidade">${['Online', 'Presencial'].map(x => `<button data-mode="${x}" aria-pressed="${state.mode === x}">${x}</button>`).join('')}</div><b>Seus dias</b><div class="choice-group" aria-label="Dias">${['Seg', 'Ter', 'Qua', 'Qui', 'Sex'].map(x => `<button data-day="${x}" aria-pressed="${state.days.includes(x)}">${x}</button>`).join('')}</div><b>Seu período</b><div class="choice-group" aria-label="Período">${['Manhã', 'Tarde', 'Noite'].map(x => `<button data-period="${x}" aria-pressed="${state.period === x}">${x}</button>`).join('')}</div><p>Nenhum horário será reservado nesta etapa.</p><p class="ambo-hint" role="status" ${state.days.length ? 'hidden' : ''}>Selecione ao menos um dia para continuar.</p><button class="button" data-ambo="next" ${state.days.length ? '' : 'disabled'}>Continuar</button><button class="back" data-ambo="back">Voltar</button>`;
   } else if (state.amboStep === 2) {
-    box.innerHTML = `${glow}${signature}<p class="eyebrow">PRIMEIRA CONSULTA · 02 / 03</p><h4>Confira suas<br>preferências</h4><div class="profile glass"><b>Helena Duarte</b><p>${state.mode} · ${state.days.join(' e ')} · ${state.period}</p><p>50 min · R$ 180<br>Valor fictício do atendimento demonstrado.</p></div><p>Uma solicitação depende da confirmação do profissional.</p><button class="button" data-ambo="next">Concluir demonstração</button><button class="back" data-ambo="back">Editar preferências</button>`;
+    box.innerHTML = `${glow}${signature}<p class="eyebrow">PRIMEIRA CONSULTA · 02 / 03</p><h4>Confira suas<br>preferências</h4><div class="profile lg"><b>Helena Duarte</b><p>${state.mode} · ${state.days.join(' e ')} · ${state.period}</p><p>50 min · R$ 220<br>Valor fictício do atendimento demonstrado.</p></div><p>Uma solicitação depende da confirmação do profissional.</p><button class="button" data-ambo="next">Concluir demonstração</button><button class="back" data-ambo="back">Editar preferências</button>`;
   } else {
-    box.innerHTML = `${glow}${signature}<p class="eyebrow">PRIMEIRA CONSULTA · 03 / 03</p><h4>Preferências registradas</h4><p role="status">Esta é uma simulação local. Nenhuma solicitação foi enviada e nenhum horário foi reservado.</p><div class="profile glass"><b>${state.mode}</b><p>${state.days.join(' e ')} · ${state.period}</p></div><button class="button" data-ambo="restart">Explorar novamente</button>`;
+    box.innerHTML = `${glow}${signature}<p class="eyebrow">PRIMEIRA CONSULTA · 03 / 03</p><h4>Preferências registradas</h4><p role="status">Esta é uma simulação local. Nenhuma solicitação foi enviada e nenhum horário foi reservado.</p><div class="profile lg"><b>${state.mode}</b><p>${state.days.join(' e ')} · ${state.period}</p></div><button class="button" data-ambo="restart">Explorar novamente</button>`;
   }
 
   box.querySelectorAll('[data-ambo]').forEach(b => {
@@ -90,7 +93,14 @@ function renderAmbo() {
       pulseService('ambo', b);
     };
   });
-  if ($('#period')) $('#period').onchange = e => { state.period = e.target.value; pulseService('ambo', e.target); };
+  // Período em escolhas de vidro, sem lista nativa (padrão: nada de dropdown nativo).
+  box.querySelectorAll('[data-period]').forEach(b => {
+    b.onclick = () => {
+      state.period = b.dataset.period;
+      box.querySelectorAll('[data-period]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+      pulseService('ambo', b);
+    };
+  });
 }
 
 function activeAppointment() {
@@ -131,9 +141,9 @@ function renderMini(rowOnly = false) {
   const rowsMarkup = `<div class="minne-list" role="group" aria-label="Atendimentos do dia">${miniAppointments.map(a => `<button class="minne-row" data-minne-row="${a.id}" aria-pressed="${a.id === state.miniPatient}"><span><b>${a.shortTime}</b> ${a.name}</span><span>${a.mode}</span></button>`).join('')}</div>`;
 
   if (state.mini === 'Meu dia') {
-    c.innerHTML = `<h4 class="piece">Meu dia</h4><p>Terça-feira, 24 de novembro · dados fictícios</p><div class="mini-cards"><div class="glass piece" id="minne-detail" aria-live="polite">${renderMiniDetailMarkup(item)}</div><div class="glass piece"><p>Solicitações</p><p>3 aguardando resposta</p><b>Marina Alves</b><p>Terças e quintas · tarde</p></div></div><h5>Atendimentos do dia</h5>${rowsMarkup}`;
+    c.innerHTML = `<h4 class="piece">Meu dia</h4><p>Terça-feira, 24 de novembro · dados fictícios</p><div class="mini-cards"><div class="lg piece" id="minne-detail" aria-live="polite">${renderMiniDetailMarkup(item)}</div><div class="lg piece"><p>Solicitações</p><p>3 aguardando resposta</p><b>Marina Alves</b><p>Terças e quintas · tarde</p></div></div><h5>Atendimentos do dia</h5>${rowsMarkup}`;
   } else if (state.mini === 'Agenda') {
-    c.innerHTML = `<h4>Agenda</h4><p>Terça-feira, 24 de novembro · dados fictícios</p><div class="mini-cards"><div class="glass" id="minne-detail" aria-live="polite">${renderMiniDetailMarkup(item)}</div><div class="glass"><p>Próximo horário livre</p><b>17h · disponível</b><p>Online ou presencial</p></div></div><h5>Selecionar consulta</h5>${rowsMarkup}`;
+    c.innerHTML = `<h4>Agenda</h4><p>Terça-feira, 24 de novembro · dados fictícios</p><div class="mini-cards"><div class="lg" id="minne-detail" aria-live="polite">${renderMiniDetailMarkup(item)}</div><div class="lg"><p>Próximo horário livre</p><b>17h · disponível</b><p>Online ou presencial</p></div></div><h5>Selecionar consulta</h5>${rowsMarkup}`;
   } else if (state.mini === 'Pacientes') {
     c.innerHTML = '<h4>Pacientes</h4><p>Dados fictícios · sem informações clínicas</p>' + miniAppointments.map(a => `<p><b>${a.name}</b> · ${a.mode} · ${a.shortTime}</p>`).join('');
   } else {
@@ -163,7 +173,7 @@ $$('[data-mini]').forEach(b => {
 function renderCombination() {
   const opts = $('#service-options');
   if (!opts.children.length) {
-    opts.innerHTML = services.map(s => `<button class="service-option glass" data-service="${s.id}" aria-pressed="${state.selected.includes(s.id)}"><span class="check">${state.selected.includes(s.id) ? '✓' : '○'}</span><strong>${s.name[0].toUpperCase() + s.name.slice(1)}</strong><span>${s.description}</span><small>${s.billing}</small></button>`).join('');
+    opts.innerHTML = services.map(s => `<button class="service-option lg" data-service="${s.id}" aria-pressed="${state.selected.includes(s.id)}"><span class="check">${state.selected.includes(s.id) ? '✓' : '○'}</span><strong>${s.name[0].toUpperCase() + s.name.slice(1)}</strong><span>${s.description}</span><small>${s.billing}</small></button>`).join('');
     opts.querySelectorAll('[data-service]').forEach(b => {
       b.onclick = () => {
         const id = b.dataset.service;
@@ -179,7 +189,8 @@ function renderCombination() {
     });
   }
   $('#billing-summary').innerHTML = state.selected.length
-    ? billingFor(state.selected, state.billing).map(row => `<div class="billing-row" data-service="${row.id}"><b>${row.id}</b><span>${row.text}</span></div>`).join('')
+    ? billingFor(state.selected, state.billing).map(row => `<div class="billing-row" data-service="${row.id}"><b>${row.id.charAt(0).toUpperCase() + row.id.slice(1)}</b><span>${row.text}</span></div>`).join('')
+      + (() => { const c = comboPrice(state.selected, state.billing); return `<div class="billing-row billing-total"><b>Total</b><span>${c.total}${c.savings ? ` · economia de ${c.savings}` : ''}</span></div>`; })()
     : '<p>Selecione um serviço para conhecer a estrutura de contratação.</p>';
   $$('[data-billing]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.billing === state.billing)));
 }
@@ -200,7 +211,7 @@ function renderPortal() {
   const nav = ['Meu dia', ...(has('ambo') || has('minne') ? ['Agenda'] : []), ...(has('minne') ? ['Pacientes'] : []), ...(has('ambo') ? ['Solicitações'] : []), ...(has('minne') ? ['Registros'] : []), 'Outros serviços'];
   if (!nav.includes(state.portal)) state.portal = 'Meu dia';
   if (!portal.querySelector('.portal-shell')) {
-    portal.innerHTML = `<div class="portal-shell"><img class="substrate" src="/assets/portal-substrate.svg" width="1440" height="1000" alt=""><aside class="portal-side glass"><a href="/" class="brand">enomera</a><nav aria-label="Portal profissional">${portalTabs.map(n => `<button data-portal="${n}" aria-current="false">${n}</button>`).join('')}</nav><div class="portal-account">Helena Duarte<br>Psicologia</div></aside><main class="portal-main"><div class="portal-banner"><span>Demonstração local · sem autenticação ou integração real</span><a href="/">Voltar ao site ↗</a></div><h1></h1><p class="date">Terça-feira, 24 de novembro de 2026 · dados fictícios</p><div id="portal-content" tabindex="-1"></div><img class="portal-flower" src="/assets/flower.svg" width="480" height="396" alt=""></main></div>`;
+    portal.innerHTML = `<div class="portal-shell"><img class="substrate" src="/assets/portal-substrate.svg" width="1440" height="1000" alt=""><aside class="portal-side lg"><a href="/" class="brand">enomera</a><nav aria-label="Portal profissional">${portalTabs.map(n => `<button data-portal="${n}" aria-current="false">${n}</button>`).join('')}</nav><div class="portal-account">Helena Duarte<br>Psicologia</div></aside><main class="portal-main"><div class="portal-banner"><span>Demonstração local · sem autenticação ou integração real</span><a href="/">Voltar ao site ↗</a></div><h1></h1><p class="date">Terça-feira, 24 de novembro de 2026 · dados fictícios</p><div id="portal-content" tabindex="-1"></div><img class="portal-flower" src="/assets/flower.svg" width="480" height="396" alt=""></main></div>`;
   }
   $$('[data-portal]').forEach(b => {
     const n = b.dataset.portal;
@@ -212,17 +223,17 @@ function renderPortal() {
   const c = $('#portal-content');
   const schedule = () => appointments.map(([time, name, mode]) => `<div class="schedule-row"><span>${time}　${name}</span><span>${mode} · 50 min</span></div>`).join('');
   if (state.portal === 'Meu dia') {
-    c.innerHTML = `<div class="stats">${has('ambo') || has('minne') ? '<button class="stat glass" data-goto="Agenda"><strong>04</strong><span>Consultas hoje</span></button>' : ''}${has('ambo') ? `<button class="stat glass" data-goto="Solicitações"><strong>0${state.requests.length}</strong><span>Solicitações pendentes</span></button>` : ''}${has('minne') ? `<button class="stat glass" data-goto="Registros"><strong>0${state.recordDone ? 0 : 1}</strong><span>Registro a concluir</span></button>` : ''}</div>${has('ambo') || has('minne') ? '<div class="next-appointment glass"><p class="eyebrow">Próximo atendimento · 14h–14h50</p><h2>Ana Oliveira</h2><p>Online · confirmado</p><button class="back" data-appointment>Ver consulta ↗</button></div><h3>Depois, no seu dia</h3>' + schedule().replace(/<div class="schedule-row">.*?<\/div>/, '') : '<div class="portal-panel glass"><h3>Seu acesso aos serviços</h3><p>Ative Ambo ou Minne no cenário demonstrativo para explorar a visão geral da rotina.</p><button class="button" data-goto="Outros serviços">Explorar outros serviços</button></div>'}<p class="notice">O portal reúne acesso e visão geral. A rotina clínica detalhada está no Minne.</p>`;
+    c.innerHTML = `<div class="stats">${has('ambo') || has('minne') ? '<button class="stat lg" data-goto="Agenda"><strong>04</strong><span>Consultas hoje</span></button>' : ''}${has('ambo') ? `<button class="stat lg" data-goto="Solicitações"><strong>0${state.requests.length}</strong><span>Solicitações pendentes</span></button>` : ''}${has('minne') ? `<button class="stat lg" data-goto="Registros"><strong>0${state.recordDone ? 0 : 1}</strong><span>Registro a concluir</span></button>` : ''}</div>${has('ambo') || has('minne') ? '<div class="next-appointment lg"><p class="eyebrow">Próximo atendimento · 14h–14h50</p><h2>Ana Oliveira</h2><p>Online · confirmado</p><button class="back" data-appointment>Ver consulta ↗</button></div><h3>Depois, no seu dia</h3>' + schedule().replace(/<div class="schedule-row">.*?<\/div>/, '') : '<div class="portal-panel lg"><h3>Seu acesso aos serviços</h3><p>Ative Ambo ou Minne no cenário demonstrativo para explorar a visão geral da rotina.</p><button class="button" data-goto="Outros serviços">Explorar outros serviços</button></div>'}<p class="notice">O portal reúne acesso e visão geral. A rotina clínica detalhada está no Minne.</p>`;
   } else if (state.portal === 'Agenda') {
-    c.innerHTML = '<div class="portal-panel glass"><h3>Consultas do dia</h3>' + schedule() + '</div><p class="notice">Agenda fictícia. Não há calendário externo conectado.</p>';
+    c.innerHTML = '<div class="portal-panel lg"><h3>Consultas do dia</h3>' + schedule() + '</div><p class="notice">Agenda fictícia. Não há calendário externo conectado.</p>';
   } else if (state.portal === 'Pacientes') {
-    c.innerHTML = '<div class="portal-panel glass"><h3>Pacientes no cenário</h3>' + appointments.map(([, name]) => `<div class="schedule-row"><span>${name}</span><span>Cadastro fictício</span></div>`).join('') + '</div><p class="notice">Dados clínicos ficam na aplicação Minne. O portal não exibe prontuários.</p>';
+    c.innerHTML = '<div class="portal-panel lg"><h3>Pacientes no cenário</h3>' + appointments.map(([, name]) => `<div class="schedule-row"><span>${name}</span><span>Cadastro fictício</span></div>`).join('') + '</div><p class="notice">Dados clínicos ficam na aplicação Minne. O portal não exibe prontuários.</p>';
   } else if (state.portal === 'Solicitações') {
-    c.innerHTML = '<p>Preferências recebidas no cenário fictício. As respostas alteram apenas esta sessão.</p>' + state.requests.map(name => `<div class="portal-panel glass"><h3>${name}</h3><p>Primeira consulta · Online<br>Terças e quintas · tarde</p><button class="button" data-respond="${name}">Responder na demonstração</button></div>`).join('') + (state.requests.length ? '' : '<div class="portal-panel glass"><p role="status">Todas as solicitações desta amostra foram respondidas.</p></div>');
+    c.innerHTML = '<p>Preferências recebidas no cenário fictício. As respostas alteram apenas esta sessão.</p>' + state.requests.map(name => `<div class="portal-panel lg"><h3>${name}</h3><p>Primeira consulta · Online<br>Terças e quintas · tarde</p><button class="button" data-respond="${name}">Responder na demonstração</button></div>`).join('') + (state.requests.length ? '' : '<div class="portal-panel lg"><p role="status">Todas as solicitações desta amostra foram respondidas.</p></div>');
   } else if (state.portal === 'Registros') {
-    c.innerHTML = `<div class="portal-panel glass"><h3>${state.recordDone ? 'Registro concluído na amostra' : 'Um registro a concluir'}</h3><p>Ana Oliveira · consulta de 24 de novembro. Esta área demonstra o acesso ao Minne.</p><label for="demo-note">Anotação fictícia</label><textarea id="demo-note" placeholder="Texto fictício para experimentar a edição">${escape(state.note)}</textarea><button class="button" id="save-note">${state.recordDone ? 'Atualizar amostra local' : 'Marcar como concluído na amostra'}</button><p class="notice" id="note-feedback">O conteúdo fica apenas na memória desta aba e desaparece ao recarregar.</p></div>`;
+    c.innerHTML = `<div class="portal-panel lg"><h3>${state.recordDone ? 'Registro concluído na amostra' : 'Um registro a concluir'}</h3><p>Ana Oliveira · consulta de 24 de novembro. Esta área demonstra o acesso ao Minne.</p><label for="demo-note">Anotação fictícia</label><textarea id="demo-note" placeholder="Texto fictício para experimentar a edição">${escape(state.note)}</textarea><button class="button" id="save-note">${state.recordDone ? 'Atualizar amostra local' : 'Marcar como concluído na amostra'}</button><p class="notice" id="note-feedback">O conteúdo fica apenas na memória desta aba e desaparece ao recarregar.</p></div>`;
   } else {
-    c.innerHTML = `<div class="portal-panel glass"><h3>Serviços ativos no cenário</h3><p>Altere a combinação para explorar como o resumo se adapta.</p><div class="active-products">${services.map(s => `<label><input type="checkbox" data-active="${s.id}" ${has(s.id) ? 'checked' : ''}>${s.name}</label>`).join('')}</div></div>${services.map(s => `<div class="portal-panel glass"><h3>${s.name}</h3><p>${s.description}</p><div class="product-links"><button class="back" data-offer="${s.id}">Conhecer ${s.name} ↗</button>${s.externalDestination ? `<a class="text-link" href="${s.externalDestination}" target="_blank" rel="noopener">${s.externalLabel}</a>` : ''}${s.exampleDestination ? `<a class="text-link" href="${s.exampleDestination}" target="_blank" rel="noopener">${s.exampleLabel}</a>` : ''}</div></div>`).join('')}`;
+    c.innerHTML = `<div class="portal-panel lg"><h3>Serviços ativos no cenário</h3><p>Altere a combinação para explorar como o resumo se adapta.</p><div class="active-products">${services.map(s => `<label><input type="checkbox" data-active="${s.id}" ${has(s.id) ? 'checked' : ''}>${s.name}</label>`).join('')}</div></div>${services.map(s => `<div class="portal-panel lg"><h3>${s.name}</h3><p>${s.description}</p><div class="product-links"><button class="back" data-offer="${s.id}">Conhecer ${s.name} ↗</button>${s.externalDestination ? `<a class="text-link" href="${s.externalDestination}" target="_blank" rel="noopener">${s.externalLabel}</a>` : ''}${s.exampleDestination ? `<a class="text-link" href="${s.exampleDestination}" target="_blank" rel="noopener">${s.exampleLabel}</a>` : ''}</div></div>`).join('')}`;
   }
   $$('[data-portal],[data-goto]').forEach(b => {
     b.onclick = () => {
@@ -285,6 +296,54 @@ function syncServiceLinks() {
   }
 }
 
+// Âncoras da home sem "#" na URL: rola suave até a seção e mantém o endereço limpo (feedback do Flay, 24 nov).
+function wireSmoothAnchors() {
+  const reduceMo = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const goTo = (id, smooth) => {
+    const el = id && document.getElementById(id);
+    if (!el) return false;
+    el.scrollIntoView({ behavior: smooth && !reduceMo() ? 'smooth' : 'auto', block: 'start' });
+    if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '-1');
+    el.focus({ preventScroll: true });
+    return true;
+  };
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a[href^="#"], a[href^="/#"]');
+    if (!a || a.classList.contains('skip') || e.metaKey || e.ctrlKey || e.shiftKey || e.button > 0) return;
+    const id = a.getAttribute('href').split('#')[1];
+    if (id === 'inicio' || id === '') { e.preventDefault(); window.scrollTo({ top: 0, behavior: reduceMo() ? 'auto' : 'smooth' }); return; }
+    if (goTo(id, true)) e.preventDefault();
+  });
+  // Quem chega com /#secao (link antigo ou de outra página) rola até ela e o "#" sai da barra.
+  if (location.hash) {
+    const id = decodeURIComponent(location.hash.slice(1));
+    try { history.replaceState(history.state, '', location.pathname + location.search); } catch {}
+    requestAnimationFrame(() => goTo(id, false));
+  }
+}
+
+// Já logado: some o "Entrar" e o "Experimentar" vira "Acessar painel".
+function reflectSession() {
+  const TOKEN = 'enomera_session_token_v1';
+  let tok = '';
+  try { tok = sessionStorage.getItem(TOKEN) || ''; } catch {}
+  const apply = (on) => {
+    document.documentElement.classList.toggle('is-signed-in', on);
+    const cta = $('#nav-links a.button');
+    const mob = $('.nav-login-mobile');
+    if (cta) {
+      if (!cta.dataset.anon) cta.dataset.anon = cta.textContent + '|' + cta.getAttribute('href');
+      const [t, h] = on ? ['Acessar painel', '/portal'] : cta.dataset.anon.split('|');
+      if (cta.textContent !== t) { cta.textContent = t; cta.setAttribute('href', h); cta.animate?.([{ opacity: 0, filter: 'blur(4px)', transform: 'scale(.96)' }, { opacity: 1, filter: 'none', transform: 'none' }], { duration: 280, easing: 'cubic-bezier(.23,1,.32,1)' }); }
+    }
+    if (mob) mob.textContent = on ? 'Painel' : 'Entrar';
+  };
+  if (tok) apply(true);
+  fetch('/api/v1/auth/me', { credentials: 'include', headers: tok ? { Authorization: `Bearer ${tok}` } : {} })
+    .then((r) => apply(r.ok))
+    .catch(() => {});
+}
+
 const cleanPath = location.pathname.replace(/\/$/, '') || '/';
 const isPortal = ['/portal', '/conta', '/checkout'].includes(cleanPath);
 if (isPortal) {
@@ -299,9 +358,13 @@ if (isPortal) {
   renderAmbo();
   renderMini();
   renderCombination();
+  wireSmoothAnchors();
+  reflectSession();
   $('#combo-continue-cta')?.addEventListener('click', (e) => {
     const sel = state.selected.length ? state.selected.join(',') : 'ambo,minne';
-    e.currentTarget.href = `/portal?etapa=planos&selecao=${encodeURIComponent(sel)}`;
+    // A combinação e a periodicidade escolhidas no site seguem para o percurso de contratação.
+    const periodicidade = state.billing === 'license' ? 'anual' : 'mensal';
+    e.currentTarget.href = `/checkout?selecao=${encodeURIComponent(sel)}&periodicidade=${periodicidade}`;
   });
 }
 
@@ -359,12 +422,16 @@ function onScroll() {
   const rect = connection.getBoundingClientRect();
   target = Math.max(0, Math.min(1, -rect.top / Math.max(1, connection.offsetHeight - innerHeight)));
   if (!reduced.matches && !raf) raf = requestAnimationFrame(animate);
-  for (const product of $$('.product')) {
-    const r = product.getBoundingClientRect();
+  // Lê todas as posições antes de escrever: intercalar leitura e escrita forçava um
+  // layout por produto a cada evento de rolagem (pesado em celular fraco).
+  const products = [...$$('.product')].map(product => [product, product.getBoundingClientRect()]);
+  for (const [product, r] of products) {
+    if (r.bottom < -innerHeight || r.top > innerHeight * 2) continue; // longe da tela: nada muda
     const p = Math.max(0, Math.min(1, (innerHeight - r.top) / (innerHeight * .58)));
     product.querySelectorAll('.piece').forEach((piece, i) => {
       const t = Math.min(1, Math.max(0, (p - i * .045) / .70));
-      piece.style.transform = reduced.matches ? 'none' : `translate3d(${(1 - t) * (i % 2 ? -32 : 28)}px,${(1 - t) * (24 + i * 9)}px,0)`;
+      const tf = reduced.matches ? 'none' : `translate3d(${(1 - t) * (i % 2 ? -32 : 28)}px,${(1 - t) * (24 + i * 9)}px,0)`;
+      if (piece.style.transform !== tf) piece.style.transform = tf;
     });
   }
 }

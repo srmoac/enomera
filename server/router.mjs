@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { COMMERCIAL_CATALOG, calculateSimulatedQuote } from './catalog.mjs';
+import { COMMERCIAL_CATALOG, buildContractSummary, calculateSimulatedQuote, normalizeSelection } from './catalog.mjs';
 import {
   addDaysIso,
   addMinutesIso,
@@ -21,6 +21,8 @@ import {
   writeAudit,
 } from './db.mjs';
 import { getMailerStatus, sendTransactionalEmail } from './mailer.mjs';
+import { getAsaasStatus, handleBillingRoutes } from './asaas.mjs';
+import { profilePhotoUrl, savePortrait, requireOwnedPortrait, servePortrait } from './profile-media.mjs';
 import {
   SUPPORTED_IMPORT_FORMATS,
   cancelImportBatch,
@@ -42,6 +44,9 @@ import {
   reserveSlotByInvitation,
 } from './scheduling.mjs';
 import { seedDatabase } from './seed.mjs';
+import { clientIp, contentDispositionAttachment, enforceRateLimit, rateLimitRulesFor, safeHttpsUrl } from './security.mjs';
+import { handlePilotRoutes } from './pilot.mjs';
+import { getPilotAccess, pilotFreeContract, pilotFreeQuote, PILOT_FREE_UNTIL } from './pilot-free.mjs';
 import {
   getStorageBackendStatus,
   readPrivateFileBinary,
@@ -49,6 +54,8 @@ import {
 } from './storage.mjs';
 
 const COOKIE_NAME = 'enomera_sid';
+// Conta inexistente também passa pelo scrypt, para o tempo de resposta não revelar quem tem cadastro.
+const DUMMY_PASSWORD = hashPassword('enomera-dummy-password-for-timing');
 const MAX_BODY_BYTES = 35 * 1024 * 1024; // allows base64-encoded 25 MB ZIP
 
 const ENOMERA_VERCEL_HOST_RE = /^(enomera|lotus|lotus-app|ambo-enomera|compasso|compasso-app|minne-enomera|etha-enomera|clara-azevedo-site|helenaduartepsi|mrsaoc-portfolio)(-[a-z0-9-]+)?\.vercel\.app$/;
@@ -57,17 +64,84 @@ function isAllowedOrigin(origin) {
   if (!origin) return false;
   try {
     const u = new URL(origin);
-    if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') return true;
-    if (u.protocol === 'https:' && ENOMERA_VERCEL_HOST_RE.test(u.hostname)) return true;
-    const extra = (process.env.ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
+    if (!isRemoteInfraRequired() && (u.hostname === 'localhost' || u.hostname === '127.0.0.1')) return true;
+    const extra = [process.env.ALLOWED_ORIGINS || '', process.env.ENOMERA_AMBO_URL, process.env.ENOMERA_MINNE_URL,
+      process.env.ENOMERA_ETHA_URL, process.env.ENOMERA_HELENA_URL, process.env.ENOMERA_PUBLIC_URL]
+      .filter(Boolean).flatMap((s) => s.split(',')).map((s) => s.trim().replace(/\/+$/, '')).filter(Boolean);
     if (extra.includes(origin)) return true;
   } catch {}
   return false;
 }
 
+// Aviso ao paciente quando a solicitação é confirmada. O envio é à parte da confirmação:
+// se o e-mail falhar, a consulta continua confirmada e a resposta diz que o aviso não saiu.
+async function notifyPatientOfConfirmation(db, account, out) {
+  const recipient = String(out?.request?.patient_email || '').trim();
+  if (!recipient || out?.idempotentReplay || !out?.appointment) return { sent: false, recipient: recipient || null, reason: recipient ? 'already_notified' : 'no_email' };
+  const tz = account.timezone || 'America/Sao_Paulo';
+  const when = new Date(out.appointment.start_at).toLocaleString('pt-BR', { timeZone: tz, weekday: 'long', day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit' });
+  const modality = out.appointment.modality === 'presencial' ? 'presencial' : 'online';
+  const amboBase = String(process.env.ENOMERA_AMBO_URL || '').replace(/\/+$/, '');
+  const link = amboBase ? `${amboBase}/?pro=${encodeURIComponent(account.slug)}` : '';
+  const escHtml = (v) => String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  try {
+    const delivery = await sendTransactionalEmail(db, {
+      recipient,
+      subject: `Consulta confirmada com ${account.display_name} · Ambo`,
+      textBody: `${account.display_name} confirmou sua consulta ${modality}: ${when}.${link ? ` Acompanhe ou peça remarcação em ${link}` : ''}`,
+      htmlBody: `<p><b>${escHtml(account.display_name)}</b> confirmou sua consulta ${modality}.</p><p><b>${escHtml(when)}</b></p>${link ? `<p><a href="${escHtml(link)}">Acompanhar ou pedir remarcação no Ambo</a></p>` : ''}`,
+      purpose: 'ambo_request_confirmed',
+    });
+    return { sent: Boolean(delivery.sentExternally), recipient, reason: delivery.sentExternally ? null : delivery.deliveryStatus };
+  } catch (err) {
+    return { sent: false, recipient, reason: err.code || 'delivery_failed' };
+  }
+}
+
+// Aviso ao paciente quando a profissional cancela uma consulta (feedback do piloto, 23 nov):
+// mesmo formato da confirmação. Falha no envio não desfaz o cancelamento.
+async function notifyPatientOfCancellation(db, account, out) {
+  const appt = out?.appointment;
+  if (!appt || out?.idempotentReplay) return { sent: false, reason: 'already_notified' };
+  let recipient = '';
+  try {
+    const pat = appt.patient_id ? await db.get('SELECT email FROM operational_patients WHERE id = ? AND account_id = ?', appt.patient_id, account.id) : null;
+    recipient = String(pat?.email || '').trim();
+  } catch {}
+  if (!recipient || /@patient\.enomera\.invalid$/i.test(recipient)) return { sent: false, recipient: null, reason: 'no_email' };
+  const tz = account.timezone || 'America/Sao_Paulo';
+  const when = new Date(appt.start_at).toLocaleString('pt-BR', { timeZone: tz, weekday: 'long', day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit' });
+  const amboBase = String(process.env.ENOMERA_AMBO_URL || '').replace(/\/+$/, '');
+  const link = amboBase ? `${amboBase}/?pro=${encodeURIComponent(account.slug)}` : '';
+  const escHtml = (v) => String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  try {
+    const delivery = await sendTransactionalEmail(db, {
+      recipient,
+      subject: `Consulta cancelada com ${account.display_name} · Ambo`,
+      textBody: `${account.display_name} cancelou a consulta de ${when}.${link ? ` Para escolher outro horário, abra ${link}` : ''}`,
+      htmlBody: `<p><b>${escHtml(account.display_name)}</b> cancelou a consulta de <b>${escHtml(when)}</b>.</p>${link ? `<p><a href="${escHtml(link)}">Escolher outro horário no Ambo</a></p>` : ''}<p>Este e-mail serve como comprovante do cancelamento.</p>`,
+      purpose: 'ambo_appointment_cancelled',
+    });
+    return { sent: Boolean(delivery.sentExternally), recipient, reason: delivery.sentExternally ? null : delivery.deliveryStatus };
+  } catch (err) {
+    return { sent: false, recipient, reason: err.code || 'delivery_failed' };
+  }
+}
+
+// A própria origem do deployment é sempre aceita (alias de branch, URL do deployment ou domínio atribuído).
+function isRequestOriginAllowed(req) {
+  const origin = req.headers.origin;
+  if (!origin) return true;
+  try {
+    const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim().toLowerCase();
+    if (host && new URL(origin).host.toLowerCase() === host) return true;
+  } catch {}
+  return isAllowedOrigin(origin);
+}
+
 function setCors(req, res) {
   const origin = req.headers.origin;
-  if (origin && isAllowedOrigin(origin)) {
+  if (origin && isRequestOriginAllowed(req)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Vary', 'Origin');
@@ -98,8 +172,20 @@ function parseCookies(req) {
   return out;
 }
 
-async function readJsonBody(req) {
-  if (req.body && typeof req.body === 'object') return req.body;
+// O corpo é lido uma vez e guardado: o limite de tentativas precisa do e-mail antes da rota.
+function readJsonBody(req) {
+  if (!req.__enoBodyPromise) req.__enoBodyPromise = readJsonBodyOnce(req);
+  return req.__enoBodyPromise;
+}
+
+async function readJsonBodyOnce(req) {
+  if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) return req.body;
+  // sendBeacon/text-plain (rastreador do piloto): a Vercel entrega o corpo já lido como texto.
+  if (typeof req.body === 'string' || Buffer.isBuffer(req.body)) {
+    const rawBody = String(req.body).trim();
+    if (!rawBody) return {};
+    try { return JSON.parse(rawBody); } catch { throw Object.assign(new Error('JSON inválido no corpo da requisição.'), { status: 400, code: 'INVALID_JSON' }); }
+  }
   const chunks = [];
   let total = 0;
   for await (const chunk of req) {
@@ -191,6 +277,65 @@ function requireAuth(auth) {
   return auth;
 }
 
+// Ambo: a página pública só recebe pedidos depois que a profissional revisa atendimento e horários
+// e abre a agenda (22 nov 2026). Contas de demonstração já nascem abertas.
+// Valores-padrão das colunas (migração 001): nunca são dados que a profissional informou.
+const AMBO_DEFAULT_ADDRESS = 'Pinheiros, São Paulo - SP (endereço completo após confirmação)';
+const AMBO_DEFAULT_CITY = 'São Paulo, SP';
+
+function amboSetupOf(acc) {
+  let prefs = {};
+  try { prefs = JSON.parse(acc?.ui_preferences_json || '{}') || {}; } catch { prefs = {}; }
+  const setup = prefs.amboSetup || {};
+  const open = Boolean(acc?.is_demo_sandbox) || Boolean(setup.openedAt);
+  return { open, openedAt: setup.openedAt || null, reviewedAt: setup.reviewedAt || null, demo: Boolean(acc?.is_demo_sandbox), priceUnset: Boolean(setup.priceUnset) };
+}
+
+// Endereço em partes (CEP, rua, número, complemento, bairro), guardado ao lado
+// do texto único in_person_address que a página pública e os e-mails usam.
+function amboAddressOf(acc) {
+  let prefs = {};
+  try { prefs = JSON.parse(acc?.ui_preferences_json || '{}') || {}; } catch { prefs = {}; }
+  const a = prefs.amboSetup?.address;
+  return a && typeof a === 'object' ? a : null;
+}
+
+function cleanAmboAddress(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const pick = (k, max = 120) => String(raw[k] ?? '').trim().slice(0, max);
+  const cep = pick('cep', 9).replace(/\D/g, '');
+  const out = { cep: cep.length === 8 ? `${cep.slice(0, 5)}-${cep.slice(5)}` : '', street: pick('street'), number: pick('number', 20), complement: pick('complement', 80), district: pick('district', 80), city: pick('city', 80), uf: pick('uf', 2).toUpperCase() };
+  return Object.values(out).some(Boolean) ? out : null;
+}
+
+async function amboSetupPayload(db, accountId) {
+  const acc = await db.get('SELECT * FROM professional_accounts WHERE id = ?', accountId);
+  const rules = await db.all('SELECT weekday, start_time, end_time, modality FROM availability_rules WHERE account_id = ? AND active = 1 ORDER BY weekday, start_time', accountId);
+  const state = amboSetupOf(acc);
+  // Conta nova nunca revisada: as colunas têm valores-padrão de exemplo (cidade, endereço, valor).
+  // A profissional começa do zero em vez de herdar dados que não informou.
+  const fresh = !state.demo && !state.reviewedAt && !state.open;
+  return {
+    ...state,
+    modalities: fresh ? ['online'] : JSON.parse(acc.modalities_json || '["online","presencial"]'),
+    city: fresh ? '' : acc.city || '',
+    inPersonAddress: fresh || acc.in_person_address === AMBO_DEFAULT_ADDRESS ? '' : acc.in_person_address || '',
+    address: fresh ? null : amboAddressOf(acc),
+    sessionDurationMin: acc.session_duration_min,
+    sessionPriceCents: fresh || state.priceUnset ? null : acc.session_price_cents,
+    rules: rules.map((r) => ({ weekday: Number(r.weekday), startTime: r.start_time, endTime: r.end_time, modality: r.modality })),
+  };
+}
+
+async function amboAccountForContact(db, contact) {
+  const row = await db.get(`SELECT account_id, MAX(ts) AS last_ts FROM (
+      SELECT account_id, updated_at AS ts FROM consultation_requests WHERE lower(patient_email) = ? OR patient_phone = ?
+      UNION ALL
+      SELECT account_id, updated_at AS ts FROM operational_patients WHERE lower(email) = ? OR phone = ?
+    ) x GROUP BY account_id ORDER BY last_ts DESC LIMIT 1`, contact, contact, contact, contact);
+  return row ? db.get('SELECT * FROM professional_accounts WHERE id = ?', row.account_id) : null;
+}
+
 async function requireProfessional(db, auth, { product = null, write = false, clinical = false } = {}) {
   requireAuth(auth);
   if (auth.session.actor_type !== 'professional' || !auth.account || !auth.membership) {
@@ -198,6 +343,9 @@ async function requireProfessional(db, auth, { product = null, write = false, cl
   }
   if (clinical && !auth.membership.can_access_clinical) {
     throw Object.assign(new Error('Seu vínculo nesta conta não autoriza acesso ao conteúdo clínico.'), { status: 403, code: 'FORBIDDEN_CLINICAL' });
+  }
+  if (product && !auth.user.email_verified_at) {
+    throw Object.assign(new Error('Confirme seu e-mail para usar os serviços desta conta.'), { status: 403, code: 'EMAIL_VERIFICATION_REQUIRED' });
   }
   if (product) {
     const ents = await getAccountEntitlements(db, auth.account.id);
@@ -242,6 +390,12 @@ async function buildPublicSiteDto(db, account) {
     if (v) published = { versionNumber: v.version_number, publishedAt: v.published_at, content: JSON.parse(v.content_json) };
   }
   const ctaMode = amboActive && (!proj || proj.cta_mode === 'ambo') ? 'ambo' : 'custom';
+  // Essencial = modelo com a marca Etha. Só o Sob medida entregue é 100% da pessoa.
+  let briefing = {};
+  try { briefing = JSON.parse(proj?.briefing_json || '{}') || {}; } catch { briefing = {}; }
+  const selection = await readAccountSelection(db, account.id).catch(() => null);
+  const ethaService = briefing.service === 'sob_medida' || briefing.service === 'essencial' ? briefing.service : (selection?.ethaService === 'sob_medida' ? 'sob_medida' : 'essencial');
+  const customDelivered = ethaService === 'sob_medida' && Boolean(briefing.sobMedida?.deliveredAt);
   return {
     slug: account.slug,
     displayName: published?.content?.displayName || account.display_name,
@@ -250,19 +404,30 @@ async function buildPublicSiteDto(db, account) {
     headline: published?.content?.headline || `${account.display_name} · ${account.specialty}`,
     subheadline: published?.content?.subheadline || account.bio,
     about: published?.content?.about || account.bio,
+    photoAssetId: published?.content?.photoAssetId || null,
+    photoUrl: published?.content?.photoAssetId ? `/api/v1/public-sites/${encodeURIComponent(account.slug)}/photo/${encodeURIComponent(published.content.photoAssetId)}` : null,
+    audience: account.audience || '',
     ctaLabel: published?.content?.ctaLabel || (ctaMode === 'ambo' ? 'Solicitar primeira consulta' : 'Entrar em contato'),
     ctaMode,
     amboActive,
     amboProfileSlug: amboActive ? account.slug : null,
     customContactUrl: ctaMode === 'custom' ? (proj?.custom_contact_url || published?.content?.customContactUrl || '') : null,
+    contactUrl: proj?.custom_contact_url || published?.content?.customContactUrl || null,
     authorship: 'Site por Etha',
     versionNumber: published?.versionNumber || null,
     publishedAt: published?.publishedAt || null,
     domainStatus: proj?.domain_status || 'staging_only',
+    answers: published?.content?.answers || null,
+    ethaService,
+    brand: customDelivered ? 'own' : 'etha',
   };
 }
 
 async function issueVerificationCode(db, { purpose, targetContact, userId = null, accountId = null, patientId = null, subject, ttlMinutes = 15 }) {
+  const previous = await db.get('SELECT created_at FROM verification_tokens WHERE purpose = ? AND target_contact = ? ORDER BY created_at DESC LIMIT 1', purpose, targetContact.toLowerCase());
+  if (previous && Date.now() - Date.parse(previous.created_at) < 30_000) {
+    throw Object.assign(new Error('Aguarde 30 segundos antes de solicitar outro código.'), { status: 429, code: 'RESEND_RATE_LIMITED' });
+  }
   const code = randomDigits(6);
   const id = randomId('ver');
   const now = nowIso();
@@ -323,6 +488,85 @@ async function consumeVerificationCode(db, { purpose, targetContact, code }) {
   return row;
 }
 
+function displayNameFromEmail(email) {
+  const local = String(email || '').split('@')[0].replace(/[._-]+/g, ' ').replace(/\d+/g, ' ').trim();
+  const name = local.split(/\s+/).filter(Boolean).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  return name.length >= 2 ? name : 'Profissional';
+}
+
+async function createProfessionalUser(db, { fullName, email, password, crpOrCrm = '', specialty = 'Psicologia', emailVerifiedAt = null }) {
+  const userId = randomId('usr');
+  const accountId = randomId('acc');
+  const now = nowIso();
+  const pwd = hashPassword(password);
+  const cleanName = String(fullName || '').trim();
+  let slug = slugify(cleanName);
+  if ((await db.get('SELECT id FROM professional_accounts WHERE slug = ?', slug))) {
+    slug = `${slug}-${randomDigits(4)}`;
+  }
+  await runTransaction(db, async (db) => {
+    (await db.run(`
+      INSERT INTO users (id, email, password_hash, password_salt, full_name, role, email_verified_at, mfa_enabled, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, 'professional', ?, 1, ?, ?)
+    `, userId, email, pwd.hash, pwd.salt, cleanName, emailVerifiedAt, now, now));
+
+    (await db.run(`
+      INSERT INTO professional_accounts (id, owner_user_id, slug, display_name, crp_or_crm, specialty, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `, accountId, userId, slug, cleanName, String(crpOrCrm || '').trim(), specialty, now, now));
+
+    (await db.run(`
+      INSERT INTO account_memberships (id, account_id, user_id, role, can_access_clinical, created_at)
+      VALUES (?, ?, ?, 'owner', 1, ?)
+    `, randomId('mem'), accountId, userId, now));
+
+    // Sensible default availability Mon-Fri 09:00-18:00 (editable by professional)
+    for (const wd of [1, 2, 3, 4, 5]) {
+      (await db.run(`
+        INSERT INTO availability_rules (id, account_id, weekday, start_time, end_time, modality, active, created_at)
+        VALUES (?, ?, ?, '09:00', '18:00', 'both', 1, ?)
+      `, randomId('avr'), accountId, wd, now));
+    }
+    await writeAudit(db, { actorUserId: userId, actorType: 'professional', accountId, action: 'auth.signup', resourceType: 'user', resourceId: userId });
+  });
+  return { userId, accountId, slug };
+}
+
+async function findPrimaryAccountForUser(db, userId) {
+  return db.get(`
+    SELECT pa.* FROM professional_accounts pa
+    JOIN account_memberships am ON am.account_id = pa.id
+    WHERE am.user_id = ? LIMIT 1
+  `, userId);
+}
+
+async function readAccountSelection(db, accountId) {
+  const row = await db.get('SELECT ui_preferences_json FROM professional_accounts WHERE id = ?', accountId);
+  let prefs = {};
+  try { prefs = JSON.parse(row?.ui_preferences_json || '{}') || {}; } catch { prefs = {}; }
+  return prefs.commercialSelection || null;
+}
+
+async function writeAccountSelection(db, accountId, input) {
+  const sel = normalizeSelection(input);
+  if (!sel.products.length) throw Object.assign(new Error('Escolha ao menos um serviço.'), { status: 400, code: 'EMPTY_SELECTION' });
+  const row = await db.get('SELECT ui_preferences_json FROM professional_accounts WHERE id = ?', accountId);
+  let prefs = {};
+  try { prefs = JSON.parse(row?.ui_preferences_json || '{}') || {}; } catch { prefs = {}; }
+  const stage = ['selection', 'verification', 'review', 'confirmed'].includes(input?.stage) ? input.stage : (prefs.commercialSelection?.stage === 'confirmed' ? 'selection' : prefs.commercialSelection?.stage || 'selection');
+  const selection = { ...sel, stage, updatedAt: nowIso() };
+  prefs.commercialSelection = selection;
+  await db.run('UPDATE professional_accounts SET ui_preferences_json = ?, updated_at = ? WHERE id = ?', JSON.stringify(prefs), selection.updatedAt, accountId);
+  return selection;
+}
+
+function sessionPayload(u, account) {
+  return {
+    user: { id: u.id, email: u.email, fullName: u.full_name, role: u.role, emailVerified: Boolean(u.email_verified_at) },
+    account: account ? { id: account.id, slug: account.slug, displayName: account.display_name, crpOrCrm: account.crp_or_crm, specialty: account.specialty } : null,
+  };
+}
+
 export async function handleApiRequest(req, res, customDb = null) {
   setCors(req, res);
   if (req.method === 'OPTIONS') {
@@ -336,6 +580,9 @@ export async function handleApiRequest(req, res, customDb = null) {
   const method = req.method.toUpperCase();
 
   try {
+    if (!isRequestOriginAllowed(req)) {
+      return json(res,403,{error:'Origem não autorizada para este ambiente.',code:'ORIGIN_NOT_ALLOWED'});
+    }
     // ── HEALTH & CATALOG ──────────────────────────────────────────────
     if (method === 'GET' && pathname === '/api/v1/health') {
       const guard = getRemoteInfraGuard();
@@ -385,6 +632,7 @@ export async function handleApiRequest(req, res, customDb = null) {
           },
           storage: getStorageBackendStatus(),
           mailer: getMailerStatus(),
+          payments: getAsaasStatus(),
         },
       });
     }
@@ -393,13 +641,111 @@ export async function handleApiRequest(req, res, customDb = null) {
     await seedDatabase(db);
     const auth = await getSessionFromRequest(db, req);
 
+    const ip = clientIp(req);
+    if (rateLimitRulesFor(method, pathname, ip, {})) {
+      const peek = await readJsonBody(req).catch(() => ({}));
+      await enforceRateLimit(db, rateLimitRulesFor(method, pathname, ip, peek && typeof peek === 'object' ? peek : {}));
+    }
+
+    if (await handlePilotRoutes({ db, req, res, method, pathname, url, auth, json, readJsonBody, createProfessionalUser, issueSession, writeAudit })) return;
+
     if (method === 'GET' && pathname === '/api/v1/catalog') {
       return json(res, 200, COMMERCIAL_CATALOG);
     }
     if (method === 'POST' && pathname === '/api/v1/catalog/quote') {
       const body = await readJsonBody(req);
       const quote = calculateSimulatedQuote(body);
-      return json(res, 200, quote);
+      const contract = buildContractSummary(body);
+      if (await getPilotAccess(db, auth?.user?.id)) return json(res, 200, { ...pilotFreeQuote(quote), contract: pilotFreeContract(contract) });
+      return json(res, 200, { ...quote, contract });
+    }
+
+    // ── COBRANÇA (Asaas; sandbox até autorização de cobrança real) ─────────
+    if (pathname.startsWith('/api/v1/billing/')) {
+      // Piloto gratuito: convidado não vê assinatura, cartão nem fatura.
+      if ((pathname === '/api/v1/billing/status' || pathname === '/api/v1/billing/checkout') && auth?.user && await getPilotAccess(db, auth.user.id)) {
+        await requireProfessional(db, auth);
+        if (method === 'POST') throw Object.assign(new Error('No piloto, todos os serviços são gratuitos. Não há nada a pagar.'), { status: 409, code: 'PILOT_FREE' });
+        return json(res, 200, { configured: false, mode: 'pilot', pilot: { free: true, until: PILOT_FREE_UNTIL }, subscription: null });
+      }
+      if (await handleBillingRoutes({ db, req, res, method, pathname, auth }, { json, readJsonBody, requireProfessional, writeAudit })) return;
+    }
+
+    // ── CONTRATAÇÃO: E-MAIL COM CÓDIGO (sem senha) E COMBINAÇÃO POR CONTA ─
+    if (method === 'POST' && pathname === '/api/v1/auth/email-code/request') {
+      const body = await readJsonBody(req);
+      const email = String(body.email || '').trim().toLowerCase();
+      if (!z.string().email().safeParse(email).success) {
+        throw Object.assign(new Error('Informe um e-mail válido.'), { status: 400, code: 'INVALID_EMAIL' });
+      }
+      const recent = await db.get(
+        "SELECT created_at FROM verification_tokens WHERE purpose = 'email_login' AND target_contact = ? ORDER BY created_at DESC LIMIT 1",
+        email
+      );
+      if (recent && Date.now() - Date.parse(recent.created_at) < 20_000) {
+        throw Object.assign(new Error('Aguarde alguns segundos antes de pedir outro código.'), { status: 429, code: 'CODE_REQUEST_TOO_SOON' });
+      }
+      const u = await db.get('SELECT id FROM users WHERE email = ?', email);
+      const ver = await issueVerificationCode(db, {
+        purpose: 'email_login',
+        targetContact: email,
+        userId: u?.id || null,
+        subject: 'Seu código de acesso · Enomera',
+      });
+      // Mesma resposta para conta nova ou existente (sem revelar cadastro).
+      return json(res, 200, { ok: true, expiresAt: ver.expiresAt, resendAfterSec: 60, delivery: ver.delivery });
+    }
+
+    if (method === 'POST' && pathname === '/api/v1/auth/email-code/verify') {
+      const body = await readJsonBody(req);
+      const email = String(body.email || '').trim().toLowerCase();
+      await consumeVerificationCode(db, { purpose: 'email_login', targetContact: email, code: body.code });
+      const now = nowIso();
+      let u = await db.get('SELECT * FROM users WHERE email = ?', email);
+      let isNewAccount = false;
+      if (!u) {
+        await createProfessionalUser(db, {
+          fullName: displayNameFromEmail(email),
+          email,
+          password: randomToken(24),
+          emailVerifiedAt: now,
+        });
+        isNewAccount = true;
+        u = await db.get('SELECT * FROM users WHERE email = ?', email);
+      } else if (!u.email_verified_at) {
+        await db.run('UPDATE users SET email_verified_at = ?, updated_at = ? WHERE id = ?', now, now, u.id);
+        u = await db.get('SELECT * FROM users WHERE id = ?', u.id);
+      }
+      const account = u.role === 'professional' ? await findPrimaryAccountForUser(db, u.id) : null;
+      const sess = await issueSession(db, { userId: u.id, actorType: u.role, accountId: account?.id || null });
+      await writeAudit(db, { actorUserId: u.id, actorType: u.role, accountId: account?.id || null, action: 'auth.email_code_login', resourceType: 'session', resourceId: sess.id, meta: { isNewAccount } });
+      let selection = account ? await readAccountSelection(db, account.id) : null;
+      const incoming = body.selection ? normalizeSelection(body.selection) : null;
+      if (account && incoming?.products.length) {
+        // A escolha feita antes da verificação é a mais recente: passa a ser a da conta.
+        selection = await writeAccountSelection(db, account.id, incoming);
+      }
+      return json(res, 200, {
+        ...sessionPayload(u, account),
+        entitlements: account ? await getAccountEntitlements(db, account.id) : null,
+        sessionToken: sess.rawToken,
+        expiresAt: sess.expiresAt,
+        isNewAccount,
+        selection,
+        contract: selection?.products?.length ? buildContractSummary(selection) : null,
+      }, { 'Set-Cookie': sess.cookie });
+    }
+
+    if (method === 'GET' && pathname === '/api/v1/commercial/selection') {
+      await requireProfessional(db, auth);
+      const selection = await readAccountSelection(db, auth.account.id);
+      return json(res, 200, { selection, contract: selection?.products?.length ? buildContractSummary(selection) : null });
+    }
+
+    if (method === 'PUT' && pathname === '/api/v1/commercial/selection') {
+      await requireProfessional(db, auth);
+      const selection = await writeAccountSelection(db, auth.account.id, await readJsonBody(req));
+      return json(res, 200, { selection, contract: buildContractSummary(selection) });
     }
 
     // ── AUTHENTICATION & VERIFICATION ─────────────────────────────────
@@ -410,63 +756,65 @@ export async function handleApiRequest(req, res, customDb = null) {
         password: z.string().min(8),
         crpOrCrm: z.string().optional().default(''),
         specialty: z.enum(['Psicologia', 'Psiquiatria']).optional().default('Psicologia'),
+        selection: z.object({ products: z.array(z.enum(['ambo', 'minne', 'etha'])).min(1), ethaFormat: z.enum(['one_page', 'multi_page']).optional(), ethaService: z.enum(['essencial', 'sob_medida']).optional() }).optional(),
       });
       const data = schema.parse(await readJsonBody(req));
       const normEmail = data.email.trim().toLowerCase();
-      const exists = (await db.get('SELECT id FROM users WHERE email = ?', normEmail));
-      if (exists) throw Object.assign(new Error('Já existe uma conta com este e-mail. Entre para recuperar sua combinação.'), { status: 409, code: 'EMAIL_EXISTS' });
-
-      const userId = randomId('usr');
-      const accountId = randomId('acc');
-      const now = nowIso();
-      const pwd = hashPassword(data.password);
-      let slug = slugify(data.fullName);
-      if ((await db.get('SELECT id FROM professional_accounts WHERE slug = ?', slug))) {
-        slug = `${slug}-${randomDigits(4)}`;
-      }
-
-      await runTransaction(db, async (db) => {
-        (await db.run(`
-          INSERT INTO users (id, email, password_hash, password_salt, full_name, role, email_verified_at, mfa_enabled, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, 'professional', NULL, 1, ?, ?)
-        `, userId, normEmail, pwd.hash, pwd.salt, data.fullName.trim(), now, now));
-
-        (await db.run(`
-          INSERT INTO professional_accounts (id, owner_user_id, slug, display_name, crp_or_crm, specialty, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `, accountId, userId, slug, data.fullName.trim(), data.crpOrCrm.trim(), data.specialty, now, now));
-
-        (await db.run(`
-          INSERT INTO account_memberships (id, account_id, user_id, role, can_access_clinical, created_at)
-          VALUES (?, ?, ?, 'owner', 1, ?)
-        `, randomId('mem'), accountId, userId, now));
-
-        // Sensible default availability Mon-Fri 09:00-18:00 (editable by professional)
-        for (const wd of [1, 2, 3, 4, 5]) {
-          (await db.run(`
-            INSERT INTO availability_rules (id, account_id, weekday, start_time, end_time, modality, active, created_at)
-            VALUES (?, ?, ?, '09:00', '18:00', 'both', 1, ?)
-          `, randomId('avr'), accountId, wd, now));
+      const exists = (await db.get('SELECT * FROM users WHERE email = ?', normEmail));
+      let userId; let accountId; let slug; let resumed = false;
+      if (exists) {
+        // Cadastro pendente (e-mail nunca confirmado): quem tem a senha retoma a
+        // conta e recebe um novo código, em vez de ficar preso no "já existe".
+        const pending = !exists.email_verified_at && exists.role === 'professional';
+        if (!pending || !verifyPassword(data.password, exists.password_hash, exists.password_salt)) {
+          const msg = pending
+            ? 'Já existe um cadastro pendente com este e-mail. Use a mesma senha para continuar ou entre em "Já tenho conta".'
+            : 'Já existe uma conta com este e-mail. Entre para recuperar sua combinação.';
+          throw Object.assign(new Error(msg), { status: 409, code: pending ? 'EMAIL_PENDING' : 'EMAIL_EXISTS' });
         }
-        await writeAudit(db, { actorUserId: userId, actorType: 'professional', accountId, action: 'auth.signup', resourceType: 'user', resourceId: userId });
-      });
+        const acc = await db.get('SELECT pa.id, pa.slug FROM professional_accounts pa JOIN account_memberships am ON am.account_id = pa.id WHERE am.user_id = ? LIMIT 1', exists.id);
+        if (!acc) throw Object.assign(new Error('Já existe uma conta com este e-mail. Entre para recuperar sua combinação.'), { status: 409, code: 'EMAIL_EXISTS' });
+        ({ id: userId } = exists); ({ id: accountId, slug } = acc); resumed = true;
+      } else {
+        ({ userId, accountId, slug } = await createProfessionalUser(db, {
+          fullName: data.fullName,
+          email: normEmail,
+          password: data.password,
+          crpOrCrm: data.crpOrCrm,
+          specialty: data.specialty,
+        }));
+      }
+      if (data.selection) await writeAccountSelection(db, accountId, data.selection);
 
-      const ver = await issueVerificationCode(db, {
-        purpose: 'email_verify',
-        targetContact: normEmail,
-        userId,
-        accountId,
-        subject: 'Verifique seu e-mail na Enomera',
-      });
+      // A sessão vem antes do envio: se o e-mail falhar, a pessoa continua na
+      // conta pendente e pode pedir outro código ou corrigir o endereço.
       const sess = await issueSession(db, { userId, actorType: 'professional', accountId });
+      let verification;
+      try {
+        const ver = await issueVerificationCode(db, {
+          purpose: 'email_verify',
+          targetContact: normEmail,
+          userId,
+          accountId,
+          subject: 'Verifique seu e-mail na Enomera',
+        });
+        verification = { required: true, expiresAt: ver.expiresAt, delivery: ver.delivery };
+      } catch (err) {
+        if (err?.code === 'RESEND_RATE_LIMITED') verification = { required: true, alreadySent: true };
+        else if (err?.code === 'MAIL_DELIVERY_FAILED') verification = { required: true, deliveryFailed: true, error: 'Não conseguimos entregar o código neste endereço. Confira o e-mail, corrija se precisar e peça um novo código.' };
+        else throw err;
+      }
+      const user = await db.get('SELECT full_name FROM users WHERE id = ?', userId);
+      const account = await db.get('SELECT display_name, crp_or_crm, specialty FROM professional_accounts WHERE id = ?', accountId);
 
-      return json(res, 201, {
-        user: { id: userId, email: normEmail, fullName: data.fullName.trim(), emailVerified: false, role: 'professional' },
-        account: { id: accountId, slug, displayName: data.fullName.trim(), crpOrCrm: data.crpOrCrm.trim(), specialty: data.specialty },
+      return json(res, resumed ? 200 : 201, {
+        user: { id: userId, email: normEmail, fullName: user?.full_name || data.fullName.trim(), emailVerified: false, role: 'professional' },
+        account: { id: accountId, slug, displayName: account?.display_name || data.fullName.trim(), crpOrCrm: account?.crp_or_crm || '', specialty: account?.specialty || data.specialty },
         entitlements: await getAccountEntitlements(db, accountId),
         sessionToken: sess.rawToken,
         expiresAt: sess.expiresAt,
-        verification: { required: true, expiresAt: ver.expiresAt, delivery: ver.delivery },
+        resumed,
+        verification,
       }, { 'Set-Cookie': sess.cookie });
     }
 
@@ -476,17 +824,36 @@ export async function handleApiRequest(req, res, customDb = null) {
       const row = await consumeVerificationCode(db, { purpose: 'email_verify', targetContact: email, code: body.code });
       const now = nowIso();
       (await db.run('UPDATE users SET email_verified_at = ?, updated_at = ? WHERE id = ?', now, now, row.user_id));
+      const account = await db.get('SELECT id FROM professional_accounts WHERE owner_user_id = ?', row.user_id);
+      const selection = account && await db.get('SELECT selection_json FROM checkout_selections WHERE account_id = ?', account.id);
+      if (selection) await db.run('UPDATE checkout_selections SET selection_json = ?, updated_at = ? WHERE account_id = ?', JSON.stringify({...JSON.parse(selection.selection_json),stage:'review'}), now, account.id);
       await writeAudit(db, { actorUserId: row.user_id, actorType: 'professional', accountId: row.account_id, action: 'auth.verify_email', resourceType: 'user', resourceId: row.user_id });
       return json(res, 200, { verified: true, verifiedAt: now });
     }
 
     if (method === 'POST' && pathname === '/api/v1/auth/resend-verification') {
+      await requireProfessional(db, auth);
       const body = await readJsonBody(req);
       const email = String(body.email || auth?.user?.email || '').trim().toLowerCase();
+      if (email !== auth.user.email) throw Object.assign(new Error('Use Corrigir e-mail para atualizar o endereço da sua conta.'), { status: 400, code: 'EMAIL_MISMATCH' });
       const u = (await db.get('SELECT id FROM users WHERE email = ?', email));
       if (!u) return json(res, 200, { ok: true, delivery: { deliveryStatus: 'ignored_unknown_account' } });
       const ver = await issueVerificationCode(db, { purpose: 'email_verify', targetContact: email, userId: u.id, subject: 'Novo código de verificação · Enomera' });
       return json(res, 200, { ok: true, expiresAt: ver.expiresAt, delivery: ver.delivery });
+    }
+
+    if (method === 'POST' && pathname === '/api/v1/auth/change-email') {
+      await requireProfessional(db, auth);
+      if (auth.user.email_verified_at) throw Object.assign(new Error('O e-mail desta conta já foi confirmado.'), { status: 409, code: 'EMAIL_ALREADY_VERIFIED' });
+      const { email } = z.object({ email: z.string().trim().email() }).parse(await readJsonBody(req));
+      const normalized = email.toLowerCase();
+      const existing = await db.get('SELECT id FROM users WHERE email = ?', normalized);
+      if (existing && existing.id !== auth.user.id) throw Object.assign(new Error('Este endereço já está em uso. Entre com ele ou use outro e-mail.'), { status: 409, code: 'EMAIL_EXISTS' });
+      if (normalized === auth.user.email) return json(res, 200, { ok: true, email: normalized });
+      const ver = await issueVerificationCode(db, { purpose: 'email_verify', targetContact: normalized, userId: auth.user.id, accountId: auth.account.id, subject: 'Confirme o endereço corrigido · Enomera' });
+      await db.run('UPDATE users SET email = ?, updated_at = ? WHERE id = ? AND email_verified_at IS NULL', normalized, nowIso(), auth.user.id);
+      await db.run("UPDATE verification_tokens SET consumed_at = ? WHERE purpose = 'email_verify' AND user_id = ? AND target_contact <> ? AND consumed_at IS NULL", nowIso(), auth.user.id, normalized);
+      return json(res, 200, { ok: true, email: normalized, expiresAt: ver.expiresAt, delivery: ver.delivery });
     }
 
     if (method === 'POST' && pathname === '/api/v1/auth/login') {
@@ -494,7 +861,8 @@ export async function handleApiRequest(req, res, customDb = null) {
       const email = String(body.email || '').trim().toLowerCase();
       const password = String(body.password || '');
       const u = (await db.get('SELECT * FROM users WHERE email = ?', email));
-      if (!u || !verifyPassword(password, u.password_hash, u.password_salt)) {
+      const passwordOk = u ? verifyPassword(password, u.password_hash, u.password_salt) : (verifyPassword(password, DUMMY_PASSWORD.hash, DUMMY_PASSWORD.salt) && false);
+      if (!u || !passwordOk) {
         await writeAudit(db, { actorType: 'anonymous', action: 'auth.login', resourceType: 'user', outcome: 'deny', meta: { email } });
         throw Object.assign(new Error('E-mail ou senha inválidos.'), { status: 401, code: 'INVALID_CREDENTIALS' });
       }
@@ -540,10 +908,14 @@ export async function handleApiRequest(req, res, customDb = null) {
       const email = String(body.email || '').trim().toLowerCase();
       const u = (await db.get('SELECT id FROM users WHERE email = ?', email));
       if (!u) {
-        return json(res, 200, { ok: true, message: 'Se o e-mail estiver cadastrado, um código de recuperação de uso único foi gerado.' });
+        return json(res, 200, { ok: true, message: 'Se o e-mail estiver cadastrado, você receberá as instruções de recuperação.' });
       }
-      const ver = await issueVerificationCode(db, { purpose: 'password_reset', targetContact: email, userId: u.id, subject: 'Recuperação de acesso · Enomera' });
-      return json(res, 200, { ok: true, expiresAt: ver.expiresAt, delivery: ver.delivery });
+      try {
+        await issueVerificationCode(db, { purpose: 'password_reset', targetContact: email, userId: u.id, subject: 'Recuperação de acesso · Enomera' });
+      } catch (err) {
+        if (![429,503].includes(err.status)) throw err;
+      }
+      return json(res, 200, { ok: true, message: 'Se o e-mail estiver cadastrado, você receberá as instruções de recuperação.' });
     }
 
     if (method === 'POST' && pathname === '/api/v1/auth/recovery/confirm') {
@@ -588,6 +960,7 @@ export async function handleApiRequest(req, res, customDb = null) {
       requireAuth(auth);
       const body = await readJsonBody(req);
       const targetOrigin = String(body.targetOrigin || '');
+      if (auth.session.actor_type !== 'professional') throw Object.assign(new Error('Use o acesso do paciente no Ambo.'), { status: 403, code: 'FORBIDDEN_ACTOR' });
       if (!isAllowedOrigin(targetOrigin)) {
         throw Object.assign(new Error('Origem de destino não autorizada para passagem autenticada.'), { status: 400, code: 'INVALID_TARGET_ORIGIN' });
       }
@@ -596,7 +969,7 @@ export async function handleApiRequest(req, res, customDb = null) {
       (await db.run(`
         INSERT INTO auth_handoff_codes (id, code_hash, session_id, target_origin, return_path, expires_at, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-      `, randomId('hnd'), sha256Hex(code), auth.session.id, targetOrigin, String(body.returnPath || '/'), expiresAt, nowIso()));
+      `, randomId('hnd'), sha256Hex(code), auth.session.id, targetOrigin, /^\/(?!\/)/.test(body.returnPath || '/') ? String(body.returnPath || '/') : '/', expiresAt, nowIso()));
       await writeAudit(db, { actorUserId: auth.user.id, actorType: auth.session.actor_type, accountId: auth.session.account_id, action: 'auth.handoff_issue', resourceType: 'handoff', meta: { targetOrigin } });
       return json(res, 200, { handoffCode: code, expiresAt, targetOrigin });
     }
@@ -663,19 +1036,20 @@ export async function handleApiRequest(req, res, customDb = null) {
           uiPreferences: JSON.parse(auth.account.ui_preferences_json || '{}'),
         } : null,
         entitlements: auth.account ? await getAccountEntitlements(db, auth.account.id) : null,
+        pilot: await getPilotAccess(db, auth.user.id),
       });
     }
 
     // Dev/Homologation Outbox inspection (ONLY when SMTP is unconfigured — honest inspection for verification flows!)
     if (method === 'GET' && pathname === '/api/v1/dev/outbox') {
-      const realMailerOn = Boolean(process.env.SMTP_URL || (process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL));
+      const realMailerOn = Boolean(process.env.SMTP_URL || process.env.SMTP_PASSWORD || (process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL));
       if (isRemoteInfraRequired() || process.env.ENOMERA_ENABLE_DEV_OUTBOX === 'false' || (realMailerOn && process.env.ENOMERA_ENABLE_DEV_OUTBOX !== 'true')) {
         throw Object.assign(new Error('Caixa local de homologação indisponível quando o envio real de e-mail ou o modo de infraestrutura remota está ativo.'), { status: 403, code: 'OUTBOX_DISABLED' });
       }
       const recipient = url.searchParams.get('recipient');
       if (!recipient) throw Object.assign(new Error('Informe recipient para consultar a caixa de homologação.'), { status: 400, code: 'RECIPIENT_REQUIRED' });
       const rows = await db.all(
-        "SELECT id, channel, recipient, subject, body_preview, purpose, delivery_status, created_at FROM dev_outbox_messages WHERE lower(recipient) = lower(?) AND delivery_status != 'sent_resend' ORDER BY created_at DESC LIMIT 10",
+        "SELECT id, channel, recipient, subject, body_preview, purpose, delivery_status, created_at FROM dev_outbox_messages WHERE lower(recipient) = lower(?) AND delivery_status NOT IN ('sent_resend', 'sent_smtp') ORDER BY created_at DESC LIMIT 10",
         recipient
       );
       return json(res, 200, {
@@ -687,11 +1061,12 @@ export async function handleApiRequest(req, res, customDb = null) {
     // ── ENOMERA COMMERCIAL, TRIAL, PILOT, SIMULATED CHECKOUT & PORTAL ──
     if (method === 'POST' && pathname === '/api/v1/commercial/trial/start') {
       await requireProfessional(db, auth);
+      if (!auth.user.email_verified_at) throw Object.assign(new Error('Confirme seu e-mail antes de iniciar o teste.'), { status: 403, code: 'EMAIL_VERIFICATION_REQUIRED' });
       const body = await readJsonBody(req);
-      const products = (Array.isArray(body.products) ? body.products : ['ambo', 'minne']).filter((p) => ['ambo', 'minne'].includes(p));
-      if (products.length === 0) throw Object.assign(new Error('Selecione Ambo e/ou Minne para o teste de 7 dias.'), { status: 400, code: 'INVALID_TRIAL_PRODUCTS' });
+      const products = (Array.isArray(body.products) ? body.products : ['ambo', 'minne']).filter((p) => ['ambo', 'minne', 'etha'].includes(p));
+      if (products.length === 0) throw Object.assign(new Error('Selecione ao menos um serviço para os 30 dias grátis.'), { status: 400, code: 'INVALID_TRIAL_PRODUCTS' });
       const now = nowIso();
-      const trialEndsAt = addDaysIso(7);
+      const trialEndsAt = (await getPilotAccess(db, auth.user.id)) ? PILOT_FREE_UNTIL : addDaysIso(COMMERCIAL_CATALOG.trialDays);
       await runTransaction(db, async (db) => {
         for (const p of products) {
           (await db.run(`
@@ -703,6 +1078,7 @@ export async function handleApiRequest(req, res, customDb = null) {
               updated_at = excluded.updated_at
           `, randomId('ent'), auth.account.id, p, trialEndsAt, now));
         }
+        if (products.includes('etha')) await ensureEthaProject(db, auth.account.id, 'one_page');
         await writeAudit(db, { actorUserId: auth.user.id, actorType: 'professional', accountId: auth.account.id, action: 'commercial.trial_start', resourceType: 'entitlement', meta: { products } });
       });
       return json(res, 200, { ok: true, trialEndsAt, entitlements: await getAccountEntitlements(db, auth.account.id) });
@@ -718,11 +1094,12 @@ export async function handleApiRequest(req, res, customDb = null) {
         INSERT INTO pilot_applications (id, user_id, full_name, email, specialty, notes, status, created_at)
         VALUES (?, ?, ?, ?, ?, ?, 'received', ?)
       `, id, auth?.user?.id || null, fullName, email, String(body.specialty || 'Psicologia'), String(body.notes || ''), nowIso()));
-      return json(res, 201, { id, status: 'received', pilotWeeks: 2, message: 'Interesse no piloto acompanhado de 2 semanas registrado sem cobrança.' });
+      return json(res, 201, { id, status: 'received', pilotDays: COMMERCIAL_CATALOG.trialDays, message: 'Interesse no piloto de 30 dias grátis registrado sem cobrança.' });
     }
 
     if (method === 'POST' && pathname === '/api/v1/commercial/orders') {
       await requireProfessional(db, auth);
+      if (!auth.user.email_verified_at) throw Object.assign(new Error('Confirme seu e-mail antes de ativar os serviços.'), { status: 403, code: 'EMAIL_VERIFICATION_REQUIRED' });
       const body = await readJsonBody(req);
       const idempotencyKey = String(req.headers['x-idempotency-key'] || body.idempotencyKey || '').trim();
       if (!idempotencyKey) throw Object.assign(new Error('Chave de idempotência obrigatória no checkout simulado.'), { status: 400, code: 'IDEMPOTENCY_REQUIRED' });
@@ -733,11 +1110,30 @@ export async function handleApiRequest(req, res, customDb = null) {
         return json(res, 200, { order: existing, summary: JSON.parse(existing.summary_json), attempts, entitlements: await getAccountEntitlements(db, auth.account.id), idempotentReplay: true });
       }
 
-      const quote = calculateSimulatedQuote({ products: body.products, ethaFormat: body.ethaFormat, mode: 'monthly' });
-      const simulatedOutcome = ['approved', 'pending', 'declined'].includes(body.simulatedOutcome) ? body.simulatedOutcome : 'approved';
-      const methodUsed = body.method === 'simulated_card' ? 'simulated_card' : 'simulated_pix';
+      const pilotFree = await getPilotAccess(db, auth.user.id);
+      if (!pilotFree && !allowSimulatedActivation()) {
+        throw Object.assign(new Error('Ativação simulada desligada neste ambiente. Use a contratação com pagamento.'), { status: 409, code: 'SIMULATED_CHECKOUT_DISABLED' });
+      }
+      let quote = calculateSimulatedQuote({ products: body.products, ethaFormat: body.ethaFormat, ethaService: body.ethaService, mode: 'monthly' });
+      if (pilotFree) quote = pilotFreeQuote(quote);
+      // Percurso aprovado (22 nov): a ativação informa a periodicidade e não cobra nada hoje.
+      const isContractFlow = body.billing === 'monthly' || body.billing === 'permanent';
+      if (isContractFlow) {
+        let contract = buildContractSummary({ products: body.products, ethaFormat: body.ethaFormat, ethaService: body.ethaService, billing: body.billing });
+        if (pilotFree) contract = pilotFreeContract(contract);
+        quote.billing = contract.billing;
+        quote.contract = contract;
+        quote.dueTodayCents = 0;
+        quote.chargedTodayCents = 0;
+        await writeAccountSelection(db, auth.account.id, contract);
+      }
+      // No piloto não há pagamento: a ativação é sempre aprovada, sem método de pagamento.
+      const simulatedOutcome = pilotFree ? 'approved' : ['approved', 'pending', 'declined'].includes(body.simulatedOutcome) ? body.simulatedOutcome : 'approved';
+      const methodUsed = pilotFree ? 'pilot_free' : body.method === 'simulated_card' ? 'simulated_card' : 'simulated_pix';
 
       const result = await runTransaction(db, async (db) => {
+        const replay = await db.get('SELECT * FROM commercial_orders WHERE account_id = ? AND idempotency_key = ?', auth.account.id, idempotencyKey);
+        if (replay) return { order: replay, attempts: await db.all('SELECT * FROM payment_attempts WHERE order_id = ?', replay.id), idempotentReplay: true };
         const orderId = randomId('ord');
         const receiptCode = `SIM-ENO-${randomDigits(6)}`;
         const now = nowIso();
@@ -760,16 +1156,19 @@ export async function handleApiRequest(req, res, customDb = null) {
         `, randomId('pay'), orderId, methodUsed, simulatedOutcome, failReason, now, now));
 
         if (simulatedOutcome === 'approved') {
-          await activateOrderEntitlementsTx(db, auth.account.id, quote);
+          await activateOrderEntitlementsTx(db, auth.account.id, quote, { pilotFree: Boolean(pilotFree) });
+          await db.run('INSERT INTO checkout_selections (account_id, selection_json, updated_at) VALUES (?, ?, ?) ON CONFLICT(account_id) DO UPDATE SET selection_json = excluded.selection_json, updated_at = excluded.updated_at', auth.account.id,
+            JSON.stringify({products:quote.selectedProducts,ethaFormat:quote.ethaFormat || 'one_page',stage:'confirmed'}),now);
+          await writeAccountSelection(db, auth.account.id, { ...(await readAccountSelection(db, auth.account.id) || {}), products: quote.selectedProducts, ethaFormat: quote.ethaFormat || 'one_page', stage: 'confirmed' });
         }
         await writeAudit(db, { actorUserId: auth.user.id, actorType: 'professional', accountId: auth.account.id, action: 'commercial.checkout_simulated', resourceType: 'order', resourceId: orderId, meta: { outcome: simulatedOutcome, products: quote.selectedProducts } });
         return {
           order: (await db.get('SELECT * FROM commercial_orders WHERE id = ?', orderId)),
           attempts: (await db.all('SELECT * FROM payment_attempts WHERE order_id = ?', orderId)),
         };
-      });
+      }, `checkout:${auth.account.id}:${idempotencyKey}`);
 
-      return json(res, 201, {
+      return json(res, result.idempotentReplay ? 200 : 201, {
         ...result,
         summary: quote,
         entitlements: await getAccountEntitlements(db, auth.account.id),
@@ -782,8 +1181,12 @@ export async function handleApiRequest(req, res, customDb = null) {
       await requireProfessional(db, auth);
       const orderId = orderRetryMatch[1];
       const body = await readJsonBody(req);
-      const nextOutcome = ['approved', 'pending', 'declined'].includes(body.simulatedOutcome) ? body.simulatedOutcome : 'approved';
-      const methodUsed = body.method === 'simulated_card' ? 'simulated_card' : 'simulated_pix';
+      const retryPilotFree = Boolean(await getPilotAccess(db, auth.user.id));
+      if (!retryPilotFree && !allowSimulatedActivation()) {
+        throw Object.assign(new Error('Ativação simulada desligada neste ambiente. Use a contratação com pagamento.'), { status: 409, code: 'SIMULATED_CHECKOUT_DISABLED' });
+      }
+      const nextOutcome = retryPilotFree ? 'approved' : ['approved', 'pending', 'declined'].includes(body.simulatedOutcome) ? body.simulatedOutcome : 'approved';
+      const methodUsed = retryPilotFree ? 'pilot_free' : body.method === 'simulated_card' ? 'simulated_card' : 'simulated_pix';
 
       const result = await runTransaction(db, async (db) => {
         const order = (await db.get('SELECT * FROM commercial_orders WHERE id = ? AND account_id = ?', orderId, auth.account.id));
@@ -799,7 +1202,11 @@ export async function handleApiRequest(req, res, customDb = null) {
         `, randomId('pay'), orderId, count + 1, methodUsed, nextOutcome, nextOutcome === 'declined' ? 'Recusado na nova tentativa simulada.' : null, now, now));
         (await db.run('UPDATE commercial_orders SET status = ?, updated_at = ? WHERE id = ?', nextOutcome, now, orderId));
         if (nextOutcome === 'approved') {
-          await activateOrderEntitlementsTx(db, auth.account.id, JSON.parse(order.summary_json));
+          const quote = JSON.parse(order.summary_json);
+          await activateOrderEntitlementsTx(db, auth.account.id, quote, { pilotFree: retryPilotFree });
+          await db.run('UPDATE checkout_selections SET selection_json = ?, updated_at = ? WHERE account_id = ?',
+            JSON.stringify({products:quote.selectedProducts,ethaFormat:quote.ethaFormat || 'one_page',stage:'confirmed'}), now, auth.account.id);
+          await writeAccountSelection(db, auth.account.id, { ...(await readAccountSelection(db, auth.account.id) || {}), products: quote.selectedProducts, ethaFormat: quote.ethaFormat || 'one_page', stage: 'confirmed' });
         }
         return {
           order: (await db.get('SELECT * FROM commercial_orders WHERE id = ?', orderId)),
@@ -832,15 +1239,22 @@ export async function handleApiRequest(req, res, customDb = null) {
       if (action === 'cancel') {
         (await db.run("UPDATE entitlements SET status = 'read_only', cancelled_at = ?, updated_at = ? WHERE id = ?", now, now, ent.id));
       } else {
-        (await db.run("UPDATE entitlements SET status = 'active', cancelled_at = NULL, current_period_end = ?, updated_at = ? WHERE id = ?", addDaysIso(30), now, ent.id));
+        // Reativar não cria período pago novo: só volta a valer o que já estava pago (ou o piloto).
+        const pilotFree = await getPilotAccess(db, auth.user.id);
+        const stillPaid = ent.current_period_end && Date.parse(ent.current_period_end) > Date.now();
+        if (!pilotFree && !stillPaid && !allowSimulatedActivation()) {
+          throw Object.assign(new Error('O período deste serviço terminou. Contrate de novo para reativar.'), { status: 402, code: 'PAYMENT_REQUIRED', product });
+        }
+        const periodEnd = pilotFree ? PILOT_FREE_UNTIL : stillPaid ? ent.current_period_end : addDaysIso(30);
+        (await db.run("UPDATE entitlements SET status = 'active', cancelled_at = NULL, current_period_end = ?, updated_at = ? WHERE id = ?", periodEnd, now, ent.id));
       }
       await writeAudit(db, { actorUserId: auth.user.id, actorType: 'professional', accountId: auth.account.id, action: `entitlement.${action}`, resourceType: 'entitlement', resourceId: ent.id, meta: { product } });
       return json(res, 200, {
         ok: true,
         entitlements: await getAccountEntitlements(db, auth.account.id),
         note: action === 'cancel'
-          ? `Serviço ${product} colocado em modo somente leitura/exportação. Os demais serviços permanecem ativos e nenhum dado foi apagado.`
-          : `Serviço ${product} reativado com sucesso.`,
+          ? `${({ ambo: 'Ambo', minne: 'Minne', etha: 'Etha' })[product] || product} ficou só para leitura e exportação. Os outros serviços continuam ativos e nenhum dado foi apagado.`
+          : `${({ ambo: 'Ambo', minne: 'Minne', etha: 'Etha' })[product] || product} reativado.`,
       });
     }
 
@@ -865,9 +1279,9 @@ export async function handleApiRequest(req, res, customDb = null) {
         : null;
       const pendingSyncs = (await db.all("SELECT * FROM sync_events WHERE account_id = ? AND status != 'synced' ORDER BY created_at DESC LIMIT 10", auth.account.id));
 
-      let nextAction = { label: 'Escolher serviços ou iniciar teste de 7 dias', product: 'enomera' };
+      let nextAction = { label: 'Escolher serviços ou começar 30 dias grátis', product: 'enomera' };
       if (hasAmbo && !hasMinne) nextAction = { label: 'Configurar disponibilidade e link no Ambo', product: 'ambo' };
-      else if (hasMinne && pendingRequests > 0) nextAction = { label: `Responder ${pendingRequests} solicitação(ões) no Minne`, product: 'minne' };
+      else if (hasMinne && pendingRequests > 0) nextAction = { label: `Responder ${pendingRequests} ${pendingRequests === 1 ? 'solicitação' : 'solicitações'} no Minne`, product: 'minne' };
       else if (hasAmbo && hasMinne) nextAction = { label: 'Abrir Ambo para compartilhar perfil ou Minne para agenda', product: 'ambo' };
       else if (hasEtha && !hasAmbo && !hasMinne) nextAction = { label: 'Acompanhar seu site na Etha', product: 'etha' };
 
@@ -924,6 +1338,10 @@ export async function handleApiRequest(req, res, customDb = null) {
           crpOrCrm: auth.account.crp_or_crm,
           specialty: auth.account.specialty,
           bio: auth.account.bio,
+          audience: auth.account.audience || '',
+          contactEmail: auth.user.email,
+          photoAssetId: auth.account.photo_file_id || null,
+          photoUrl: profilePhotoUrl(auth.account),
           city: auth.account.city,
           timezone: auth.account.timezone,
           sessionDurationMin: auth.account.session_duration_min,
@@ -943,6 +1361,10 @@ export async function handleApiRequest(req, res, customDb = null) {
     if (method === 'PATCH' && pathname === '/api/v1/professional/profile') {
       await requireProfessional(db, auth);
       const body = await readJsonBody(req);
+      if (body.onlineMeetingUrl != null) body.onlineMeetingUrl = safeHttpsUrl(body.onlineMeetingUrl, { field: 'onlineMeetingUrl' });
+      if (body.sessionPriceCents != null && !(Number.isFinite(Number(body.sessionPriceCents)) && Number(body.sessionPriceCents) >= 0 && Number(body.sessionPriceCents) <= 10_000_000)) {
+        throw Object.assign(new Error('Valor da sessão inválido.'), { status: 400, code: 'INVALID_PRICE' });
+      }
       const now = nowIso();
       (await db.run(`
         UPDATE professional_accounts SET
@@ -950,6 +1372,7 @@ export async function handleApiRequest(req, res, customDb = null) {
           crp_or_crm = COALESCE(?, crp_or_crm),
           specialty = COALESCE(?, specialty),
           bio = COALESCE(?, bio),
+          audience = COALESCE(?, audience),
           city = COALESCE(?, city),
           session_duration_min = COALESCE(?, session_duration_min),
           session_price_cents = COALESCE(?, session_price_cents),
@@ -961,7 +1384,7 @@ export async function handleApiRequest(req, res, customDb = null) {
           ui_preferences_json = COALESCE(?, ui_preferences_json),
           updated_at = ?
         WHERE id = ?
-      `, body.displayName ?? null, body.crpOrCrm ?? null, body.specialty ?? null, body.bio ?? null, body.city ?? null,
+      `, body.displayName ?? null, body.crpOrCrm ?? null, body.specialty ?? null, body.bio ?? null, body.audience ?? null, body.city ?? null,
         body.sessionDurationMin ?? null, body.sessionPriceCents ?? null,
         body.modalities ? JSON.stringify(body.modalities) : null,
         body.onlineMeetingUrl ?? null, body.onlineInstructions ?? null, body.onlineUnlockMinutes ?? null,
@@ -969,6 +1392,27 @@ export async function handleApiRequest(req, res, customDb = null) {
         body.uiPreferences ? JSON.stringify(body.uiPreferences) : null,
         now, auth.account.id));
       return json(res, 200, { ok: true, updatedAt: now });
+    }
+
+    if (pathname === '/api/v1/professional/profile/photo' && ['POST', 'DELETE'].includes(method)) {
+      await requireProfessional(db, auth);
+      const photo = method === 'POST' ? await savePortrait(db, auth, await readJsonBody(req)) : null;
+      await db.run('UPDATE professional_accounts SET photo_file_id = ?, updated_at = ? WHERE id = ?', photo?.photoAssetId || null, nowIso(), auth.account.id);
+      return json(res, 200, { photoAssetId: photo?.photoAssetId || null, photoUrl: profilePhotoUrl({ ...auth.account, photo_file_id: photo?.photoAssetId || null }) });
+    }
+
+    const publicPhoto = pathname.match(/^\/api\/v1\/(ambo\/public|public-sites)\/([^/]+)\/photo\/([^/]+)$/);
+    if (method === 'GET' && publicPhoto) {
+      const account = await db.get('SELECT * FROM professional_accounts WHERE slug = ?', publicPhoto[2]);
+      if (!account) throw Object.assign(new Error('Foto não encontrada.'), { status: 404 });
+      let allowed = publicPhoto[1] === 'ambo/public' && account.photo_file_id === publicPhoto[3];
+      if (publicPhoto[1] === 'public-sites') {
+        const published = await db.get("SELECT v.content_json FROM etha_projects p JOIN etha_content_versions v ON v.id = p.published_version_id WHERE p.account_id = ? AND v.stage = 'published'", account.id);
+        allowed = Boolean(published && JSON.parse(published.content_json).photoAssetId === publicPhoto[3]);
+      }
+      if (!allowed) throw Object.assign(new Error('Foto não publicada.'), { status: 404 });
+      const file = await requireOwnedPortrait(db, account.id, publicPhoto[3]);
+      return await servePortrait(res, file);
     }
 
     if (method === 'PUT' && pathname === '/api/v1/professional/availability') {
@@ -1011,6 +1455,8 @@ export async function handleApiRequest(req, res, customDb = null) {
       if (!ents.ambo?.canWrite) {
         throw Object.assign(new Error('O agendamento Ambo não está ativo para este perfil.'), { status: 404, code: 'AMBO_INACTIVE' });
       }
+      const amboState = amboSetupOf(acc);
+      const amboFresh = !amboState.demo && !amboState.reviewedAt && !amboState.open;
       return json(res, 200, {
         professional: {
           slug: acc.slug,
@@ -1018,13 +1464,16 @@ export async function handleApiRequest(req, res, customDb = null) {
           crpOrCrm: acc.crp_or_crm,
           specialty: acc.specialty,
           bio: acc.bio,
-          city: acc.city,
+          audience: acc.audience || '',
+          photoUrl: profilePhotoUrl(acc),
+          city: amboFresh ? '' : acc.city,
           timezone: acc.timezone,
           sessionDurationMin: acc.session_duration_min,
-          sessionPriceCents: acc.session_price_cents,
-          modalities: JSON.parse(acc.modalities_json || '["online","presencial"]'),
-          inPersonHint: acc.city,
+          sessionPriceCents: amboFresh || amboState.priceUnset ? null : acc.session_price_cents,
+          modalities: amboFresh ? [] : JSON.parse(acc.modalities_json || '["online","presencial"]'),
+          inPersonHint: amboFresh ? '' : acc.city,
         },
+        booking: { open: amboState.open },
         note: 'Valor e condições do atendimento são combinados diretamente com a profissional. Enviar preferências não bloqueia horário na agenda.',
       });
     }
@@ -1036,6 +1485,7 @@ export async function handleApiRequest(req, res, customDb = null) {
       if (!acc) throw Object.assign(new Error('Profissional não encontrado.'), { status: 404, code: 'PROFESSIONAL_NOT_FOUND' });
       const ents = await getAccountEntitlements(db, acc.id);
       if (!ents.ambo?.canWrite) throw Object.assign(new Error('Agendamento indisponível para este perfil.'), { status: 403, code: 'AMBO_INACTIVE' });
+      if (!amboSetupOf(acc).open) throw Object.assign(new Error('A agenda desta profissional ainda não está aberta para pedidos.'), { status: 409, code: 'AMBO_NOT_OPEN' });
 
       const body = await readJsonBody(req);
       const idempotencyKey = String(req.headers['x-idempotency-key'] || body.idempotencyKey || randomId('idem'));
@@ -1085,9 +1535,14 @@ export async function handleApiRequest(req, res, customDb = null) {
       const body = await readJsonBody(req);
       const slug = String(body.professionalSlug || '').trim();
       const contact = String(body.contact || '').trim().toLowerCase();
-      const acc = (await db.get('SELECT * FROM professional_accounts WHERE slug = ?', slug));
-      if (!acc) throw Object.assign(new Error('Profissional não encontrado.'), { status: 404, code: 'PROFESSIONAL_NOT_FOUND' });
       if (!contact) throw Object.assign(new Error('Informe o e-mail ou telefone usado na solicitação.'), { status: 400, code: 'CONTACT_REQUIRED' });
+      // Sem profissional (entrada direta do Ambo): usa a conta com a atividade mais recente deste contato.
+      // A resposta é a mesma com ou sem cadastro, então não revela com quem a pessoa se consulta.
+      const acc = slug
+        ? (await db.get('SELECT * FROM professional_accounts WHERE slug = ?', slug))
+        : (await amboAccountForContact(db, contact));
+      if (!acc && slug) throw Object.assign(new Error('Profissional não encontrado.'), { status: 404, code: 'PROFESSIONAL_NOT_FOUND' });
+      if (!acc) return json(res, 200, { ok: true, message: 'Se houver solicitação ou cadastro associado a este contato, um código de verificação será gerado.' });
 
       const pat = (await db.get('SELECT id FROM operational_patients WHERE account_id = ? AND (lower(email) = ? OR phone = ?)', acc.id, contact, contact));
       const reqRow = (await db.get('SELECT id FROM consultation_requests WHERE account_id = ? AND (lower(patient_email) = ? OR patient_phone = ?)', acc.id, contact, contact));
@@ -1109,11 +1564,12 @@ export async function handleApiRequest(req, res, customDb = null) {
       const body = await readJsonBody(req);
       const slug = String(body.professionalSlug || '').trim();
       const contact = String(body.contact || '').trim().toLowerCase();
-      const acc = (await db.get('SELECT * FROM professional_accounts WHERE slug = ?', slug));
-      if (!acc) throw Object.assign(new Error('Profissional não encontrado.'), { status: 404, code: 'PROFESSIONAL_NOT_FOUND' });
+      let acc = slug ? (await db.get('SELECT * FROM professional_accounts WHERE slug = ?', slug)) : null;
+      if (slug && !acc) throw Object.assign(new Error('Profissional não encontrado.'), { status: 404, code: 'PROFESSIONAL_NOT_FOUND' });
 
       const verRow = await consumeVerificationCode(db, { purpose: 'patient_access', targetContact: contact, code: body.code });
-      if (verRow.account_id !== acc.id) {
+      if (!acc) acc = await db.get('SELECT * FROM professional_accounts WHERE id = ?', verRow.account_id);
+      if (!acc || verRow.account_id !== acc.id) {
         throw Object.assign(new Error('Código não corresponde a este profissional.'), { status: 403, code: 'ACCOUNT_MISMATCH' });
       }
 
@@ -1135,7 +1591,7 @@ export async function handleApiRequest(req, res, customDb = null) {
       const patientId = pat?.id || `contact:${contact}`;
       const sess = await issueSession(db, { userId: user.id, actorType: 'patient', accountId: acc.id, patientId, ttlMinutes: 120 });
       await writeAudit(db, { actorUserId: user.id, actorType: 'patient', accountId: acc.id, action: 'ambo.patient_verified', resourceType: 'session', resourceId: sess.id });
-      return json(res, 200, { verified: true, sessionToken: sess.rawToken, expiresAt: sess.expiresAt }, { 'Set-Cookie': sess.cookie });
+      return json(res, 200, { verified: true, sessionToken: sess.rawToken, expiresAt: sess.expiresAt, professionalSlug: acc.slug }, { 'Set-Cookie': sess.cookie });
     }
 
     if (method === 'GET' && pathname === '/api/v1/ambo/patient/me') {
@@ -1245,15 +1701,24 @@ export async function handleApiRequest(req, res, customDb = null) {
         VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?)
       `, id, auth.account.id, pat.id, sha256Hex(rawToken), body.channel || 'email', targetContact, expiresAt, nowIso()));
 
+      const amboBase = String(process.env.ENOMERA_AMBO_URL || '').replace(/\/+$/, '');
+      const inviteUrl = amboBase ? `${amboBase}/?pro=${encodeURIComponent(auth.account.slug)}&convite=${encodeURIComponent(rawToken)}` : null;
+      const escHtml = (v) => String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      const expiresLabel = new Date(expiresAt).toLocaleDateString('pt-BR', { timeZone: auth.account.timezone || 'America/Sao_Paulo' });
+      const proName = auth.account.display_name;
       const delivery = await sendTransactionalEmail(db, {
         channel: body.channel || 'email',
         recipient: targetContact,
-        subject: `Convite para agendar com ${auth.account.display_name} · Ambo`,
-        textBody: `Use seu convite de uso único para escolher um horário com ${auth.account.display_name} (expira em ${expiresAt}): ${rawToken}`,
-        htmlBody: `<p>Use seu convite de uso único para escolher um horário com <b>${auth.account.display_name}</b> (expira em ${expiresAt}):</p><p><code>${rawToken}</code></p>`,
+        subject: `Convite para agendar com ${proName} · Ambo`,
+        textBody: inviteUrl
+          ? `${proName} convidou você para escolher um horário. Abra o link (uso único, válido até ${expiresLabel}): ${inviteUrl}`
+          : `Use seu convite de uso único para escolher um horário com ${proName} (válido até ${expiresLabel}): ${rawToken}`,
+        htmlBody: inviteUrl
+          ? `<p><b>${escHtml(proName)}</b> convidou você para escolher um horário.</p><p><a href="${escHtml(inviteUrl)}">Escolher horário no Ambo</a></p><p>O convite é de uso único e vale até ${expiresLabel}.</p>`
+          : `<p>Use seu convite de uso único para escolher um horário com <b>${escHtml(proName)}</b> (válido até ${expiresLabel}):</p><p><code>${rawToken}</code></p>`,
         purpose: 'ambo_invitation',
       });
-      return json(res, 201, { invitationId: id, inviteToken: rawToken, expiresAt, delivery });
+      return json(res, 201, { invitationId: id, inviteToken: rawToken, inviteUrl, expiresAt, delivery });
     }
 
     if (method === 'POST' && pathname === '/api/v1/ambo/invitations/verify') {
@@ -1333,7 +1798,67 @@ export async function handleApiRequest(req, res, customDb = null) {
         patients,
         invitations,
         availableSlots: await generateAvailableSlots(db, auth.account.id, { daysAhead: 14 }),
+        setup: await amboSetupPayload(db, auth.account.id),
       });
+    }
+
+    // Configuração do atendimento no Ambo: modalidades, local, duração, valor e horários semanais.
+    // `open: true` abre a página pública para pedidos; `open: false` fecha sem apagar nada.
+    if (method === 'PUT' && pathname === '/api/v1/ambo/pro/setup') {
+      await requireProfessional(db, auth, { product: 'ambo', write: true });
+      const body = await readJsonBody(req);
+      const acc = await db.get('SELECT * FROM professional_accounts WHERE id = ?', auth.account.id);
+      const modalities = Array.isArray(body.modalities) ? body.modalities.filter((m) => m === 'online' || m === 'presencial') : null;
+      if (modalities && modalities.length === 0) throw Object.assign(new Error('Escolha ao menos uma modalidade de atendimento.'), { status: 400, code: 'AMBO_SETUP_MODALITY' });
+      const timeRe = /^([01]\d|2[0-3]):[0-5]\d$/;
+      const rules = Array.isArray(body.rules) ? body.rules.map((r) => ({
+        weekday: Number(r.weekday), startTime: String(r.startTime || ''), endTime: String(r.endTime || ''), modality: ['online', 'presencial', 'both'].includes(r.modality) ? r.modality : 'both',
+      })) : null;
+      if (rules && rules.some((r) => !(r.weekday >= 0 && r.weekday <= 6) || !timeRe.test(r.startTime) || !timeRe.test(r.endTime) || r.endTime <= r.startTime)) {
+        throw Object.assign(new Error('Confira os horários: o fim precisa ser depois do início.'), { status: 400, code: 'AMBO_SETUP_RULES' });
+      }
+      const finalModalities = modalities || JSON.parse(acc.modalities_json || '["online","presencial"]');
+      const before = amboSetupOf(acc);
+      const wasFresh = !before.demo && !before.reviewedAt && !before.open;
+      // Primeira revisão: o que a profissional não informou não herda o exemplo das colunas.
+      const city = body.city != null ? String(body.city).trim() : (wasFresh && acc.city === AMBO_DEFAULT_CITY ? '' : acc.city);
+      const address = body.inPersonAddress != null ? String(body.inPersonAddress).trim() : (wasFresh || acc.in_person_address === AMBO_DEFAULT_ADDRESS ? '' : acc.in_person_address);
+      const priceGiven = Number.isFinite(Number(body.sessionPriceCents)) && body.sessionPriceCents !== null && body.sessionPriceCents !== '' && Number(body.sessionPriceCents) >= 0;
+      if (body.open && finalModalities.includes('presencial') && !String(address || '').trim()) {
+        throw Object.assign(new Error('Informe o endereço do consultório para atender presencialmente.'), { status: 400, code: 'AMBO_SETUP_ADDRESS' });
+      }
+      if (body.open && rules && rules.length === 0) {
+        throw Object.assign(new Error('Libere ao menos um horário na semana para abrir a agenda.'), { status: 400, code: 'AMBO_SETUP_NO_HOURS' });
+      }
+      let prefs = {};
+      try { prefs = JSON.parse(acc.ui_preferences_json || '{}') || {}; } catch { prefs = {}; }
+      const now = nowIso();
+      prefs.amboSetup = {
+        ...(prefs.amboSetup || {}),
+        reviewedAt: now,
+        openedAt: body.open === true ? (prefs.amboSetup?.openedAt || now) : body.open === false ? null : (prefs.amboSetup?.openedAt || null),
+      };
+      if (body.address !== undefined) prefs.amboSetup.address = cleanAmboAddress(body.address);
+      if (priceGiven) delete prefs.amboSetup.priceUnset;
+      else if (wasFresh) prefs.amboSetup.priceUnset = true;
+      await runTransaction(db, async (db) => {
+        await db.run(`UPDATE professional_accounts SET modalities_json = ?, city = ?, in_person_address = ?,
+            session_duration_min = COALESCE(?, session_duration_min), session_price_cents = COALESCE(?, session_price_cents),
+            ui_preferences_json = ?, updated_at = ? WHERE id = ?`,
+          JSON.stringify(finalModalities), city, address,
+          Number.isFinite(Number(body.sessionDurationMin)) && Number(body.sessionDurationMin) >= 15 ? Number(body.sessionDurationMin) : null,
+          priceGiven ? Math.round(Number(body.sessionPriceCents)) : null,
+          JSON.stringify(prefs), now, auth.account.id);
+        if (rules) {
+          await db.run('DELETE FROM availability_rules WHERE account_id = ?', auth.account.id);
+          for (const r of rules) {
+            await db.run(`INSERT INTO availability_rules (id, account_id, weekday, start_time, end_time, modality, active, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, 1, ?)`, randomId('avr'), auth.account.id, r.weekday, r.startTime, r.endTime, r.modality, now);
+          }
+        }
+      });
+      await writeAudit(db, { actorUserId: auth.user.id, actorType: 'professional', accountId: auth.account.id, action: body.open === true ? 'ambo.setup_open' : body.open === false ? 'ambo.setup_close' : 'ambo.setup_save', resourceType: 'professional_account', resourceId: auth.account.id });
+      return json(res, 200, { ok: true, setup: await amboSetupPayload(db, auth.account.id) });
     }
 
     const amboProConfirm = pathname.match(/^\/api\/v1\/ambo\/pro\/requests\/([^/]+)\/confirm$/);
@@ -1353,6 +1878,7 @@ export async function handleApiRequest(req, res, customDb = null) {
         sourceProduct: 'ambo',
         simulateDelayedSync: Boolean(body.simulateDelayedSync),
       });
+      out.patientNotification = await notifyPatientOfConfirmation(db, auth.account, out);
       return json(res, out.idempotentReplay ? 200 : 201, out);
     }
 
@@ -1458,6 +1984,7 @@ export async function handleApiRequest(req, res, customDb = null) {
         sourceProduct: 'minne',
         simulateDelayedSync: Boolean(body.simulateDelayedSync),
       });
+      out.patientNotification = await notifyPatientOfConfirmation(db, auth.account, out);
       return json(res, out.idempotentReplay ? 200 : 201, out);
     }
 
@@ -1502,7 +2029,8 @@ export async function handleApiRequest(req, res, customDb = null) {
         actorUserId: auth.user.id,
         reason: body.reason || '',
       });
-      return json(res, 200, out);
+      const patientNotice = await notifyPatientOfCancellation(db, auth.account, out);
+      return json(res, 200, { ...out, patientNotice });
     }
 
     // Clinical Notes, Drafts & Version History
@@ -1781,7 +2309,7 @@ export async function handleApiRequest(req, res, customDb = null) {
       await writeAudit(db, { actorUserId: auth.user.id, actorType: auth.session.actor_type, accountId: fileRow.account_id, action: 'file.download', resourceType: 'private_file', resourceId: fileRow.id, outcome: 'allow' });
       res.writeHead(200, {
         'Content-Type': fileRow.detected_mime,
-        'Content-Disposition': `attachment; filename="${fileRow.original_name}"`,
+        'Content-Disposition': contentDispositionAttachment(fileRow.original_name),
         'Cache-Control': 'private, no-store',
         'X-Content-Type-Options': 'nosniff',
       });
@@ -1818,12 +2346,26 @@ export async function handleApiRequest(req, res, customDb = null) {
     if (method === 'GET' && pathname === '/api/v1/etha/project') {
       await requireProfessional(db, auth, { product: 'etha', write: false });
       const proj = await ensureEthaProject(db, auth.account.id);
-      return json(res, 200, await buildEthaProjectDetail(db, proj));
+      const selection = await readAccountSelection(db, auth.account.id).catch(() => null);
+      return json(res, 200, { ...(await buildEthaProjectDetail(db, proj)), contractedService: selection?.ethaService === 'sob_medida' ? 'sob_medida' : 'essencial' });
+    }
+
+    if (pathname === '/api/v1/etha/project/photo' && ['POST', 'DELETE'].includes(method)) {
+      await requireProfessional(db, auth, { product: 'etha', write: true });
+      const proj = await ensureEthaProject(db, auth.account.id);
+      const photo = method === 'POST' ? await savePortrait(db, auth, await readJsonBody(req), 'etha_photo') : null;
+      const briefing = { ...JSON.parse(proj.briefing_json || '{}'), photoAssetId: photo?.photoAssetId || null,
+        photoUrl: photo?.photoUrl || null, photosConfirmed: Boolean(photo) };
+      const ids = JSON.parse(proj.attachment_file_ids_json || '[]');
+      if (photo) ids.push(photo.photoAssetId);
+      await db.run('UPDATE etha_projects SET briefing_json = ?, attachment_file_ids_json = ?, updated_at = ? WHERE id = ?', JSON.stringify(briefing), JSON.stringify(ids), nowIso(), proj.id);
+      return json(res, 200, photo || { photoAssetId: null, photoUrl: null });
     }
 
     if (method === 'PUT' && pathname === '/api/v1/etha/project/briefing') {
       await requireProfessional(db, auth, { product: 'etha', write: true });
       const body = await readJsonBody(req);
+      if (body.customContactUrl != null) body.customContactUrl = safeContactUrl(body.customContactUrl);
       const proj = await ensureEthaProject(db, auth.account.id);
       const existingBriefing = JSON.parse(proj.briefing_json || '{}');
       const mergedBriefing = { ...existingBriefing, ...(body.briefing || {}) };
@@ -1906,6 +2448,15 @@ export async function handleApiRequest(req, res, customDb = null) {
       await requireProfessional(db, auth, { product: 'etha', write: true });
       const body = await readJsonBody(req);
       const proj = await ensureEthaProject(db, auth.account.id);
+      const content = z.object({ displayName: z.string().max(160).optional(), headline: z.string().max(300).optional(),
+        subheadline: z.string().max(2000).optional(), about: z.string().max(15000).optional(),
+        ctaLabel: z.string().max(100).optional(), photoAssetId: z.string().nullable().optional(),
+        customContactUrl: z.string().max(1000).optional(), crp: z.string().max(100).optional(),
+        // Etha por modelo (23/11): respostas guiadas que preenchem o modelo do site.
+        answers: z.record(z.string(), z.any()).optional() }).parse(body.content || {});
+      if (content.customContactUrl != null) content.customContactUrl = safeContactUrl(content.customContactUrl);
+      if (content.answers && JSON.stringify(content.answers).length > 20000) throw Object.assign(new Error('Respostas grandes demais.'), { status: 400, code: 'ANSWERS_TOO_LARGE' });
+      if (content.photoAssetId) await requireOwnedPortrait(db, auth.account.id, content.photoAssetId);
       const stage = body.stage === 'preview' ? 'preview' : 'draft';
       const lastVer = Number(((await db.get('SELECT MAX(version_number) as m FROM etha_content_versions WHERE project_id = ?', proj.id)))?.m || 0) || 0;
       const verId = randomId('ethav');
@@ -1913,7 +2464,7 @@ export async function handleApiRequest(req, res, customDb = null) {
       (await db.run(`
         INSERT INTO etha_content_versions (id, project_id, account_id, version_number, stage, content_json, created_by_user_id, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `, verId, proj.id, auth.account.id, lastVer + 1, stage, JSON.stringify(body.content || {}), auth.user.id, now));
+      `, verId, proj.id, auth.account.id, lastVer + 1, stage, JSON.stringify(content), auth.user.id, now));
       return json(res, 201, {
         versionId: verId,
         versionNumber: lastVer + 1,
@@ -1932,8 +2483,8 @@ export async function handleApiRequest(req, res, customDb = null) {
         : (await db.get('SELECT * FROM etha_content_versions WHERE project_id = ? ORDER BY version_number DESC LIMIT 1', proj.id));
       if (!version) throw Object.assign(new Error('Nenhuma versão encontrada para publicação em homologação.'), { status: 404, code: 'VERSION_NOT_FOUND' });
       const now = nowIso();
-      const ctaMode = body.ctaMode === 'custom' ? 'custom' : 'ambo';
-      const customContactUrl = body.customContactUrl ?? proj.custom_contact_url;
+      const ctaMode = body.ctaMode === 'custom' || (body.ctaMode == null && proj.cta_mode === 'custom') ? 'custom' : 'ambo';
+      const customContactUrl = body.customContactUrl != null ? safeContactUrl(body.customContactUrl) : proj.custom_contact_url;
       (await db.run("UPDATE etha_content_versions SET stage = 'published', published_at = ? WHERE id = ?", now, version.id));
       // Honest DNS status: NEVER fakes verified DNS/SSL!
       const domainStatus = proj.domain_name ? 'pending_owner_dns' : 'staging_only';
@@ -2011,7 +2562,9 @@ export async function handleApiRequest(req, res, customDb = null) {
     if (method === 'GET' && pubSiteMatch) {
       const acc = (await db.get('SELECT * FROM professional_accounts WHERE slug = ?', pubSiteMatch[1]));
       if (!acc) throw Object.assign(new Error('Site não encontrado.'), { status: 404, code: 'SITE_NOT_FOUND' });
-      return json(res, 200, await buildPublicSiteDto(db, acc));
+      const site = await buildPublicSiteDto(db, acc);
+      if (!site.publishedAt || !site.versionNumber) throw Object.assign(new Error('Este site ainda não foi publicado.'), { status: 404, code: 'SITE_NOT_PUBLISHED' });
+      return json(res, 200, site);
     }
 
     return json(res, 404, { error: 'Rota não encontrada.', code: 'NOT_FOUND', pathname });
@@ -2020,7 +2573,10 @@ export async function handleApiRequest(req, res, customDb = null) {
       return json(res, 400, { error: 'Dados inválidos.', code: 'VALIDATION_ERROR', issues: err.issues });
     }
     const status = err.status || 500;
-    const payload = { error: err.message || 'Erro interno no servidor.', code: err.code || 'INTERNAL_ERROR' };
+    // Erro inesperado (banco, biblioteca): detalhe só no log do servidor, nunca na resposta.
+    if (status >= 500 && !err.code) console.error('[core] erro interno', pathname, err);
+    const payload = { error: status >= 500 && !err.code ? 'Erro interno no servidor. Tente de novo em instantes.' : (err.message || 'Erro interno no servidor.'), code: err.code || 'INTERNAL_ERROR' };
+    if (status === 429 && err.retryAfterSec) return json(res, 429, { ...payload, retryAfterSec: err.retryAfterSec }, { 'Retry-After': String(err.retryAfterSec) });
     if (err.suggestions) payload.suggestions = err.suggestions;
     if (err.product) payload.product = err.product;
     if (err.missingEnvVars) payload.missingEnvVars = err.missingEnvVars;
@@ -2028,9 +2584,24 @@ export async function handleApiRequest(req, res, customDb = null) {
   }
 }
 
-async function activateOrderEntitlementsTx(db, accountId, quote) {
+// Ativação sem pagamento (checkout simulado / reativar sem período pago). Ligada por padrão
+// enquanto não há cobrança real; desligar com ENOMERA_ALLOW_SIMULATED_CHECKOUT=false antes de cobrar.
+function allowSimulatedActivation() {
+  return process.env.ENOMERA_ALLOW_SIMULATED_CHECKOUT !== 'false';
+}
+
+// Link de contato do site: https:// (WhatsApp, Instagram, site), mailto: ou tel:. Nunca javascript:.
+function safeContactUrl(value) {
+  const s = String(value ?? '').trim();
+  if (!s) return '';
+  if (/^(mailto:[^\s<>"']+@[^\s<>"']+|tel:\+?[\d\s().-]{8,20})$/i.test(s)) return s;
+  return safeHttpsUrl(s, { field: 'customContactUrl' });
+}
+
+async function activateOrderEntitlementsTx(db, accountId, quote, { pilotFree = false } = {}) {
   const now = nowIso();
-  const periodEnd = addDaysIso(30);
+  const periodEnd = pilotFree ? PILOT_FREE_UNTIL : addDaysIso(30);
+  const mode = pilotFree ? 'pilot' : quote.billing === 'permanent' ? 'annual' : 'monthly';
   for (const prod of quote.selectedProducts || []) {
     (await db.run(`
       INSERT INTO entitlements (id, account_id, product, status, billing_mode, current_period_end, cancelled_at, updated_at)
@@ -2041,7 +2612,7 @@ async function activateOrderEntitlementsTx(db, accountId, quote) {
         current_period_end = excluded.current_period_end,
         cancelled_at = NULL,
         updated_at = excluded.updated_at
-    `, randomId('ent'), accountId, prod, prod === 'etha' ? 'one_time_plus_hosting' : 'monthly', periodEnd, now));
+    `, randomId('ent'), accountId, prod, mode, periodEnd, now));
     if (prod === 'etha') {
       await ensureEthaProject(db, accountId, quote.ethaFormat || 'one_page');
     }
@@ -2065,7 +2636,7 @@ async function ensureEthaProject(db, accountId, format = 'one_page') {
 async function buildEthaProjectDetail(db, proj) {
   const versions = (await db.all('SELECT * FROM etha_content_versions WHERE project_id = ? ORDER BY version_number DESC', proj.id)).map((v) => ({
     ...v,
-    content: JSON.parse(v.content_json || '{}'),
+    content: (() => { const c = JSON.parse(v.content_json || '{}'); return { ...c, photoUrl: c.photoAssetId ? `/api/v1/files/${encodeURIComponent(c.photoAssetId)}` : null }; })(),
   }));
   const revisions = (await db.all('SELECT * FROM etha_revisions WHERE project_id = ? ORDER BY round_number ASC', proj.id)).map((r) => ({
     ...r,

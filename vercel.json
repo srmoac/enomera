@@ -7,10 +7,89 @@
     }
   },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/[...route].mjs" },
-    { "source": "/portal", "destination": "/index.html" },
-    { "source": "/portal/", "destination": "/index.html" },
-    { "source": "/conta", "destination": "/index.html" },
-    { "source": "/checkout", "destination": "/index.html" }
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/[...route].mjs"
+    },
+    {
+      "source": "/convite/:token",
+      "destination": "/piloto/convite.html"
+    },
+    {
+      "source": "/piloto/painel",
+      "destination": "/piloto/painel.html"
+    },
+    {
+      "source": "/piloto/como-funciona",
+      "destination": "/piloto/como-funciona.html"
+    },
+    {
+      "source": "/piloto/painel/",
+      "destination": "/piloto/painel.html"
+    },
+    {
+      "source": "/configurar",
+      "destination": "/configurar.html"
+    },
+    {
+      "source": "/portal",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/portal/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/conta",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/checkout",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://viacep.com.br https://*.vercel.app; frame-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+        },
+        {
+          "key": "Cross-Origin-Opener-Policy",
+          "value": "same-origin-allow-popups"
+        }
+      ]
+    },
+    {
+      "source": "/piloto/uso.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=300"
+        },
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        }
+      ]
+    }
   ]
 }

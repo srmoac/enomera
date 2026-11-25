@@ -126,7 +126,7 @@ try {
     await sleep(450);
     await page.selectOption('#eno-etha-fmt', 'multi_page'); actions++;
     await sleep(500);
-    await page.click('#cb-etha'); actions++; // back to Ambo + Minne (R$ 89)
+    await page.click('#cb-etha'); actions++; // back to Ambo + Minne (R$ 79)
     await sleep(450);
 
     await page.screenshot({ path: path.join(SHOTS_DIR, '01-enomera-plans-desktop.png') });
@@ -210,7 +210,7 @@ try {
     await sleep(700);
 
     await page.click('button:has-text("Ir para o Portal")'); actions++;
-    await page.waitForSelector('text=Seus produtos prontos para uso');
+    await page.waitForSelector('text=Seus serviços');
     await sleep(900);
     await page.screenshot({ path: path.join(SHOTS_DIR, '04-enomera-portal-unlocked.png') });
     metrics.screenshots.push('shots/04-enomera-portal-unlocked.png');

@@ -1,0 +1,306 @@
+/* Acabamento vindo dos vídeos analisados em 22 nov 2026 (prompts 1, 4, 5 e 6).
+   Figma: R4FYsZmgvfyA1ESAlTuOCY, nós 82:746–82:890 (estados do código) e 82:929 (especificação).
+   Não altera pétalas, durações nem curvas do padrão: só usa os tokens --eno-*. */
+
+/* ---------- Código de 6 dígitos: um campo, seis casas ---------- */
+.eno-otp-field { position: relative; isolation: isolate; }
+.eno-otp-field .eno-otp-input {
+  position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%;
+  margin: 0; padding: 0; border: 0; outline: none; background: transparent;
+  color: transparent; caret-color: transparent; -webkit-text-fill-color: transparent;
+  font-size: 16px; letter-spacing: 0; /* texto real transparente; as casas mostram os dígitos */
+  cursor: text; -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+.eno-otp-field .eno-otp-input:focus, .eno-otp-field .eno-otp-input:focus-visible, .eno-otp-field .eno-otp-input:hover {
+  /* Um anel de foco só: o da casa ativa. O campo real nunca aparece (23 nov, "foco bugado"). */
+  background: transparent !important; box-shadow: none !important; border: 0 !important; outline: none !important;
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+.eno-otp-field .eno-otp-input::selection { background: transparent; color: transparent; -webkit-text-fill-color: transparent; }
+.eno-otp-field .eno-otp-digit {
+  display: flex; align-items: center; justify-content: center; position: relative;
+  min-width: 0; user-select: none; font-variant-numeric: tabular-nums;
+  transition: border-color var(--eno-t-fast) var(--eno-ease-out), box-shadow var(--eno-t-fast) var(--eno-ease-out),
+    opacity var(--eno-t-base) var(--eno-ease-out), transform var(--eno-t-fast) var(--eno-ease-out);
+}
+.eno-otp-field .eno-otp-digit.is-filled { animation: enoOtpPop var(--eno-t-fast) var(--eno-ease-out); }
+.eno-otp-field .eno-otp-digit.is-active { border-color: var(--flow-accent, #36599E); }
+/* Um anel de foco só, que desliza de casa em casa enquanto você digita (23 nov). */
+.eno-otp-ring { position: absolute; left: 0; top: 0; z-index: 1; pointer-events: none; border-radius: 14px; opacity: 0;
+  box-shadow: 0 0 0 3px rgba(91, 112, 179, .24); transform: translate(var(--ring-x, 0), var(--ring-y, 0));
+  transition: transform 260ms var(--eno-ease-move, cubic-bezier(.32,.72,0,1)), width 260ms var(--eno-ease-move, cubic-bezier(.32,.72,0,1)), opacity 160ms linear; }
+.eno-otp-ring.is-on { opacity: 1; }
+.eno-otp-field.is-verifying .eno-otp-ring, .eno-otp-field.is-verified .eno-otp-ring { opacity: 0; }
+@media (prefers-reduced-motion: reduce) { .eno-otp-ring { transition: opacity 120ms linear; } }
+.eno-otp-field .eno-otp-digit.is-caret::after {
+  content: ""; width: 2px; height: 42%; border-radius: 2px; background: currentColor;
+  animation: enoOtpCaret 1s steps(2, start) infinite;
+}
+.eno-otp-field.is-verifying .eno-otp-digit { opacity: .55; }
+.eno-otp-field.has-error .eno-otp-digit { border-color: var(--flow-error, #C53030); }
+.eno-otp-field.has-error { animation: enoOtpShake var(--eno-t-base) var(--eno-ease-out); }
+.eno-otp-field .eno-otp-check {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  color: var(--flow-accent, #36599E); opacity: 0; transform: scale(.9); pointer-events: none;
+  transition: opacity var(--eno-t-base) var(--eno-ease-out), transform var(--eno-t-base) var(--eno-ease-out);
+}
+.eno-otp-field.is-verified .eno-otp-digit { opacity: 0; transform: scale(.96); }
+.eno-otp-field.is-verified .eno-otp-check { opacity: 1; transform: none; }
+.eno-otp-status { display: flex; align-items: center; gap: 8px; min-height: 20px; }
+.eno-otp-status:empty { display: none; }
+@keyframes enoOtpPop { from { transform: scale(.92); } to { transform: none; } }
+@keyframes enoOtpCaret { to { visibility: hidden; } }
+@keyframes enoOtpShake {
+  0%, 100% { transform: none; } 20% { transform: translateX(-6px); } 40% { transform: translateX(5px); }
+  60% { transform: translateX(-3px); } 80% { transform: translateX(2px); }
+}
+
+/* ---------- Pressionar: retorno imediato ao toque ---------- */
+.eno-btn:not(:disabled):active, .eno-link:not(:disabled):active { transform: scale(.97); }
+
+/* ---------- Celular ---------- */
+@media (pointer: coarse) {
+  /* iOS dá zoom em campos abaixo de 16 px */
+  input:not([type="checkbox"]):not([type="radio"]), select, textarea { font-size: max(16px, 1em); }
+}
+button, a, input, select, textarea, summary, label, [role="button"] { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+dialog, [role="dialog"], .eno-flow-side, .eno-sheet { overscroll-behavior: contain; }
+@supports (height: 100dvh) {
+  .eno-flow-shell, .eno-approved-shell { min-height: 100dvh; }
+}
+
+/* ---------- Tipografia ---------- */
+.eno-sum, .eno-sum-total, .eno-sum-today, .eno-sum-lines, .eno-pc-price, .billing-row, .service-option strong, time { font-variant-numeric: tabular-nums; }
+.eno-flow-title, .eno-h1, h1, h2 { text-wrap: balance; }
+.eno-flow-lead, .eno-flow-note, .eno-flow-err { text-wrap: pretty; }
+
+@media (prefers-reduced-motion: reduce) {
+  .eno-otp-field.has-error, .eno-otp-field .eno-otp-digit.is-filled { animation: none; }
+  .eno-otp-field .eno-otp-digit.is-caret::after { animation: none; }
+  .eno-btn:not(:disabled):active, .eno-link:not(:disabled):active { transform: none; }
+}
+
+/* ---------- Código de 6 dígitos: motion v2 (feedback de 22 nov, 14:56) ----------
+   Dígito sobe para dentro da casa; ao completar as casas se juntam numa barra que corre
+   enquanto verifica; o ✓ é desenhado; no erro cada casa acende em vermelho em sequência. */
+.eno-otp-field { transition: gap var(--eno-t-step) var(--eno-ease-move); }
+.eno-otp-field .eno-otp-digit { overflow: hidden; transition: border-color var(--eno-t-fast) var(--eno-ease-out), box-shadow var(--eno-t-fast) var(--eno-ease-out),
+  opacity var(--eno-t-base) var(--eno-ease-out), transform var(--eno-t-base) var(--eno-ease-out), border-radius var(--eno-t-step) var(--eno-ease-move), background-color var(--eno-t-fast) var(--eno-ease-out); }
+.eno-otp-field .eno-otp-digit.is-filled { animation: none; background-color: color-mix(in srgb, var(--otp-accent, var(--flow-accent, #36599E)) 7%, #fff); }
+.eno-otp-d { display: inline-block; animation: enoOtpDigitIn var(--eno-t-base) var(--eno-ease-out) both; }
+@keyframes enoOtpDigitIn { from { opacity: 0; transform: translateY(60%) scale(.8); filter: blur(2px); } to { opacity: 1; transform: none; filter: none; } }
+.eno-otp-field.is-verifying { gap: 0 !important; }
+.eno-otp-field.is-verifying .eno-otp-digit { opacity: 1; border-radius: 0; border-left-color: transparent; border-right-color: transparent; }
+.eno-otp-field.is-verifying .eno-otp-digit[data-slot="0"] { border-radius: 14px 0 0 14px; border-left-color: inherit; }
+.eno-otp-field.is-verifying .eno-otp-digit[data-slot="5"] { border-radius: 0 14px 14px 0; border-right-color: inherit; }
+.eno-otp-field::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; border-radius: 3px; pointer-events: none; opacity: 0;
+  background: linear-gradient(90deg, transparent, var(--otp-accent, var(--flow-accent, #36599E)), transparent); background-size: 40% 100%; background-repeat: no-repeat;
+  transition: opacity var(--eno-t-fast) var(--eno-ease-out);
+}
+.eno-otp-field.is-verifying::after { opacity: 1; animation: enoOtpSweep 900ms linear infinite; }
+@keyframes enoOtpSweep { from { background-position: -40% 0; } to { background-position: 140% 0; } }
+.eno-otp-field.is-verified .eno-otp-digit { opacity: 0; transform: scale(.9); transition-delay: calc(var(--slot-i, 0) * 25ms); }
+.eno-otp-check path { stroke-dasharray: 24; stroke-dashoffset: 24; transition: stroke-dashoffset var(--eno-t-step) var(--eno-ease-out) 120ms; }
+.eno-otp-field.is-verified .eno-otp-check path { stroke-dashoffset: 0; }
+.eno-otp-field.has-error { animation: enoOtpShake 360ms var(--eno-ease-out); }
+.eno-otp-field.has-error .eno-otp-digit { animation: enoOtpErrorSlot 420ms var(--eno-ease-out) both; animation-delay: calc(var(--slot-i, 0) * 35ms); }
+@keyframes enoOtpErrorSlot { 0% { background-color: #fff; } 40% { background-color: color-mix(in srgb, var(--flow-error, #C53030) 12%, #fff); } 100% { background-color: color-mix(in srgb, var(--flow-error, #C53030) 5%, #fff); } }
+.eno-otp-status { animation: enoOtpStatusIn var(--eno-t-base) var(--eno-ease-out); }
+@keyframes enoOtpStatusIn { from { opacity: 0; transform: translateY(4px); } }
+
+/* ---------- Troca de tela ou etapa: cascata na direção do percurso ---------- */
+/* Uma entrada só por troca: o contêiner (.eno-flow-main, .eno-panel-enter) fica parado e só os filhos entram.
+   Lateral (.eno-flow-side) é contexto e não anima. Cascata de 40 ms, 220 ms cada, termina em até 300 ms. */
+[data-route-in] .eno-panel-enter { animation: none !important; }
+[data-route-in] > * > *:not(.eno-flow-main):not(.eno-flow-side), [data-route-in] .eno-flow-main > * { animation: enoRouteIn var(--eno-t-base) var(--eno-ease-out) both; }
+[data-route-in="back"] > * > *:not(.eno-flow-main):not(.eno-flow-side), [data-route-in="back"] .eno-flow-main > * { animation-name: enoRouteInBack; }
+[data-route-in] > * > *:nth-child(2), [data-route-in] .eno-flow-main > *:nth-child(2) { animation-delay: 40ms; }
+[data-route-in] > * > *:nth-child(n+3), [data-route-in] .eno-flow-main > *:nth-child(n+3) { animation-delay: 80ms; }
+/* Vidro entra materializando (blur e escala juntos), não deslizando. */
+[data-route-in] > * > .lg:not(.eno-flow-main):not(.eno-flow-side), [data-route-in] .eno-flow-main > .lg { animation-name: enoGlassIn; }
+@keyframes enoGlassIn { from { opacity: 0; transform: scale(.97); filter: blur(8px); } to { opacity: 1; transform: none; filter: none; } }
+@keyframes enoRouteIn { from { opacity: 0; transform: translateX(var(--eno-shift-step, 24px)); } to { opacity: 1; transform: none; } }
+@keyframes enoRouteInBack { from { opacity: 0; transform: translateX(calc(var(--eno-shift-step, 24px) * -1)); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .eno-otp-field, .eno-otp-field .eno-otp-digit, .eno-otp-check path { transition-duration: 1ms !important; }
+  .eno-otp-d, .eno-otp-field.has-error, .eno-otp-field.has-error .eno-otp-digit, .eno-otp-field.is-verifying::after, .eno-otp-status,
+  [data-route-in] > * > *, [data-route-in] .eno-flow-main > * { animation: none !important; }
+}
+.eno-otp-field:is(.is-verifying, .is-verified, .has-error) .eno-otp-d { animation: none; }
+
+/* Navegação entre páginas (site → conta/portal): sem tela branca. A página antiga sai em 160 ms;
+   a nova aparece direto e o conteúdo entra pela cascata acima (uma entrada só). */
+@view-transition { navigation: auto; }
+::view-transition-old(root) { animation: enoPageOut 160ms var(--eno-ease-out) both; }
+::view-transition-new(root) { animation: none; }
+@keyframes enoPageOut { to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { ::view-transition-old(root) { animation: none; } }
+
+/* Celular: "Entrar" fica visível na barra, discreto, ao lado do menu (quem já é cliente não abre o ☰). */
+.nav-login-mobile { display: none; }
+@media (max-width: 700px) {
+  .nav-login-mobile { display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; margin-left: auto; margin-right: 6px; border-radius: 22px; font-size: 15px; font-weight: 600; color: var(--action, #3B5BA5); text-decoration: none; }
+  .nav-login-mobile:active { background: rgb(255 255 255 / .5); }
+  #nav-links .nav-login-in-menu { display: none; }
+}
+
+.eno-legal-note { font-size: 13px; opacity: .8; }
+.eno-legal-note .eno-link { display: inline; min-height: 0; padding: 0; }
+.foot-legal a { display: inline; padding: 0; min-height: 0; }
+
+/* ---------- Seletores e cartões da contratação (22 nov, 19h50) ---------- */
+.eno-flow-seg { position: relative; isolation: isolate; }
+.eno-flow-seg button, .eno-flow-seg button[aria-checked="true"] { background: transparent; position: relative; z-index: 1; }
+.eno-flow-seg button[aria-checked="true"] { color: #fff; }
+.eno-seg-pill { position: absolute; z-index: 0; top: 4px; bottom: 4px; left: 4px; width: calc(50% - 6px); border-radius: 999px;
+  background: var(--flow-accent); box-shadow: 0 6px 16px -8px rgb(40 60 140 / .55), inset 0 1px 0 rgb(255 255 255 / .25); }
+.eno-seg-pill[data-active="1"] { transform: translateX(calc(100% + 4px)); }
+button.eno-pc { transition: transform 140ms var(--eno-ease-out), box-shadow 220ms var(--eno-ease-out); }
+button.eno-pc:active { transform: scale(.985); }
+.eno-pc-mark { display: inline-block; }
+.eno-sum-lines > div, .eno-pc-price b, .eno-pc-price small, .eno-sum-total strong, .eno-sum-total span { will-change: auto; }
+.eno-sum-total strong { display: inline-block; }
+.eno-pc-price b, .eno-pc-price small { display: inline-block; }
+.eno-flow-seg button:active { transform: scale(.97); transition: transform 120ms var(--eno-ease-out); }
+
+/* Re-render da mesma tela não reanima nada: a entrada é da cascata de rota e o resto
+   (estados, números, alturas, itens que entram/saem) é do motion-flip.js. */
+.eno-panel-enter { animation: none; }
+
+/* Toda peça interativa responde: estado muda com transição de cor e o toque afunda de leve. */
+@media (prefers-reduced-motion: no-preference) {
+  button, .button, .eno-btn, .eno-link, .eno-tab, .text-link, [role="button"], [role="radio"], [role="tab"], select, input, textarea, .service-option, .stat {
+    transition-property: background-color, color, border-color, box-shadow, opacity, transform, filter;
+    transition-duration: 180ms;
+    transition-timing-function: cubic-bezier(.23, 1, .32, 1);
+  }
+  button:not(:disabled):active, .button:active, .eno-btn:not(:disabled):active, [role="button"]:active, .service-option:active, .stat:active { transform: scale(.97); transition-duration: 90ms; }
+  .eno-link:active, .text-link:active { opacity: .7; }
+  input:focus-visible, select:focus-visible, textarea:focus-visible { transition-duration: 140ms; }
+  .choice-group button[aria-pressed="true"], .billing-toggle button[aria-pressed="true"] { animation: enoPressPop 320ms cubic-bezier(.34, 1.56, .64, 1); }
+}
+@keyframes enoPressPop { 0% { transform: scale(.94); } 100% { transform: none; } }
+
+/* Números que trocam não pulam de largura. */
+.eno-pc-price, .eno-sum-lines dd, .eno-sum-total, #billing-summary { font-variant-numeric: tabular-nums; }
+
+/* Re-render não pode puxar o scroll: sem ancoragem automática e com a calha da barra reservada. */
+#portal { overflow-anchor: none; }
+html:has(#portal:not([hidden])) { scrollbar-gutter: stable; overflow-anchor: none; }
+html:has(#portal:not([hidden])) body { overflow-anchor: none; }
+
+/* ===== Escolha de plano (pesquisa de UX, 22 nov) =====
+   Planos prontos com um recomendado, preço grande, economia visível, Mensal/Anual antes dos preços,
+   personalização em segundo plano, CTA com o benefício e barra fixa no celular. */
+.eno-plan-seg { max-width: 360px; margin: 6px 0 18px; position: relative; }
+.eno-plan-seg button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; position: relative; z-index: 1; }
+.eno-seg-badge { font-size: .68rem; font-weight: 700; letter-spacing: .01em; padding: 3px 7px; border-radius: 999px; background: #E3F4EE; color: #2F6B5A; white-space: nowrap; }
+.eno-plan-list { display: flex; flex-direction: column; gap: 14px; }
+.eno-plan {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "head price" "for save" "dots dots" "items items";
+  column-gap: 16px; row-gap: 6px; width: 100%; text-align: left; font: inherit; color: var(--flow-ink); cursor: pointer;
+  padding: 20px 24px; border-radius: 22px;
+  background: linear-gradient(135deg, rgba(255,255,255,.62) 0%, rgba(240,244,253,.5) 100%);
+  border: 1.5px solid rgba(255,255,255,.92);
+  box-shadow: 0 12px 30px rgba(60,84,150,.08), inset 0 1px 0 rgba(255,255,255,.9);
+}
+.eno-plan.is-selected { background: var(--flow-selected); border-color: var(--flow-accent); box-shadow: 0 16px 36px rgba(60,84,150,.16), inset 0 1px 0 rgba(255,255,255,.9); }
+.eno-plan.is-recommended:not(.is-selected) { border-color: rgba(91,112,179,.45); }
+.eno-plan-head { grid-area: head; display: flex; align-items: center; gap: 10px; min-width: 0; }
+.eno-plan-radio { width: 22px; height: 22px; flex: none; border-radius: 50%; border: 1.5px solid #8C98BC; display: grid; place-items: center; font-size: .8rem; font-weight: 700; color: #fff; background: rgba(255,255,255,.7); }
+.eno-plan.is-selected .eno-plan-radio { background: var(--flow-accent); border-color: var(--flow-accent); }
+.eno-plan-name { font-size: 1.45rem; font-weight: 500; line-height: 1.2; }
+.eno-plan-badge { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; padding: 4px 9px; border-radius: 999px; background: var(--flow-accent); color: #fff; }
+.eno-plan-for { grid-area: for; color: var(--flow-ink-2); font-size: .95rem; }
+.eno-plan-dots { grid-area: dots; display: flex; align-items: center; gap: 6px; }
+.eno-plan-dots small { color: var(--flow-muted); font-size: .8rem; margin-left: 4px; }
+.eno-plan-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.eno-plan-dot-ambo { background: #A4CFF6; } .eno-plan-dot-minne { background: #A6DDD8; } .eno-plan-dot-etha { background: #C7BDF4; }
+.eno-plan-price { grid-area: price; display: flex; align-items: baseline; justify-content: flex-end; gap: 2px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.eno-plan-price b { font-size: 1.6rem; font-weight: 600; letter-spacing: -.01em; display: inline-block; }
+.eno-plan-price small { color: var(--flow-muted); font-size: .9rem; display: inline-block; }
+.eno-plan-save { grid-area: save; justify-self: end; text-align: right; font-size: .8rem; font-weight: 600; color: #2F6B5A; white-space: nowrap; display: inline-block; }
+.eno-plan-save s { color: var(--flow-muted); font-weight: 500; margin-right: 4px; }
+.eno-plan-items { grid-area: items; display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 6px; font-size: .88rem; color: var(--flow-ink-2); }
+.eno-plan-items span::before { content: "✓"; color: var(--flow-accent); font-weight: 700; margin-right: 6px; }
+.eno-custom { margin-top: 18px; }
+.eno-custom-toggle { appearance: none; border: 0; background: none; font: inherit; font-weight: 600; color: var(--flow-accent); cursor: pointer; padding: 10px 0; min-height: 44px; display: inline-flex; gap: 8px; align-items: center; }
+.eno-custom-note { margin: 0 0 12px; color: var(--flow-muted); font-size: .9rem; }
+.eno-custom .eno-pc { min-height: 0; padding: 14px 18px; }
+.eno-custom .eno-pc-name { font-size: 1.15rem; }
+.eno-flow-reassure { margin: 8px 0 0; text-align: center; font-size: .8rem; color: var(--flow-muted); }
+.eno-plan-bar { display: none; }
+@media (hover: hover) and (pointer: fine) {
+  .eno-plan:not(.is-selected):hover { border-color: rgba(91,112,179,.6); box-shadow: 0 16px 34px rgba(60,84,150,.12); }
+}
+@media (max-width: 860px) {
+  .eno-flow-title { font-size: clamp(2rem, 8vw, 2.6rem); }
+  .eno-plan-seg { max-width: none; }
+  .eno-plan { padding: 16px 18px; grid-template-areas: "head price" "for for" "save save" "dots dots" "items items"; }
+  .eno-plan-save { justify-self: start; text-align: left; }
+  .eno-plan-name { font-size: 1.25rem; }
+  .eno-plan-price b { font-size: 1.35rem; }
+  .eno-plan-items { flex-direction: column; gap: 4px; }
+  .eno-flow-choice { padding-bottom: 96px; }
+  .eno-plan-bar.eno-show-sm {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 40;
+    padding: 10px 10px 10px 18px; border-radius: 22px;
+    background: rgba(255,255,255,.82); backdrop-filter: blur(18px) saturate(1.4); -webkit-backdrop-filter: blur(18px) saturate(1.4);
+    border: 1px solid rgba(255,255,255,.95); box-shadow: 0 14px 34px rgba(40,60,120,.18);
+  }
+  .eno-plan-bar span { display: flex; flex-direction: column; min-width: 0; }
+  .eno-plan-bar b { font-size: 1rem; display: inline-block; } .eno-plan-bar small { color: var(--flow-muted); font-size: .85rem; display: inline-block; font-variant-numeric: tabular-nums; }
+  .eno-plan-bar .eno-btn { min-height: 48px; padding: 0 20px; white-space: nowrap; }
+}
+@media (max-width: 860px) {
+  .eno-plan { position: relative; }
+  .eno-plan-badge { position: absolute; top: -11px; left: 18px; font-size: .64rem; padding: 4px 8px; box-shadow: 0 6px 14px rgba(60,84,150,.2); }
+  .eno-plan.is-recommended { margin-top: 8px; }
+}
+
+/* Etha em dois níveis (22/11): escolha Essencial × Sob medida e linha de implantação no resumo */
+.eno-etha-svc { margin-top: 18px; padding: 16px 18px; border-radius: 20px; background: rgba(255,255,255,.42); border: 1px solid rgba(255,255,255,.85); }
+.eno-etha-svc-title { margin: 0 0 10px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.eno-etha-svc-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.eno-etha-opt { appearance: none; text-align: left; font: inherit; color: var(--flow-ink); cursor: pointer; padding: 14px 16px; border-radius: 16px; display: flex; flex-direction: column; gap: 6px;
+  background: rgba(255,255,255,.6); border: 1.5px solid rgba(255,255,255,.92); box-shadow: 0 8px 20px rgba(60,84,150,.06); }
+.eno-etha-opt.is-selected { background: var(--flow-selected); border-color: var(--flow-accent); }
+.eno-etha-opt.is-selected .eno-plan-radio { background: var(--flow-accent); border-color: var(--flow-accent); }
+.eno-etha-opt-head { display: flex; align-items: center; gap: 8px; }
+.eno-etha-opt-head b { font-weight: 600; font-size: 1.05rem; }
+.eno-etha-opt-price { margin-left: auto; font-size: .82rem; font-weight: 600; color: #2F6B5A; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.eno-etha-opt-detail { font-size: .85rem; color: var(--flow-ink-2); line-height: 1.4; }
+.eno-sum-setup { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; margin-top: 10px; padding-top: 10px; border-top: 1px dashed rgba(91,112,179,.3); }
+.eno-sum-setup span { display: flex; flex-direction: column; gap: 2px; }
+.eno-sum-setup b { font-weight: 600; font-size: .92rem; }
+.eno-sum-setup small { font-size: .78rem; color: var(--flow-muted); }
+.eno-sum-setup strong { font-variant-numeric: tabular-nums; white-space: nowrap; }
+@media (hover: hover) and (pointer: fine) { .eno-etha-opt:not(.is-selected):hover { border-color: rgba(91,112,179,.6); } }
+@media (max-width: 860px) { .eno-etha-svc-list { grid-template-columns: 1fr; } .eno-etha-svc { padding: 14px; } }
+/* Plano já assinado: aparece como atual, sem convite para contratar de novo (23 nov). */
+.eno-plan.is-current { cursor: default; background: var(--flow-selected); border-color: rgb(46 125 84 / .45); }
+.eno-plan.is-current .eno-plan-radio { background: #2e7d54; border-color: #2e7d54; color: #fff; display: inline-grid; place-items: center; }
+.eno-plan.is-current .eno-plan-badge { background: #2e7d54; }
+/* Nome no topo leva ao perfil (23 nov): parece tocável, com inicial em vidro. */
+.eno-user-link { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 4px 14px 4px 4px; text-decoration: none; cursor: pointer; transition: transform 100ms cubic-bezier(.23,1,.32,1), box-shadow 220ms cubic-bezier(.23,1,.32,1); }
+.eno-user-link:hover { box-shadow: 0 8px 20px -8px rgb(91 112 178 / .45); }
+.eno-user-link:active { transform: scale(.97); }
+.eno-user-ava { width: 34px; height: 34px; border-radius: 50%; display: inline-grid; place-items: center; font-weight: 700; color: #fff; background: linear-gradient(180deg, rgb(255 255 255 / .3), rgb(255 255 255 / 0) 55%), linear-gradient(135deg, #6f83c4, #5b70b2); box-shadow: inset 0 1px 1px rgb(255 255 255 / .6); }
+.eno-plan.is-current { min-height: 0; }
+
+/* Auditoria 23 nov: Mensal/Anual da home com o mesmo peso do seletor da contratação */
+.summary .billing-toggle button { min-width: 104px; padding: 10px 20px; font-size: 15px; font-weight: 600; border-radius: 999px; }
+.summary .billing-toggle { gap: 4px; padding: 4px; border-radius: 999px; background: rgb(255 255 255 / .45); border: 1px solid rgb(255 255 255 / .9); width: max-content; }
+
+/* Auditoria 23 nov: refração SVG só em superfícies pequenas (barra, botões, lentes).
+   Nos quadros grandes da home ela derrubava quadros na rolagem no Chromium. */
+.etha-frame,.ambo.demo,.minne.demo,.profile.piece,.lg.piece,.service-option,.summary.lg,.pilot.lg{--lg-refraction:0}
+
+/* Home com sessão ativa: some o "Entrar" do menu (o botão principal vira "Acessar painel"). */
+html.is-signed-in #nav-links .nav-login-in-menu { display: none !important; }
+/* Rotas do app (/portal, /conta, /checkout): a home nunca pisca antes do portal; mostra o esqueleto na hora. */
+html.is-app-route .nav, html.is-app-route #main { display: none !important; }
+html.is-app-route #portal[hidden] { display: block; }

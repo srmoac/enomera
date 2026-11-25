@@ -2,6 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { nowIso, randomId, sanitizeAuditMeta } from './crypto.mjs';
+import { applyPilotDigestMigration } from './pilot-digest.mjs';
+import { applyRateLimitMigration } from './security.mjs';
+import { applyPilotMigration, applyPilotSelfTestMigration, applyPilotFriendInvitesMigration } from './pilot.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MIGRATION_001_SQLITE = path.join(__dirname, 'migrations', '001_init.sql');
@@ -56,12 +59,13 @@ export function getRemoteInfraGuard() {
   const hasBlob = Boolean(process.env.BLOB_READ_WRITE_TOKEN);
   const hasResendKey = Boolean(process.env.RESEND_API_KEY);
   const hasResendFrom = Boolean(process.env.RESEND_FROM_EMAIL);
+  const hasSmtp = Boolean(process.env.SMTP_PASSWORD);
+  const mailerReady = hasSmtp || (hasResendKey && hasResendFrom);
 
   const missingEnvVars = [];
   if (!hasDb) missingEnvVars.push('DATABASE_URL');
   if (!hasBlob) missingEnvVars.push('BLOB_READ_WRITE_TOKEN');
-  if (!hasResendKey) missingEnvVars.push('RESEND_API_KEY');
-  if (!hasResendFrom) missingEnvVars.push('RESEND_FROM_EMAIL');
+  if (!mailerReady) missingEnvVars.push('SMTP_PASSWORD');
 
   return {
     required,
@@ -70,7 +74,7 @@ export function getRemoteInfraGuard() {
     components: {
       database: { configured: hasDb, requiredEnv: ['DATABASE_URL'] },
       storage: { configured: hasBlob, requiredEnv: ['BLOB_READ_WRITE_TOKEN'] },
-      mailer: { configured: hasResendKey && hasResendFrom, requiredEnv: ['RESEND_API_KEY', 'RESEND_FROM_EMAIL'] },
+      mailer: { configured: mailerReady, provider: hasSmtp ? 'smtp' : (hasResendKey && hasResendFrom ? 'resend' : null), requiredEnv: ['SMTP_PASSWORD'] },
     },
   };
 }
@@ -236,6 +240,52 @@ async function applyMigrations(db) {
         'Real-user vs demo separation and operational query indexes',
         nowIso()
       );
+    }
+
+    if (!applied.has('003_approved_preview')) {
+      if (tx.dialect === 'sqlite') {
+        const cols = await tx.all('PRAGMA table_info(professional_accounts)');
+        if (!cols.some((c) => c.name === 'audience')) await tx.exec("ALTER TABLE professional_accounts ADD COLUMN audience TEXT NOT NULL DEFAULT ''");
+      } else {
+        await tx.exec("ALTER TABLE professional_accounts ADD COLUMN IF NOT EXISTS audience TEXT NOT NULL DEFAULT ''");
+      }
+      await tx.exec(`CREATE TABLE IF NOT EXISTS checkout_selections (
+        account_id TEXT PRIMARY KEY REFERENCES professional_accounts(id) ON DELETE CASCADE,
+        selection_json TEXT NOT NULL, updated_at TEXT NOT NULL
+      )`);
+      await tx.run('INSERT INTO schema_migrations (version, description, applied_at) VALUES (?, ?, ?) ON CONFLICT(version) DO NOTHING',
+        '003_approved_preview', 'Approved profile metadata and server checkout selection', nowIso());
+    }
+
+    if (!applied.has('004_pilot_usage')) {
+      await applyPilotMigration(tx);
+      await tx.run('INSERT INTO schema_migrations (version, description, applied_at) VALUES (?, ?, ?) ON CONFLICT(version) DO NOTHING',
+        '004_pilot_usage', 'Pilot invites, participants and usage events', nowIso());
+    }
+
+    if (!applied.has('005_pilot_self_test')) {
+      await applyPilotSelfTestMigration(tx);
+      await tx.run('INSERT INTO schema_migrations (version, description, applied_at) VALUES (?, ?, ?) ON CONFLICT(version) DO NOTHING',
+        '005_pilot_self_test', 'Pilot invite for the administrator own test account', nowIso());
+    }
+
+    // Convites extras do piloto: idempotente, roda sempre para pegar os novos da lista.
+    await applyPilotFriendInvitesMigration(tx);
+    if (!applied.has('006_pilot_friend_invites')) {
+      await tx.run('INSERT INTO schema_migrations (version, description, applied_at) VALUES (?, ?, ?) ON CONFLICT(version) DO NOTHING',
+        '006_pilot_friend_invites', 'Three more pilot tester invites (friends of the administrator)', nowIso());
+    }
+
+    if (!applied.has('007_pilot_daily_digest')) {
+      await applyPilotDigestMigration(tx);
+      await tx.run('INSERT INTO schema_migrations (version, description, applied_at) VALUES (?, ?, ?) ON CONFLICT(version) DO NOTHING',
+        '007_pilot_daily_digest', 'Daily pilot usage digest for the administrator', nowIso());
+    }
+
+    if (!applied.has('008_rate_limits')) {
+      await applyRateLimitMigration(tx);
+      await tx.run('INSERT INTO schema_migrations (version, description, applied_at) VALUES (?, ?, ?) ON CONFLICT(version) DO NOTHING',
+        '008_rate_limits', 'Shared rate limit buckets (security audit 2026-11-24)', nowIso());
     }
 
     await tx.run(

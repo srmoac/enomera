@@ -1,0 +1,40 @@
+/* Ponte entre o Liquid Glass compartilhado (public/glass/) e as regras antigas.
+   Carregada por último: tira fundo, borda, sombra e filtro das superfícies
+   migradas para que o material .lg (::before corpo, ::after bisel) apareça.
+   Raio, padding, posição e layout continuam vindo das regras do produto. */
+
+html body .lg:is(
+  .nav, .menu-toggle, .ambo, .minne, .etha-frame, .summary, .pilot,
+  .profile, .mini-cards > div, .stat, .next-appointment, .portal-panel, .portal-side,
+  .service-option, .choice-group, .motion-lens,
+  .eno-topbar, .eno-stepper, .eno-mobile-bar, .eno-card, .eno-glass, .eno-pc
+) {
+  background-color: transparent;
+  border-color: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow:
+    0 0 0 .5px rgb(var(--lg-shadow) / .22),
+    0 18px 40px -12px rgb(var(--lg-shadow) / .22),
+    0 4px 12px -4px rgb(var(--lg-shadow) / .12);
+}
+
+/* Os dois demos guardam o próprio substrato ilustrado como fundo: só o
+   gradiente de vidro antigo sai. Nos demais, a imagem de fundo também sai. */
+html body .lg:not(.ambo):not(.minne):is(
+  .nav, .menu-toggle, .etha-frame, .summary, .pilot,
+  .profile, .mini-cards > div, .stat, .next-appointment, .portal-panel, .portal-side,
+  .service-option, .choice-group, .motion-lens,
+  .eno-topbar, .eno-stepper, .eno-mobile-bar, .eno-card, .eno-glass
+) {
+  background-image: none;
+}
+
+/* A lente desliza e muda de tamanho: sem sombra de cartão, só o material. */
+html body .lg.motion-lens { box-shadow: none; }
+
+/* Superfície quase sólida para formulários e resumo de compra. */
+html body .lg[data-glass="reading"]:is(.eno-glass, .eno-card, .portal-panel) {
+  --lg-alpha: .92;
+  --lg-alpha-end: .9;
+}

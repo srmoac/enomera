@@ -14,6 +14,7 @@ import {
   getRemoteInfraGuard,
 } from '../server/db.mjs';
 import { createEnomeraServer } from '../scripts/server.mjs';
+import { sendTransactionalEmail } from '../server/mailer.mjs';
 
 let server;
 let baseUrl;
@@ -133,7 +134,7 @@ test('1. Auth lifecycle: signup, real email verification, login, recovery + sess
   assert.equal(oldMe.status, 401);
 });
 
-test('2. Commercial simulation catalog (R$ 89 combo, Etha 50/50), idempotent checkout, declined->retry->approved, partial cancel', async () => {
+test('2. Commercial simulation catalog (R$ 79 combo Ambo + Minne), idempotent checkout, declined->retry->approved, partial cancel', async () => {
   const login = await api('/api/v1/auth/login', { method: 'POST', body: { email: 'clara.teste@exemplo.invalid', password: 'NovaSenhaSegura!2026' } });
   assert.equal(login.status, 200);
   const token = login.data.sessionToken;
@@ -141,7 +142,9 @@ test('2. Commercial simulation catalog (R$ 89 combo, Etha 50/50), idempotent che
   // Verify authoritative server quote for Ambo + Minne = R$ 89/mês (NOT 15% stacked)
   const quote = await api('/api/v1/catalog/quote', { method: 'POST', body: { products: ['ambo', 'minne'] } });
   assert.equal(quote.status, 200);
-  assert.equal(quote.data.dueTodayCents, 8900);
+  assert.equal(quote.data.dueTodayCents, 0);
+  assert.equal(quote.data.referenceDueTodayCents, 7900);
+  assert.equal(quote.data.recurringMonthlyCents, 7900);
   assert.equal(quote.data.discountCents, 1900);
 
   // Declined checkout preserves order without activating entitlements
@@ -242,6 +245,11 @@ test('3. Milestone 1 End-to-End: Ambo request -> Minne confirm -> Concurrency co
   const patVer = await api('/api/v1/ambo/patient-access/verify', { method: 'POST', body: { professionalSlug: 'helena-duarte', contact: 'marina.alves@exemplo.invalid', code: patCode } });
   assert.equal(patVer.status, 200);
   const marinaToken = patVer.data.sessionToken;
+  assert.equal(patVer.data.professionalSlug, 'helena-duarte');
+
+  // Entrada direta do Ambo (sem link da profissional): o e-mail basta, e o código leva à profissional certa.
+  const unknownReq = await api('/api/v1/ambo/patient-access/request', { method: 'POST', body: { contact: 'ninguem@exemplo.invalid' } });
+  assert.equal(unknownReq.status, 200);
 
   const patMe = await api('/api/v1/ambo/patient/me', { token: marinaToken });
   assert.equal(patMe.status, 200);
@@ -425,6 +433,8 @@ test('7. Ambo Solo -> later Minne adoption + Patient Invitation single-use + Min
   });
   const soloTok = su.data.sessionToken;
   const slug = su.data.account.slug;
+  const soloCode = extractSixDigitCode(await api('/api/v1/dev/outbox?recipient=solo.ambo@exemplo.invalid'));
+  assert.equal((await api('/api/v1/auth/verify-email', {method:'POST',token:soloTok,body:{email:'solo.ambo@exemplo.invalid',code:soloCode}})).status,200);
   await api('/api/v1/commercial/orders', {
     method: 'POST', token: soloTok, headers: { 'X-Idempotency-Key': 'solo-ambo-1' },
     body: { products: ['ambo'], simulatedOutcome: 'approved' },
@@ -433,11 +443,48 @@ test('7. Ambo Solo -> later Minne adoption + Patient Invitation single-use + Min
   const blockedMinne = await api('/api/v1/minne/workspace', { token: soloTok });
   assert.equal(blockedMinne.status, 403);
 
+  // Página pública fechada até a profissional revisar o atendimento e abrir a agenda.
+  const closedPub = await api(`/api/v1/ambo/public/${slug}`);
+  assert.equal(closedPub.data.booking.open, false);
+  assert.deepEqual(closedPub.data.professional.modalities, []);
+  const closedReq = await api(`/api/v1/ambo/public/${slug}/requests`, {
+    method: 'POST', headers: { 'X-Idempotency-Key': 'solo-req-closed' },
+    body: { modality: 'online', patientName: 'Joana Solo', patientEmail: 'joana.solo@exemplo.invalid' },
+  });
+  assert.equal(closedReq.status, 409);
+  assert.equal(closedReq.data.code, 'AMBO_NOT_OPEN');
+  // Salvar sem informar valor/cidade não publica o exemplo das colunas (R$ 220, São Paulo).
+  const draft = await api('/api/v1/ambo/pro/setup', { method: 'PUT', token: soloTok, body: { modalities: ['online'] } });
+  assert.equal(draft.status, 200);
+  assert.equal(draft.data.setup.sessionPriceCents, null);
+  assert.equal(draft.data.setup.city, '');
+  assert.equal(draft.data.setup.inPersonAddress, '');
+  const opened = await api('/api/v1/ambo/pro/setup', {
+    method: 'PUT', token: soloTok,
+    body: { modalities: ['online'], sessionDurationMin: 50, sessionPriceCents: 20000, rules: [1, 2, 3, 4, 5].map((weekday) => ({ weekday, startTime: '08:00', endTime: '18:00' })), open: true,
+      address: { cep: '01310100', street: 'Avenida Paulista', number: '1000', complement: 'sala 4', district: 'Bela Vista', city: 'São Paulo', uf: 'sp' } },
+  });
+  assert.equal(opened.status, 200);
+  assert.equal(opened.data.setup.open, true);
+  assert.deepEqual(opened.data.setup.address, { cep: '01310-100', street: 'Avenida Paulista', number: '1000', complement: 'sala 4', district: 'Bela Vista', city: 'São Paulo', uf: 'SP' });
+  assert.equal((await api(`/api/v1/ambo/public/${slug}`)).data.booking.open, true);
+
   // Patient submits request -> Ambo Solo confirms without Minne!
   const pReq = await api(`/api/v1/ambo/public/${slug}/requests`, {
     method: 'POST', headers: { 'X-Idempotency-Key': 'solo-req-1' },
     body: { modality: 'online', patientName: 'Joana Solo', patientEmail: 'joana.solo@exemplo.invalid', patientPhone: '(11) 97777-0001', preferences: { days: ['qua'], periods: ['manha'] } },
   });
+  assert.equal(pReq.status, 201);
+
+  // Entrada direta do Ambo (sem link da profissional): o e-mail basta, e o código leva à profissional certa.
+  const directReq = await api('/api/v1/ambo/patient-access/request', { method: 'POST', body: { contact: 'joana.solo@exemplo.invalid' } });
+  assert.equal(directReq.status, 200);
+  assert.ok(directReq.data.expiresAt);
+  const directBox = await api('/api/v1/dev/outbox?recipient=joana.solo@exemplo.invalid');
+  const directVer = await api('/api/v1/ambo/patient-access/verify', { method: 'POST', body: { contact: 'joana.solo@exemplo.invalid', code: extractSixDigitCode(directBox) } });
+  assert.equal(directVer.status, 200);
+  assert.equal(directVer.data.professionalSlug, slug);
+
   const proOv = await api('/api/v1/ambo/pro/overview', { token: soloTok });
   const slotA = proOv.data.availableSlots[0];
   const slotB = proOv.data.availableSlots[1];
@@ -568,10 +615,14 @@ test('8. Two independent real accounts: isolation, clinical file attachment 403,
   assert.equal(expiredVer.data.code, 'CODE_EXPIRED');
 
   // Resend fresh code & verify
-  await api('/api/v1/auth/resend-verification', { method: 'POST', body: { email: 'beatriz.real@exemplo.invalid' } });
+  assert.equal((await api('/api/v1/auth/resend-verification', {method:'POST',token:tokenA,body:{email:'beatriz.real@exemplo.invalid'}})).status,429);
+  await db.run("UPDATE verification_tokens SET created_at = '2020-01-01T00:00:00.000Z' WHERE target_contact = ?", 'beatriz.real@exemplo.invalid');
+  await api('/api/v1/auth/resend-verification', { method: 'POST', token:tokenA, body: { email: 'beatriz.real@exemplo.invalid' } });
   const freshCode = extractSixDigitCode(await api('/api/v1/dev/outbox?recipient=beatriz.real@exemplo.invalid'));
   const okVer = await api('/api/v1/auth/verify-email', { method: 'POST', token: tokenA, body: { email: 'beatriz.real@exemplo.invalid', code: freshCode } });
   assert.equal(okVer.status, 200);
+  const codeB = extractSixDigitCode(await api('/api/v1/dev/outbox?recipient=lucas.isolado@exemplo.invalid'));
+  assert.equal((await api('/api/v1/auth/verify-email', {method:'POST',token:tokenB,body:{email:'lucas.isolado@exemplo.invalid',code:codeB}})).status,200);
 
   // Activate Ambo + Minne + Etha on Account A and Minne on Account B (simulated checkout)
   const ordA = await api('/api/v1/commercial/orders', {
@@ -677,7 +728,7 @@ test('8. Two independent real accounts: isolation, clinical file attachment 403,
   await closeDb();
   const reopenedDb = await getDb(process.env.ENOMERA_DB_PATH);
   const migrations = await getAppliedMigrations(reopenedDb);
-  assert.equal(migrations.length, 2);
+  assert.equal(migrations.length, 8);
   const persistedNote = await reopenedDb.get('SELECT id, attachment_file_ids_json FROM clinical_notes WHERE id = ?', draftA.data.noteId);
   assert.ok(persistedNote);
   assert.ok(JSON.parse(persistedNote.attachment_file_ids_json).includes(fileIdA));
@@ -693,6 +744,8 @@ test('9. Remote delivery infra guard (ENOMERA_REQUIRE_REMOTE_INFRA / VERCEL=1): 
     BLOB_READ_WRITE_TOKEN: process.env.BLOB_READ_WRITE_TOKEN,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
+    SMTP_USER: process.env.SMTP_USER,
+    SMTP_PASSWORD: process.env.SMTP_PASSWORD,
   };
 
   try {
@@ -720,18 +773,20 @@ test('9. Remote delivery infra guard (ENOMERA_REQUIRE_REMOTE_INFRA / VERCEL=1): 
     delete process.env.BLOB_READ_WRITE_TOKEN;
     delete process.env.RESEND_API_KEY;
     delete process.env.RESEND_FROM_EMAIL;
+    delete process.env.SMTP_USER;
+    delete process.env.SMTP_PASSWORD;
 
     const guard = getRemoteInfraGuard();
     assert.equal(guard.required, true);
     assert.equal(guard.ready, false);
-    assert.deepEqual(guard.missingEnvVars, ['DATABASE_URL', 'BLOB_READ_WRITE_TOKEN', 'RESEND_API_KEY', 'RESEND_FROM_EMAIL']);
+    assert.deepEqual(guard.missingEnvVars, ['DATABASE_URL', 'BLOB_READ_WRITE_TOKEN', 'SMTP_PASSWORD']);
 
     const remoteHealth = await api('/api/v1/health');
     assert.equal(remoteHealth.status, 503);
     assert.equal(remoteHealth.data.ok, false);
     assert.equal(remoteHealth.data.code, 'REMOTE_INFRA_NOT_CONFIGURED');
     assert.equal(remoteHealth.data.requireRemoteInfra, true);
-    assert.deepEqual(remoteHealth.data.missingEnvVars, ['DATABASE_URL', 'BLOB_READ_WRITE_TOKEN', 'RESEND_API_KEY', 'RESEND_FROM_EMAIL']);
+    assert.deepEqual(remoteHealth.data.missingEnvVars, ['DATABASE_URL', 'BLOB_READ_WRITE_TOKEN', 'SMTP_PASSWORD']);
     assert.equal(remoteHealth.data.integrations.database.activeBackend, 'unconfigured_remote_required');
     assert.equal(remoteHealth.data.integrations.storage.backend, 'unconfigured_remote_required');
     assert.equal(remoteHealth.data.integrations.mailer.provider, 'unconfigured_remote_required');
@@ -747,9 +802,9 @@ test('9. Remote delivery infra guard (ENOMERA_REQUIRE_REMOTE_INFRA / VERCEL=1): 
       method: 'POST',
       body: { email: 'helena@helenaduartepsi.com.br' },
     });
-    assert.equal(mailerFail.status, 503);
-    assert.equal(mailerFail.data.code, 'REMOTE_MAILER_NOT_CONFIGURED');
-    assert.deepEqual(mailerFail.data.missingEnvVars, ['RESEND_API_KEY', 'RESEND_FROM_EMAIL']);
+    assert.equal(mailerFail.status, 200);
+    assert.match(mailerFail.data.message, /Se o e-mail estiver cadastrado/);
+    await assert.rejects(() => sendTransactionalEmail(null, {recipient:'teste@exemplo.invalid',subject:'Teste',textBody:'Teste',purpose:'test'}), err => err.status === 503 && err.code === 'REMOTE_MAILER_NOT_CONFIGURED');
 
     // 6. Subsystem guard: dev/outbox is strictly disabled (403 OUTBOX_DISABLED)
     const outboxDisabled = await api('/api/v1/dev/outbox?recipient=helena@helenaduartepsi.com.br');
