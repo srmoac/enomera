@@ -1,0 +1,35 @@
+/* eno-perf.css · modo leve (ver eno-perf.js). Só age com <html data-perf="lite">.
+   Mantém a identidade: mesmas cores, bisel, sombras, raios e movimento. Troca o
+   desfoque de fundo (caro em todo quadro de rolagem) por uma superfície mais densa. */
+
+/* 1. Nenhum desfoque de fundo. Cada .lg tinha dois (corpo e bisel). */
+:root[data-perf="lite"] *,
+:root[data-perf="lite"] *::before,
+:root[data-perf="lite"] *::after {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+/* 2. Vidro: a tinta fica mais densa para não depender do desfoque.
+      alfa = .45 + metade do original (clear .16 → .53, regular .38 → .64, reading .9 → .9). */
+:root[data-perf="lite"] .lg::before {
+  background:
+    linear-gradient(var(--lg-angle, 135deg),
+      rgb(var(--lg-tint, 255 255 255) / calc(.45 + var(--lg-alpha, .38) * .5)) 0%,
+      rgb(var(--lg-tint, 255 255 255) / calc(.45 + var(--lg-alpha-end, .22) * .5)) 55%,
+      rgb(var(--lg-tint, 255 255 255) / calc(.45 + var(--lg-alpha, .38) * .5)) 100%);
+}
+
+/* 3. Barras fixas e laterais (o conteúdo passa por baixo): quase opacas. */
+:root[data-perf="lite"] :is(
+  header.nav, .eno-topbar, .ap-nav-list, .av2-nav-list, .minne-bottom-bar, .minne-live-sidebar,
+  .sidebar, .toast, .eno-toast, dialog, [role="dialog"], .sheet, [class*="drawer"], [class*="sheet"]
+).lg::before {
+  background: rgb(var(--lg-tint, 255 255 255) / .96);
+}
+:root[data-perf="lite"] :is(.eno-topbar, .ap-nav-list, .av2-nav-list, .cf-dock, .pn-drawer-head):not(.lg) {
+  background-color: rgb(248 250 255 / .94);
+}
+
+/* 4. Desfoque decorativo estático muito grande (manchas de cor) fica menor. */
+:root[data-perf="lite"] .pl-backdrop i { filter: blur(24px); }

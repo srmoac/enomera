@@ -1,0 +1,69 @@
+{
+  "U1 eyebrow": {
+    "count": 0,
+    "examples": []
+  },
+  "U2 decorative numbering": {
+    "count": 3,
+    "examples": [
+      "public/index.html:6",
+      "public/index.html:11",
+      "public/app.js:27"
+    ]
+  },
+  "U6 status string": {
+    "count": 9,
+    "examples": [
+      "public/app.js:8",
+      "public/app.js:10",
+      "public/app.js:13",
+      "public/app.js:13",
+      "public/app.js:17"
+    ]
+  },
+  "U9 badge word": {
+    "count": 0,
+    "examples": []
+  },
+  "U10 status dot": {
+    "count": 0,
+    "examples": []
+  },
+  "U11 emoji": {
+    "count": 1,
+    "examples": [
+      "public/index.html:3"
+    ]
+  },
+  "U11 icon tile": {
+    "count": 0,
+    "examples": []
+  },
+  "U12 chart-type title": {
+    "count": 0,
+    "examples": []
+  },
+  "U13 reading instructions": {
+    "count": 0,
+    "examples": []
+  },
+  "U15 chart scaffolding": {
+    "count": 0,
+    "examples": []
+  },
+  "U16 legend": {
+    "count": 0,
+    "examples": []
+  },
+  "unslop 13 em dash": {
+    "count": 6,
+    "examples": [
+      "public/index.html:1",
+      "public/index.html:6",
+      "public/index.html:11",
+      "public/app.js:27",
+      "public/app.js:31"
+    ]
+  },
+  "total": 19
+}

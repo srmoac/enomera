@@ -1,0 +1,1227 @@
+/* ==========================================================================
+   Enomera Platform UI (Planos, Conta, Checkout Simulado, Portal & Perfil)
+   Direção A · Liquid Glass · Manrope · Tapa de UX + Emil Kowalski + Visant
+   ========================================================================== */
+
+:root {
+  /* Apontam para os tokens do padrão único (public/motion-tokens.css). */
+  --eno-ease-out: cubic-bezier(.23, 1, .32, 1);
+  --eno-ease-pill: var(--eno-ease-out);
+  --eno-dur-fast: var(--eno-t-fast, 160ms);
+  --eno-dur-base: var(--eno-t-base, 220ms);
+  --eno-dur-panel: var(--eno-t-base, 220ms);
+
+  --eno-bg-base: #F6F8FC;
+  --eno-ink-900: #111A2C;
+  --eno-ink-700: #334361;
+  --eno-ink-500: #556687;
+  --eno-brand: #304E8A;
+  --eno-brand-deep: #243C6E;
+
+  --eno-ambo-tint: #ECF6FE;
+  --eno-ambo-accent: #235D94;
+  --eno-minne-tint: #EDF8F7;
+  --eno-minne-accent: #1E625E;
+  --eno-etha-tint: #F2EFFE;
+  --eno-etha-accent: #53459A;
+
+  --eno-glass-surface: linear-gradient(135deg, rgba(255, 255, 255, 0.86) 0%, rgba(242, 246, 254, 0.72) 100%);
+  --eno-glass-elevated: linear-gradient(135deg, rgba(255, 255, 255, 0.94) 0%, rgba(245, 248, 255, 0.84) 100%);
+  --eno-glass-border: rgba(255, 255, 255, 0.94);
+  --eno-glass-stroke: rgba(188, 203, 232, 0.65);
+  --eno-glass-shadow:
+    0 14px 34px rgba(48, 78, 138, 0.08),
+    0 2px 6px rgba(17, 26, 44, 0.03),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+}
+
+.eno-shell {
+  position: relative;
+  min-height: 100vh;
+  overflow-x: clip;
+  background:
+    radial-gradient(960px 520px at 10% -6%, rgba(169, 198, 255, 0.34), transparent 62%),
+    radial-gradient(880px 480px at 90% 4%, rgba(178, 224, 217, 0.28), transparent 60%),
+    radial-gradient(760px 440px at 50% 98%, rgba(203, 192, 247, 0.22), transparent 64%),
+    var(--eno-bg-base);
+  color: var(--eno-ink-900);
+  font-family: "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  padding: 18px clamp(14px, 3vw, 34px) 64px;
+  box-sizing: border-box;
+}
+
+.eno-shell *,
+.eno-shell *::before,
+.eno-shell *::after {
+  box-sizing: border-box;
+}
+
+.eno-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Watermark floral exclusivo da Enomera (5 pétalas) */
+.eno-flower-watermark {
+  position: fixed;
+  right: -68px;
+  bottom: -76px;
+  width: 340px;
+  height: 340px;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.13;
+  filter: saturate(110%);
+}
+
+/* Topbar Liquid Glass */
+.eno-topbar {
+  position: sticky;
+  top: 12px;
+  z-index: 30;
+  max-width: 1180px;
+  margin: 0 auto 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid var(--eno-glass-border);
+  box-shadow:
+    0 10px 28px rgba(48, 78, 138, 0.08),
+    0 0 0 1px rgba(188, 203, 232, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+}
+
+.eno-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--eno-ink-900);
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: -0.02em;
+  padding: 4px 8px 4px 4px;
+  min-height: 44px;
+  border-radius: 999px;
+  transition: transform var(--eno-dur-fast) var(--eno-ease-out), opacity var(--eno-dur-fast) var(--eno-ease-out);
+}
+
+.eno-brand:hover {
+  opacity: 0.9;
+}
+
+.eno-brand:active {
+  transform: scale(0.98);
+}
+
+.eno-brand img {
+  filter: drop-shadow(0 3px 8px rgba(48, 78, 138, 0.16));
+}
+
+.eno-nav-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  background: rgba(232, 238, 250, 0.72);
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid rgba(203, 215, 239, 0.7);
+}
+
+.eno-tab {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--eno-ink-700);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  padding: 8px 15px;
+  min-height: 44px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition:
+    color var(--eno-dur-base) var(--eno-ease-out),
+    background-color var(--eno-dur-base) var(--eno-ease-out),
+    transform var(--eno-dur-fast) var(--eno-ease-out),
+    box-shadow var(--eno-dur-base) var(--eno-ease-out);
+}
+
+.eno-tab:hover {
+  color: var(--eno-ink-900);
+}
+
+.eno-tab:active {
+  transform: scale(0.97);
+}
+
+.eno-tab:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(54, 89, 158, 0.3);
+}
+
+.eno-tab[aria-current="page"] {
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--eno-ink-900);
+  border-color: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 3px 10px rgba(34, 54, 98, 0.11);
+}
+
+.eno-container {
+  position: relative;
+  z-index: 1;
+  max-width: 1180px;
+  margin: 0 auto;
+  outline: none;
+}
+
+/* Tipografia e utilitários de layout */
+.eno-h1 {
+  margin: 4px 0 6px;
+  font-size: clamp(1.32rem, 2.3vw, 1.85rem);
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+  color: var(--eno-ink-900);
+  font-weight: 750;
+}
+
+.eno-h2 {
+  margin: 4px 0 4px;
+  font-size: 1.15rem;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+  color: var(--eno-ink-900);
+  font-weight: 700;
+}
+
+.eno-muted {
+  color: var(--eno-ink-500);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.eno-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.eno-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(248, 250, 255, 0.86);
+  border: 1px solid rgba(212, 222, 242, 0.85);
+}
+
+.eno-btn-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Stepper de jornada (Planos -> Conta & Código -> Portal) */
+.eno-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.74);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(212, 223, 245, 0.85);
+}
+
+.eno-stepper-steps {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.eno-step-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--eno-ink-500);
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: rgba(238, 243, 252, 0.78);
+  border: 1px solid rgba(209, 220, 242, 0.75);
+}
+
+.eno-step-pill.is-active {
+  color: var(--eno-brand-deep);
+  background: rgba(227, 237, 255, 0.96);
+  border-color: rgba(145, 175, 235, 0.95);
+  font-weight: 700;
+}
+
+.eno-step-pill.is-done {
+  color: #165B3F;
+  background: rgba(223, 246, 234, 0.92);
+  border-color: rgba(154, 219, 188, 0.9);
+}
+
+.eno-step-num {
+  width: 19px;
+  height: 19px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.92);
+  color: inherit;
+}
+
+/* Transição direcional suave apenas quando muda tab/authMode/viewMode */
+.eno-panel-enter {
+  animation: enoFadeSlide var(--eno-dur-panel) var(--eno-ease-out) both;
+}
+
+@keyframes enoFadeSlide {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.eno-delta-pulse {
+  animation: enoDeltaPulse 360ms var(--eno-ease-out);
+}
+
+@keyframes enoDeltaPulse {
+  0% {
+    transform: scale(0.992);
+    opacity: 0.88;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Segmented control com indicador físico deslizante */
+.eno-seg {
+  position: relative;
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  width: 100%;
+  background: rgba(226, 234, 249, 0.78);
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid rgba(196, 210, 237, 0.85);
+  user-select: none;
+  box-shadow: inset 0 1px 2px rgba(25, 43, 79, 0.05);
+}
+
+.eno-seg-indicator {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #FFFFFF 0%, #F7FAFF 100%);
+  border: 1px solid rgba(255, 255, 255, 0.98);
+  box-shadow: 0 3px 10px rgba(32, 53, 98, 0.12);
+  transition: transform var(--eno-dur-base) var(--eno-ease-pill);
+  pointer-events: none;
+  will-change: transform;
+}
+
+.eno-seg button {
+  position: relative;
+  z-index: 1;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 9px 12px;
+  min-height: 44px;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--eno-ink-700);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color var(--eno-dur-fast) var(--eno-ease-out), transform var(--eno-dur-fast) var(--eno-ease-out);
+}
+
+.eno-seg button:active {
+  transform: scale(0.98);
+}
+
+.eno-seg button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(54, 89, 158, 0.28);
+}
+
+.eno-seg button[aria-selected="true"] {
+  color: var(--eno-ink-900);
+  font-weight: 700;
+}
+
+/* Grid & Cards Liquid Glass */
+.eno-grid-2 {
+  display: grid;
+  grid-template-columns: 1.32fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.eno-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+@media (max-width: 920px) {
+  .eno-grid-2,
+  .eno-grid-3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.eno-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--eno-glass-surface);
+  backdrop-filter: blur(18px) saturate(135%);
+  -webkit-backdrop-filter: blur(18px) saturate(135%);
+  border: 1px solid var(--eno-glass-border);
+  border-radius: 22px;
+  padding: 22px;
+  box-shadow:
+    var(--eno-glass-shadow),
+    0 0 0 1px var(--eno-glass-stroke);
+  transition:
+    transform var(--eno-dur-base) var(--eno-ease-out),
+    box-shadow var(--eno-dur-base) var(--eno-ease-out);
+}
+
+.eno-card-highlight {
+  background: var(--eno-glass-elevated);
+  box-shadow:
+    0 18px 40px rgba(48, 78, 138, 0.12),
+    0 0 0 1px rgba(132, 163, 225, 0.78),
+    inset 0 1px 0 #FFFFFF;
+}
+
+.eno-card-ambo {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.92) 0%, rgba(236, 246, 254, 0.82) 100%);
+  box-shadow:
+    var(--eno-glass-shadow),
+    0 0 0 1px rgba(154, 198, 238, 0.76);
+}
+
+.eno-card-minne {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.92) 0%, rgba(237, 248, 247, 0.82) 100%);
+  box-shadow:
+    var(--eno-glass-shadow),
+    0 0 0 1px rgba(152, 211, 205, 0.76);
+}
+
+.eno-card-etha {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.92) 0%, rgba(242, 239, 254, 0.82) 100%);
+  box-shadow:
+    var(--eno-glass-shadow),
+    0 0 0 1px rgba(185, 173, 236, 0.76);
+}
+
+.eno-card-warn {
+  background: linear-gradient(145deg, rgba(255, 250, 238, 0.95) 0%, rgba(254, 243, 218, 0.88) 100%);
+  box-shadow:
+    var(--eno-glass-shadow),
+    0 0 0 1px rgba(235, 198, 120, 0.85);
+}
+
+.eno-card-err {
+  background: linear-gradient(145deg, rgba(255, 245, 245, 0.95) 0%, rgba(253, 232, 232, 0.88) 100%);
+  box-shadow:
+    var(--eno-glass-shadow),
+    0 0 0 1px rgba(236, 168, 168, 0.85);
+}
+
+/* Pills / Badges */
+.eno-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  font-size: 0.73rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(233, 240, 253, 0.94);
+  color: #234078;
+  border: 1px solid rgba(178, 198, 238, 0.75);
+  letter-spacing: 0.01em;
+}
+
+.eno-pill-ok {
+  background: rgba(224, 247, 235, 0.95);
+  color: #155B3E;
+  border-color: rgba(151, 219, 187, 0.88);
+}
+
+.eno-pill-warn {
+  background: rgba(254, 244, 218, 0.95);
+  color: #7A4B00;
+  border-color: rgba(237, 202, 128, 0.88);
+}
+
+.eno-pill-err {
+  background: rgba(253, 232, 232, 0.96);
+  color: #8E1F1F;
+  border-color: rgba(238, 172, 172, 0.88);
+}
+
+.eno-pill-ambo {
+  background: rgba(236, 246, 254, 0.96);
+  color: var(--eno-ambo-accent);
+  border-color: rgba(154, 198, 238, 0.88);
+}
+
+.eno-pill-minne {
+  background: rgba(237, 248, 247, 0.96);
+  color: var(--eno-minne-accent);
+  border-color: rgba(152, 211, 205, 0.88);
+}
+
+.eno-pill-etha {
+  background: rgba(242, 239, 254, 0.96);
+  color: var(--eno-etha-accent);
+  border-color: rgba(185, 173, 236, 0.88);
+}
+
+/* Formulários (Tapa de UX: 16px, dicas, toggle senha, erro inline claro) */
+.eno-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.eno-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.eno-field label {
+  font-size: 0.84rem;
+  font-weight: 650;
+  color: #21304D;
+}
+
+.eno-opt-tag {
+  font-size: 0.74rem;
+  font-weight: 500;
+  color: var(--eno-ink-500);
+}
+
+.eno-field-hint {
+  font-size: 0.76rem;
+  color: var(--eno-ink-500);
+  line-height: 1.38;
+}
+
+.eno-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.eno-input,
+.eno-select {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 13px;
+  border-radius: 12px;
+  border: 1px solid #C4D2EC;
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--eno-ink-900);
+  font: inherit;
+  font-size: 1rem; /* >=16px evita zoom forçado no iOS */
+  box-shadow: inset 0 1px 2px rgba(17, 26, 44, 0.03);
+  transition:
+    border-color var(--eno-dur-fast) var(--eno-ease-out),
+    box-shadow var(--eno-dur-fast) var(--eno-ease-out),
+    background-color var(--eno-dur-fast) var(--eno-ease-out);
+}
+
+.eno-input-with-toggle {
+  padding-right: 88px;
+}
+
+.eno-pwd-toggle {
+  position: absolute;
+  z-index: 2;
+  right: 0;
+  top: 50%;
+  /* translate (e não transform): o :active global com scale não derruba o botão para fora do campo. */
+  translate: 0 -50%;
+  appearance: none;
+  border: 1px solid rgba(196, 210, 236, 0.85);
+  background: rgba(242, 246, 254, 0.94);
+  color: var(--eno-brand-deep);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 650;
+  padding: 6px 10px;
+  min-height: 44px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color var(--eno-dur-fast) var(--eno-ease-out);
+}
+
+.eno-pwd-toggle:hover {
+  background: rgba(228, 236, 252, 0.98);
+}
+
+.eno-pwd-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(54, 89, 158, 0.28);
+}
+
+.eno-input:focus-visible,
+.eno-select:focus-visible {
+  outline: none;
+  border-color: #36599E;
+  background: #FFFFFF;
+  box-shadow: 0 0 0 2px rgba(54, 89, 158, 0.24);
+}
+
+.eno-input[aria-invalid="true"] {
+  border-color: #C53030;
+  background: #FFFDFD;
+  box-shadow: 0 0 0 1px rgba(197, 48, 48, 0.36);
+}
+
+.eno-field-err {
+  font-size: 0.79rem;
+  color: #B42318;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+/* OTP 6 dígitos ergonômico */
+.eno-otp-row {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  margin: 4px 0;
+}
+
+.eno-otp-digit {
+  width: 100%;
+  height: 52px;
+  text-align: center;
+  font: inherit;
+  font-size: 1.25rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  border-radius: 12px;
+  border: 1px solid #BDCBE7;
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--eno-ink-900);
+  box-shadow: inset 0 1px 2px rgba(17, 26, 44, 0.04);
+  transition:
+    border-color var(--eno-dur-fast) var(--eno-ease-out),
+    box-shadow var(--eno-dur-fast) var(--eno-ease-out),
+    transform var(--eno-dur-fast) var(--eno-ease-out);
+}
+
+.eno-otp-digit:focus-visible {
+  outline: none;
+  border-color: #36599E;
+  background: #FFFFFF;
+  box-shadow: 0 0 0 2px rgba(54, 89, 158, 0.26);
+  transform: translateY(-1px);
+}
+
+.eno-otp-digit[aria-invalid="true"] {
+  border-color: #C53030;
+  box-shadow: 0 0 0 1px rgba(197, 48, 48, 0.38);
+}
+
+/* Botões com todos os estados */
+.eno-btn {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  min-height: 44px;
+  padding: 10px 20px;
+  font: inherit;
+  font-size: 0.89rem;
+  font-weight: 650;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-decoration: none;
+  background: linear-gradient(180deg, #35579B 0%, #284580 100%);
+  color: #FFFFFF;
+  box-shadow:
+    0 8px 20px rgba(40, 69, 128, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.26);
+  transition:
+    transform var(--eno-dur-fast) var(--eno-ease-out),
+    background-color var(--eno-dur-fast) var(--eno-ease-out),
+    box-shadow var(--eno-dur-fast) var(--eno-ease-out),
+    opacity var(--eno-dur-fast) var(--eno-ease-out);
+}
+
+.eno-btn:hover:not(:disabled) {
+  background: linear-gradient(180deg, #2D4D8E 0%, #213B70 100%);
+  box-shadow:
+    0 10px 24px rgba(40, 69, 128, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.34);
+}
+
+.eno-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(54, 89, 158, 0.32);
+}
+
+.eno-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.eno-btn:disabled {
+  opacity: 0.56;
+  cursor: not-allowed;
+}
+
+.eno-btn-sec {
+  background: rgba(235, 241, 253, 0.94);
+  color: #1E335C;
+  border-color: rgba(182, 200, 236, 0.88);
+  box-shadow: none;
+}
+
+.eno-btn-sec:hover:not(:disabled) {
+  background: rgba(223, 233, 251, 0.98);
+  box-shadow: 0 4px 12px rgba(40, 69, 128, 0.1);
+}
+
+.eno-btn-ambo {
+  background: linear-gradient(180deg, #2B6CA9 0%, #235D94 100%);
+  color: #FFFFFF;
+}
+
+.eno-btn-ambo:hover:not(:disabled) {
+  background: linear-gradient(180deg, #245D94 0%, #1C4D7B 100%);
+}
+
+.eno-btn-minne {
+  background: linear-gradient(180deg, #24726D 0%, #1E625E 100%);
+  color: #FFFFFF;
+}
+
+.eno-btn-minne:hover:not(:disabled) {
+  background: linear-gradient(180deg, #1E635E 0%, #17504C 100%);
+}
+
+.eno-btn-etha {
+  background: linear-gradient(180deg, #6252B1 0%, #53459A 100%);
+  color: #FFFFFF;
+}
+
+.eno-btn-etha:hover:not(:disabled) {
+  background: linear-gradient(180deg, #54469B 0%, #453884 100%);
+}
+
+.eno-btn-danger {
+  background: linear-gradient(180deg, #B93232 0%, #992424 100%);
+  color: #FFFFFF;
+}
+
+.eno-btn-danger:hover:not(:disabled) {
+  background: linear-gradient(180deg, #A32727 0%, #821C1C 100%);
+}
+
+.eno-btn-sm {
+  min-height: 44px;
+  padding: 6px 13px;
+  font-size: 0.8rem;
+}
+
+/* Seleção de produtos (com identidade cromática de cada produto) */
+.eno-check-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 15px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(196, 210, 236, 0.88);
+  background: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  transition:
+    border-color var(--eno-dur-fast) var(--eno-ease-out),
+    background-color var(--eno-dur-fast) var(--eno-ease-out),
+    box-shadow var(--eno-dur-fast) var(--eno-ease-out),
+    transform var(--eno-dur-fast) var(--eno-ease-out);
+}
+
+.eno-check-card:hover {
+  border-color: rgba(132, 162, 222, 0.95);
+  background: rgba(255, 255, 255, 0.98);
+}
+
+.eno-check-card:active {
+  transform: scale(0.992);
+}
+
+.eno-check-card[data-selected="true"] {
+  border-color: #35589C;
+  background: linear-gradient(135deg, rgba(242, 247, 255, 0.96) 0%, rgba(255, 255, 255, 0.96) 100%);
+  box-shadow:
+    0 8px 20px rgba(48, 78, 138, 0.1),
+    0 0 0 1px rgba(53, 88, 156, 0.25);
+}
+
+.eno-check-card[data-prod="ambo"][data-selected="true"] {
+  border-color: var(--eno-ambo-accent);
+  background: linear-gradient(135deg, rgba(236, 246, 254, 0.96) 0%, rgba(255, 255, 255, 0.96) 100%);
+  box-shadow:
+    0 8px 20px rgba(35, 93, 148, 0.11),
+    0 0 0 1px rgba(35, 93, 148, 0.24);
+}
+
+.eno-check-card[data-prod="minne"][data-selected="true"] {
+  border-color: var(--eno-minne-accent);
+  background: linear-gradient(135deg, rgba(237, 248, 247, 0.96) 0%, rgba(255, 255, 255, 0.96) 100%);
+  box-shadow:
+    0 8px 20px rgba(30, 98, 94, 0.11),
+    0 0 0 1px rgba(30, 98, 94, 0.24);
+}
+
+.eno-check-card[data-prod="etha"][data-selected="true"] {
+  border-color: var(--eno-etha-accent);
+  background: linear-gradient(135deg, rgba(242, 239, 254, 0.96) 0%, rgba(255, 255, 255, 0.96) 100%);
+  box-shadow:
+    0 8px 20px rgba(83, 69, 154, 0.11),
+    0 0 0 1px rgba(83, 69, 154, 0.24);
+}
+
+/* Alertas, status banners & alerta 503 de infraestrutura remota */
+.eno-status-banner {
+  border-radius: 16px;
+  padding: 13px 16px;
+  margin-bottom: 16px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.45;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.eno-infra-alert {
+  border-radius: 18px;
+  padding: 16px 18px;
+  margin-bottom: 18px;
+  background: linear-gradient(135deg, rgba(255, 248, 235, 0.96) 0%, rgba(254, 241, 216, 0.92) 100%);
+  border: 1px solid rgba(234, 189, 104, 0.95);
+  box-shadow: 0 10px 26px rgba(122, 75, 0, 0.08);
+  color: #5F3800;
+}
+
+.eno-infra-env-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 6px;
+}
+
+.eno-infra-env-pill {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(218, 171, 88, 0.85);
+  color: #4A2B00;
+}
+
+.eno-spinner {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  border-right-color: transparent;
+  display: inline-block;
+  animation: enoSpin 800ms linear infinite;
+}
+
+@keyframes enoSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.eno-outbox {
+  margin-top: 8px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(242, 246, 253, 0.94);
+  border: 1px dashed rgba(164, 184, 222, 0.95);
+  font-size: 0.82rem;
+  color: #2B3B5C;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Barra fixa inferior no mobile */
+.eno-mobile-bar {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .eno-shell {
+    padding-bottom: 98px;
+  }
+  .eno-topbar {
+    border-radius: 20px;
+    padding: 10px 12px;
+  }
+  .eno-mobile-bar {
+    position: fixed;
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    z-index: 45;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    border: 1px solid rgba(196, 210, 238, 0.95);
+    box-shadow: 0 12px 32px rgba(24, 39, 71, 0.16);
+    transition: transform var(--eno-dur-fast) var(--eno-ease-out), opacity var(--eno-dur-fast) var(--eno-ease-out);
+  }
+  .eno-mobile-bar.is-hidden-for-input {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(18px);
+  }
+}
+
+/* Movimento reduzido: ver ux-standard.css (regra única para o portal e o fluxo). */
+
+/* ==========================================================================
+   Percurso de contratação aprovado no Figma (22 nov 2026 · seção 76:696)
+   Escolha → Conta → Código → Checkout → Ativando → Portal
+   ========================================================================== */
+.eno-flow-shell {
+  --flow-ink: #1F2A4A;
+  --flow-ink-2: #3D4A6B;
+  --flow-muted: #5E6B8C;
+  --flow-accent: #5B70B3;
+  --flow-accent-deep: #4A5E9E;
+  --flow-selected: rgba(206, 217, 246, 0.82);
+  --flow-chip: #E1E7FA;
+  --flow-line: rgba(160, 178, 222, 0.55);
+  --flow-error: #9B2C3F;
+  background:
+    radial-gradient(900px 520px at 8% -8%, rgba(190, 206, 250, 0.42), transparent 62%),
+    radial-gradient(760px 460px at 92% 6%, rgba(196, 226, 238, 0.34), transparent 60%),
+    #EEF2FC;
+  color: var(--flow-ink);
+  padding: 20px clamp(16px, 4.4vw, 64px) 40px;
+}
+.eno-flow-shell .eno-container { max-width: 1312px; margin: 0 auto; padding: 0; }
+.eno-flow-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; max-width: 1312px; margin: 0 auto 18px; }
+.eno-flow-top .eno-brand { color: var(--flow-ink); }
+
+.eno-link {
+  appearance: none; background: none; border: 0; padding: 0; font: inherit; cursor: pointer;
+  color: var(--flow-accent); font-weight: 600; text-decoration: none; min-height: var(--eno-hit, 44px);
+  display: inline-flex; align-items: center;
+}
+.eno-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.eno-link:disabled { color: var(--flow-muted); cursor: default; text-decoration: none; }
+.eno-link:focus-visible, .eno-pc:focus-visible, .eno-flow-seg button:focus-visible, .eno-flow-cta:focus-visible {
+  outline: 2px solid var(--flow-accent-deep); outline-offset: 3px;
+}
+
+.eno-flow {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 700px) minmax(0, 576px);
+  column-gap: clamp(24px, 3vw, 36px);
+  justify-content: space-between;
+  align-items: start;
+}
+.eno-flow-main { position: relative; z-index: 1; min-width: 0; }
+.eno-flow-side { position: relative; padding-top: 240px; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+.eno-flow-flower {
+  position: absolute; top: 0; left: 50%; transform: translateX(-46%);
+  width: min(420px, 100%); height: auto; opacity: 0.78; pointer-events: none; z-index: 0;
+  transition: transform 220ms var(--eno-ease-out), opacity 220ms var(--eno-ease-out);
+}
+.eno-flow-side > :not(.eno-flow-flower) { position: relative; z-index: 1; }
+
+.eno-flow-steps { display: flex; flex-wrap: wrap; gap: 10px; list-style: none; margin: 16px 0 22px; padding: 0; font-size: 0.82rem; color: var(--flow-muted); }
+.eno-flow-steps .is-current { color: var(--flow-accent); font-weight: 700; }
+.eno-flow-steps .is-done { color: var(--flow-ink); font-weight: 600; }
+.eno-flow-sep { color: #9AA6C4; }
+
+.eno-flow-title { font-size: clamp(2.1rem, 3.6vw, 3.05rem); line-height: 1.12; font-weight: 500; letter-spacing: -0.01em; margin: 0 0 26px; color: var(--flow-ink); }
+.eno-flow-lead { font-size: 1rem; color: var(--flow-ink-2); margin: 0 0 22px; line-height: 1.45; min-height: 1.45em; }
+.eno-flow-lead.is-return, .eno-flow-lead.is-verified { color: var(--flow-accent); }
+
+.eno-glass {
+  background: linear-gradient(135deg, rgba(255,255,255,0.62) 0%, rgba(236,241,252,0.52) 100%);
+  border: 1px solid rgba(255,255,255,0.9);
+  box-shadow: 0 18px 40px rgba(60, 84, 150, 0.10), inset 0 1px 0 rgba(255,255,255,0.9);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border-radius: 24px;
+}
+
+/* Cartões de produto */
+.eno-pc-list { display: flex; flex-direction: column; gap: 20px; }
+.eno-pc {
+  display: grid; grid-template-columns: 22px 12px minmax(0, 1fr) auto; align-items: start; column-gap: 12px;
+  width: 100%; text-align: left; font: inherit; color: var(--flow-ink); cursor: pointer;
+  padding: 20px 24px; border-radius: 22px; min-height: 104px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.62) 0%, rgba(240,244,253,0.5) 100%);
+  border: 1px solid rgba(255,255,255,0.92);
+  box-shadow: 0 12px 30px rgba(60, 84, 150, 0.08), inset 0 1px 0 rgba(255,255,255,0.9);
+  transition: background-color 220ms var(--eno-ease-out), box-shadow 220ms var(--eno-ease-out), transform 140ms var(--eno-ease-out);
+}
+div.eno-pc { cursor: default; }
+.eno-pc.is-selected, .eno-pc[aria-pressed=true] { background: var(--flow-selected) !important; border-color: rgba(255, 255, 255, 0.85) !important; }
+.eno-pc.is-excluded { opacity: 0.66; }
+button.eno-pc:active { transform: scale(0.99); }
+.eno-pc-mark { font-size: 1.35rem; line-height: 1.3; color: var(--flow-accent); }
+.eno-pc:not(.is-selected) .eno-pc-mark { color: #7C89AD; font-size: 1.05rem; line-height: 1.7; }
+.eno-pc-dot { width: 12px; height: 12px; border-radius: 50%; margin-top: 12px; }
+.eno-pc-ambo .eno-pc-dot { background: #A4CFF6; }
+.eno-pc-minne .eno-pc-dot { background: #A6DDD8; }
+.eno-pc-etha .eno-pc-dot { background: #C7BDF4; }
+.eno-pc-body { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.eno-pc-name { font-size: 1.55rem; font-weight: 500; line-height: 1.25; }
+.eno-pc-desc { font-size: 0.95rem; color: var(--flow-ink-2); }
+.eno-pc-price { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; text-align: right; padding-top: 4px; }
+.eno-pc-price b { font-size: 1.12rem; font-weight: 600; white-space: nowrap; }
+.eno-pc-price small { font-size: 0.76rem; color: var(--flow-muted); white-space: nowrap; }
+.eno-etha-format { display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; color: var(--flow-muted); margin-top: -6px; }
+
+/* Resumo */
+.eno-sum { padding: 26px 30px 28px; display: flex; flex-direction: column; gap: 12px; transition: opacity 220ms var(--eno-ease-out); }
+.eno-sum.is-busy { opacity: 0.92; }
+.eno-sum-title { font-size: 1.6rem; font-weight: 500; margin: 0; color: var(--flow-ink); }
+.eno-sum-label { margin: 0; font-size: 1.1rem; font-weight: 600; color: var(--flow-accent); }
+.eno-sum-label-billing { display: none; }
+.eno-sum-billing { margin: 4px 0 6px; font-size: 0.85rem; color: var(--flow-muted); }
+.eno-sum-empty { margin: 0; color: var(--flow-muted); }
+.eno-flow-seg {
+  display: grid; grid-template-columns: 1fr 1fr; padding: 4px; gap: 4px; border-radius: 999px;
+  background: rgba(255,255,255,0.72); border: 1px solid rgba(196, 208, 240, 0.9);
+}
+.eno-flow-seg button {
+  appearance: none; border: 0; border-radius: 999px; min-height: var(--eno-hit, 44px); padding: 8px 10px; font: inherit; font-size: 0.92rem; font-weight: 600;
+  background: transparent; color: var(--flow-ink); cursor: pointer;
+  transition: background-color 220ms var(--eno-ease-out), color 220ms var(--eno-ease-out);
+}
+.eno-flow-seg button[aria-checked="true"] { background: var(--flow-accent); color: #fff; }
+.eno-sum-lines { margin: 6px 0 0; display: flex; flex-direction: column; gap: 8px; }
+.eno-sum-lines > div { display: flex; justify-content: space-between; gap: 12px; }
+.eno-sum-lines dt { font-size: 0.98rem; color: var(--flow-ink); }
+.eno-sum-lines dt small { display: block; color: var(--flow-muted); font-size: 0.76rem; }
+.eno-sum-lines dd { margin: 0; font-weight: 600; white-space: nowrap; }
+.eno-sum-lines .is-discount dt, .eno-sum-lines .is-discount dd { color: var(--flow-accent); }
+.eno-sum-hint { margin: 0; font-size: 0.85rem; color: var(--flow-muted); }
+.eno-sum-total { border-top: 1px solid var(--flow-line); padding-top: 14px; margin-top: 6px; display: flex; flex-direction: column; gap: 4px; }
+.eno-sum-total span { font-size: 0.85rem; color: var(--flow-muted); }
+.eno-sum-total strong { font-size: clamp(1.8rem, 2.6vw, 2.15rem); font-weight: 600; line-height: 1.15; color: var(--flow-ink); }
+.eno-sum-total small { color: var(--flow-muted); font-size: 0.8rem; }
+.eno-sum-today { margin: 4px 0 0; padding: 12px 14px; border-radius: 999px; background: var(--flow-chip); text-align: center; font-size: 0.9rem; font-weight: 700; color: var(--flow-ink); }
+
+.eno-flow-cta {
+  width: 100%; min-height: var(--eno-btn-lg, 52px); border-radius: 999px; font-size: 15px; font-weight: 600;
+  background: var(--flow-accent); border-color: var(--flow-accent); color: #fff;
+}
+.eno-flow-cta:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--flow-accent-deep); }
+.eno-flow-cta:disabled, .eno-flow-cta[aria-disabled="true"] { background: #9AA8D6; border-color: #9AA8D6; color: #fff; opacity: 1; cursor: default; }
+.eno-flow-change { align-self: flex-start; font-size: 0.9rem; }
+.eno-flow-main > .eno-flow-change { margin-top: 18px; }
+
+/* Conta e código */
+.eno-flow-card { padding: 24px; display: flex; flex-direction: column; gap: 14px; }
+.eno-flow-label { font-weight: 700; font-size: 0.92rem; }
+.eno-flow-card .eno-input { min-height: 52px; border-radius: 14px; font-size: 1rem; border: 1.5px solid #6C7FBE; background: rgba(250,251,255,0.96); }
+.eno-flow-note { margin: 0; font-size: 0.82rem; color: var(--flow-muted); }
+.eno-flow-err { margin: 0; font-size: 0.9rem; color: var(--flow-error); font-weight: 500; }
+.eno-flow-dev { margin: 0; font-size: 0.8rem; color: var(--flow-muted); padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,0.6); border: 1px dashed var(--flow-line); }
+.eno-flow-shell .eno-otp-row { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: clamp(8px, 2vw, 20px); }
+.eno-flow-shell .eno-otp-digit {
+  width: 100%; min-height: 64px; text-align: center; font-size: 1.6rem; font-weight: 600; color: var(--flow-ink);
+  border-radius: 14px; border: 1.5px solid rgba(190, 202, 236, 0.95); background: rgba(250,251,255,0.96);
+}
+.eno-flow-shell .eno-otp-digit:focus { outline: none; border-color: var(--flow-accent); box-shadow: 0 0 0 3px rgba(91,112,179,0.22); }
+.eno-flow-shell .eno-otp-row.has-error .eno-otp-digit { border-color: var(--flow-error); }
+.eno-flow-info h2 { margin: 0; font-size: 1rem; font-weight: 700; }
+.eno-flow-info p { margin: 0; font-size: 0.88rem; line-height: 1.6; color: var(--flow-ink-2); }
+.eno-flow-review .eno-pc-list { gap: 16px; margin-bottom: 16px; }
+
+.eno-sum-compact { padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; margin-top: 24px; }
+.eno-sum-compact-top { display: flex; justify-content: space-between; align-items: center; font-size: 0.82rem; color: var(--flow-muted); }
+.eno-sum-compact b { font-size: 1.1rem; font-weight: 600; }
+.eno-sum-compact > span { font-size: 0.88rem; color: var(--flow-ink-2); }
+
+.eno-flow-foot { grid-column: 1 / -1; margin-top: 40px; display: flex; flex-direction: column; gap: 14px; text-align: left; align-items: flex-start; justify-content: flex-start; }
+.eno-flow-foot p { margin: 0; font-size: 0.9rem; color: var(--flow-ink); }
+.eno-flow-foot small { font-size: 0.76rem; color: var(--flow-muted); }
+
+.eno-activation-banner { align-self: flex-end; padding: 10px 20px; border-radius: 999px; font-weight: 600; font-size: 0.92rem; color: var(--eno-ink-900); }
+
+.eno-show-sm { display: none; }
+
+@media (max-width: 860px) {
+  .eno-flow { grid-template-columns: minmax(0, 1fr); }
+  .eno-flow-side { position: static; padding-top: 0; margin-top: 20px; }
+  .eno-flow-flower { top: -84px; left: auto; right: -40px; transform: none; width: 190px; opacity: 0.42; }
+  .eno-flow-steps { margin-top: 0; font-size: 0.8rem; gap: 6px; }
+  .eno-flow-sep { display: none; }
+  .eno-flow-title { font-size: 2.05rem; margin-bottom: 12px; }
+  .eno-flow-title br { display: none; }
+  .eno-flow-lead { margin-bottom: 26px; font-size: 0.98rem; }
+  .eno-pc-list { gap: 14px; }
+  .eno-pc { grid-template-columns: 20px 10px minmax(0, 1fr) auto; column-gap: 10px; padding: 16px; min-height: 0; }
+  .eno-pc-name { font-size: 1.3rem; }
+  .eno-pc-desc { font-size: 0.88rem; }
+  .eno-pc-dot { width: 10px; height: 10px; margin-top: 10px; }
+  .eno-pc-price b { font-size: 1.02rem; }
+  .eno-pc-price small { font-size: 0.7rem; }
+  .eno-sum { padding: 18px 16px 18px; gap: 8px; }
+  .eno-sum-title { display: none; }
+  .eno-sum-label { font-size: 0.98rem; }
+  .eno-flow-seg button { font-size: 0.86rem; white-space: nowrap; padding: 8px 6px; }
+  .eno-sum-label-billing { display: inline; }
+  .eno-sum-billing { display: none; }
+  .eno-flow-choice .eno-sum { display: flex; }
+  .eno-sum-total { border-top: 0; padding-top: 0; }
+  .eno-sum-total span { display: none; }
+  .eno-sum-total strong { font-size: 1.8rem; }
+  .eno-flow-side { gap: 12px; }
+  .eno-flow-foot { margin-top: 28px; }
+  .eno-flow-card { padding: 16px; }
+  .eno-flow-shell .eno-otp-digit { min-height: 54px; font-size: 1.35rem; }
+  .eno-hide-sm { display: none !important; }
+  .eno-show-sm { display: block; }
+  span.eno-show-sm { display: inline; }
+  .eno-flow-shell { padding-left: 16px; padding-right: 16px; }
+}
+
+
+/* As pétalas da jornada do site ficam no site; no percurso de contratação a flor é a do resumo. */
+body:has(.eno-flow-shell) .journey-petal { display: none !important; }
+
+/* Carregamento da página inteira: esqueleto com a forma do portal (padrão único §5). */
+.eno-skeleton-page { display: grid; gap: 16px; padding-top: 32px; animation: enoSkelIn 160ms var(--eno-ease-out, ease-out) 300ms both; }
+.eno-skel { border-radius: 18px; background: linear-gradient(90deg, rgb(91 112 178 / .08), rgb(91 112 178 / .16), rgb(91 112 178 / .08)); background-size: 200% 100%; animation: enoSkelShine 1.4s linear infinite; }
+.eno-skel-title { height: 40px; width: min(420px, 80%); }
+.eno-skel-line { height: 16px; width: min(560px, 90%); border-radius: 8px; }
+.eno-skel-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.eno-skel-card { height: 168px; border-radius: 24px; }
+.eno-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@keyframes enoSkelShine { to { background-position: -200% 0; } }
+@keyframes enoSkelIn { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .eno-skel { animation: none; } .eno-skeleton-page { animation: none; } }
+
+/* Auditoria visual 22/11 · um só primário no portal Enomera (#5B70B2, padrão único §6).
+   Botões que abrem outro produto não trocam de cor: o produto aparece no cartão e no ↗. */
+.eno-btn,
+.eno-btn-ambo,
+.eno-btn-minne,
+.eno-btn-etha {
+  background: #5B70B2;
+  color: #FFFFFF;
+  border-color: transparent;
+  box-shadow: 0 8px 20px rgba(91, 112, 178, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+.eno-btn:hover:not(:disabled),
+.eno-btn-ambo:hover:not(:disabled),
+.eno-btn-minne:hover:not(:disabled),
+.eno-btn-etha:hover:not(:disabled) { background: #4D61A0; }
+.eno-btn.eno-btn-sec { background: rgba(235, 241, 253, 0.94); color: #1E335C; border-color: rgba(182, 200, 236, 0.88); box-shadow: none; }
+.eno-btn.eno-btn-sec:hover:not(:disabled) { background: rgba(223, 233, 251, 0.98); }
+/* Destrutivo: contorno vermelho do sistema, nunca sólido. */
+.eno-btn.eno-btn-danger { background: rgba(255, 255, 255, 0.9); color: #B3261E; border: 1px solid #B3261E; box-shadow: none; }
+.eno-btn.eno-btn-danger:hover:not(:disabled) { background: #FFF5F4; }
+.eno-btn:focus-visible { outline: 2px solid #5B70B2; outline-offset: 3px; }
+/* Entrada simples: coluna única, sem resumo de compra. */
+.eno-flow-login .eno-flow-main { max-width: 480px; }
+/* Portal: os cartões dos serviços ativos ocupam a largura toda, sem coluna vazia. */
+.eno-grid-3.eno-grid-fit { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+
+/* Assinatura no portal (Asaas) */
+.eno-sub-form { display: grid; gap: 14px; margin-top: 12px; --flow-ink: #1F2A4A; --flow-accent: #5B70B3; }
+.eno-sub-form .eno-flow-seg { justify-self: start; min-width: 240px; }
+.eno-sub-price { margin: 0; font-size: 1.05rem; }
+.eno-sub-price b { font-size: 1.5rem; font-variant-numeric: tabular-nums; }
+.eno-sub-form .eno-btn { justify-self: start; min-width: 160px; }
+.eno-sub-history { margin-top: 28px; }
+@media (max-width: 640px) { .eno-sub-form .eno-btn { justify-self: stretch; } }
+
+/* Auditoria 23 nov: botões dos cartões de serviço alinhados na base (cartões da mesma linha
+   têm a mesma altura; a fila de botões desce até o fim) e link do Ambo legível, sem estourar. */
+.eno-grid-3 > .eno-card > .eno-btn-row:last-child { margin-top: auto; }
+.eno-link-line { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .82rem; }
+@media (max-width: 760px) {
+  /* Abas do portal numa linha só, com rolagem lateral, em vez de quebrar em duas dentro da pílula */
+  .eno-topbar .eno-nav-tabs { order: 3; flex: 1 0 100%; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; scroll-snap-type: x proximity; }
+  .eno-topbar .eno-nav-tabs::-webkit-scrollbar { display: none; }
+  .eno-topbar .eno-nav-tabs .eno-tab { flex: none; scroll-snap-align: start; }
+}
+.eno-grid-3 > .eno-card > .eno-btn-row:last-child { flex-direction: column; align-items: stretch; }
+.eno-grid-3 > .eno-card > .eno-btn-row:last-child > .eno-btn { width: 100%; justify-content: center; }

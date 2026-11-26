@@ -2,7 +2,36 @@
   "ignoreCommand": "git diff --quiet HEAD^ HEAD -- . ':(exclude).github' ':(exclude)docs/BACKUP-BANCO.md' ':(exclude)scripts/backup-banco.sh' ':(exclude)scripts/restaurar-backup.sh'",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "functions": {
+    "api/[...route].mjs": {
+      "includeFiles": "server/migrations/**"
+    }
+  },
   "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/[...route].mjs"
+    },
+    {
+      "source": "/convite/:token",
+      "destination": "/piloto/convite.html"
+    },
+    {
+      "source": "/piloto/painel",
+      "destination": "/piloto/painel.html"
+    },
+    {
+      "source": "/piloto/como-funciona",
+      "destination": "/piloto/como-funciona.html"
+    },
+    {
+      "source": "/piloto/painel/",
+      "destination": "/piloto/painel.html"
+    },
+    {
+      "source": "/configurar",
+      "destination": "/configurar.html"
+    },
     {
       "source": "/portal",
       "destination": "/index.html"
@@ -10,6 +39,268 @@
     {
       "source": "/portal/",
       "destination": "/index.html"
+    },
+    {
+      "source": "/conta",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/checkout",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/agendamento",
+      "has": [
+        {
+          "type": "host",
+          "value": "enomera.vercel.app"
+        }
+      ],
+      "destination": "https://ambo-enomera.vercel.app/agendamento"
+    },
+    {
+      "source": "/agendamento",
+      "has": [
+        {
+          "type": "host",
+          "value": "enomera-painel.vercel.app"
+        }
+      ],
+      "destination": "https://ambo-enomera.vercel.app/agendamento"
+    },
+    {
+      "source": "/agendamento",
+      "destination": "https://agendamento-enomera-desenvolvimento.vercel.app/agendamento"
+    },
+    {
+      "source": "/agendamento/",
+      "has": [
+        {
+          "type": "host",
+          "value": "enomera.vercel.app"
+        }
+      ],
+      "destination": "https://ambo-enomera.vercel.app/agendamento/"
+    },
+    {
+      "source": "/agendamento/",
+      "has": [
+        {
+          "type": "host",
+          "value": "enomera-painel.vercel.app"
+        }
+      ],
+      "destination": "https://ambo-enomera.vercel.app/agendamento/"
+    },
+    {
+      "source": "/agendamento/",
+      "destination": "https://agendamento-enomera-desenvolvimento.vercel.app/agendamento/"
+    },
+    {
+      "source": "/agendamento/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "enomera.vercel.app"
+        }
+      ],
+      "destination": "https://ambo-enomera.vercel.app/agendamento/$1"
+    },
+    {
+      "source": "/agendamento/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "enomera-painel.vercel.app"
+        }
+      ],
+      "destination": "https://ambo-enomera.vercel.app/agendamento/$1"
+    },
+    {
+      "source": "/agendamento/(.*)",
+      "destination": "https://agendamento-enomera-desenvolvimento.vercel.app/agendamento/$1"
+    },
+    {
+      "source": "/consultorio",
+      "has": [
+        {
+          "type": "host",
+          "value": "enomera.vercel.app"
+        }
+      ],
+      "destination": "https://minne-enomera.vercel.app/consultorio"
+    },
+    {
+      "source": "/consultorio",
+      "has": [
+        {
+          "type": "host",
+          "value": "enomera-painel.vercel.app"
+        }
+      ],
+      "destination": "https://minne-enomera.vercel.app/consultorio"
+    },
+    {
+      "source": "/consultorio",
+      "destination": "https://consultorio-enomera-desenvolvimento.vercel.app/consultorio"
+    },
+    {
+      "source": "/consultorio/",
+      "has": [
+        {
+          "type": "host",
+          "value": "enomera.vercel.app"
+        }
+      ],
+      "destination": "https://minne-enomera.vercel.app/consultorio/"
+    },
+    {
+      "source": "/consultorio/",
+      "has": [
+        {
+          "type": "host",
+          "value": "enomera-painel.vercel.app"
+        }
+      ],
+      "destination": "https://minne-enomera.vercel.app/consultorio/"
+    },
+    {
+      "source": "/consultorio/",
+      "destination": "https://consultorio-enomera-desenvolvimento.vercel.app/consultorio/"
+    },
+    {
+      "source": "/consultorio/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "enomera.vercel.app"
+        }
+      ],
+      "destination": "https://minne-enomera.vercel.app/consultorio/$1"
+    },
+    {
+      "source": "/consultorio/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "enomera-painel.vercel.app"
+        }
+      ],
+      "destination": "https://minne-enomera.vercel.app/consultorio/$1"
+    },
+    {
+      "source": "/consultorio/(.*)",
+      "destination": "https://consultorio-enomera-desenvolvimento.vercel.app/consultorio/$1"
+    },
+    {
+      "source": "/site/",
+      "has": [
+        {
+          "type": "host",
+          "value": "enomera.vercel.app"
+        }
+      ],
+      "destination": "https://etha-enomera.vercel.app/site/"
+    },
+    {
+      "source": "/site/",
+      "has": [
+        {
+          "type": "host",
+          "value": "enomera-painel.vercel.app"
+        }
+      ],
+      "destination": "https://etha-enomera.vercel.app/site/"
+    },
+    {
+      "source": "/site/",
+      "destination": "https://etha-enomera-desenvolvimento.vercel.app/site/"
+    },
+    {
+      "source": "/site/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "enomera.vercel.app"
+        }
+      ],
+      "destination": "https://etha-enomera.vercel.app/site/$1"
+    },
+    {
+      "source": "/site/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "enomera-painel.vercel.app"
+        }
+      ],
+      "destination": "https://etha-enomera.vercel.app/site/$1"
+    },
+    {
+      "source": "/site/(.*)",
+      "destination": "https://etha-enomera-desenvolvimento.vercel.app/site/$1"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://viacep.com.br https://brasilapi.com.br https://*.vercel.app; worker-src 'self' blob:; frame-src 'self' https://etha-enomera-sites-desenvolvimento.vercel.app https://etha-enomera-sites.vercel.app; frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+        },
+        {
+          "key": "Cross-Origin-Opener-Policy",
+          "value": "same-origin-allow-popups"
+        }
+      ]
+    },
+    {
+      "source": "/piloto/uso.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=300"
+        },
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        }
+      ]
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "enomera-painel.vercel.app"
+        }
+      ],
+      "destination": "/piloto/painel",
+      "permanent": false
+    },
+    {
+      "source": "/site",
+      "destination": "/site/",
+      "permanent": false
     }
   ]
 }

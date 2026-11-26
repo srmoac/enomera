@@ -1,0 +1,135 @@
+const imgSubstratoAprovado = "https://www.figma.com/api/mcp/asset/94ef5867-f3c5-40cd-b855-0d73d803ec15.svg";
+const imgPetalasContinuidadeDaEscolha = "https://www.figma.com/api/mcp/asset/9bd125d1-7686-4ba8-9bad-27fd9331e58e.svg";
+const imgEnomeraFlower = "https://www.figma.com/api/mcp/asset/47722102-94dc-4faa-b467-361357d92e54.svg";
+
+type ProdutoDisponivelProps = {
+  className?: string;
+  descricao?: string;
+  descricaoVisivel?: boolean;
+  preco?: string;
+  produto?: string;
+};
+
+function ProdutoDisponivel({ className, descricao = "Descrição", descricaoVisivel = true, preco = "Preço", produto = "Produto" }: ProdutoDisponivelProps) {
+  return (
+    <div className={className || "[word-break:break-word] bg-[var(--prim-neutral-white,white)] border border-[var(--prim-neutral-white,white)] border-solid content-stretch flex flex-col gap-[4px] items-start leading-[1.4] px-[18px] py-[14px] relative rounded-[var(--radius-md,16px)] w-[340px]"} data-node-id="60:1877" data-name="Produto / Disponível">
+      <p className="font-['Manrope:SemiBold'] font-semibold relative shrink-0 text-[19px] text-[color:var(--prim-enomera-ink,#202d50)] w-full" data-node-id="60:1878">
+        {produto}
+      </p>
+      {descricaoVisivel && (
+        <p className="font-['Manrope:Regular'] font-normal relative shrink-0 text-[13px] text-[color:var(--prim-enomera-ink,#202d50)] w-full" data-node-id="60:1879">
+          {descricao}
+        </p>
+      )}
+      <p className="font-['Manrope:SemiBold'] font-semibold relative shrink-0 text-[14px] text-[color:var(--prim-enomera-brand,#5b70b2)] w-full" data-node-id="60:1880">
+        {preco}
+      </p>
+    </div>
+  );
+}
+
+type ProdutoSelecionadoProps = {
+  className?: string;
+  descricao?: string;
+  descricaoVisivel?: boolean;
+  preco?: string;
+  produto?: string;
+};
+
+function ProdutoSelecionado({ className, descricao = "Descrição", descricaoVisivel = true, preco = "Preço", produto = "Produto" }: ProdutoSelecionadoProps) {
+  return (
+    <div className={className || "[word-break:break-word] bg-[var(--prim-enomera-petal-low-a,#dfe6fb)] border border-[var(--prim-neutral-white,white)] border-solid content-stretch flex flex-col gap-[4px] items-start leading-[1.4] px-[18px] py-[14px] relative rounded-[var(--radius-md,16px)] w-[340px]"} data-node-id="60:1873" data-name="Produto / Selecionado">
+      <p className="font-['Manrope:SemiBold'] font-semibold relative shrink-0 text-[19px] text-[color:var(--prim-enomera-ink,#202d50)] w-full" data-node-id="60:1874">
+        {produto}
+      </p>
+      {descricaoVisivel && (
+        <p className="font-['Manrope:Regular'] font-normal relative shrink-0 text-[13px] text-[color:var(--prim-enomera-ink,#202d50)] w-full" data-node-id="60:1875">
+          {descricao}
+        </p>
+      )}
+      <p className="font-['Manrope:SemiBold'] font-semibold relative shrink-0 text-[14px] text-[color:var(--prim-enomera-brand,#5b70b2)] w-full" data-node-id="60:1876">
+        {preco}
+      </p>
+    </div>
+  );
+}
+
+export default function McEscolha() {
+  return (
+    <div className="bg-[var(--prim-enomera-surface,#f0f4fe)] content-stretch flex flex-col gap-[12px] items-start pb-[24px] pt-[16px] px-[16px] relative size-full" data-node-id="60:3049" data-name="MC · Escolha">
+      <div className="absolute h-[844px] left-0 top-0 w-[390px]" data-node-id="60:3050" data-name="Substrato aprovado">
+        <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgSubstratoAprovado} />
+      </div>
+      <div className="absolute h-[231px] left-[16px] top-[16px] w-[280px]" data-node-id="60:3056" data-name="Pétalas / continuidade da escolha">
+        <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgPetalasContinuidadeDaEscolha} />
+      </div>
+      <div className="bg-[rgba(255,255,255,0.3)] border border-[rgba(255,255,255,0.88)] border-solid content-stretch drop-shadow-[0px_10px_14px_rgba(64,97,166,0.12)] flex h-[56px] items-center justify-between px-[16px] py-[12px] relative rounded-[32px] shrink-0 w-full" data-node-id="60:3062" data-name="Cabeçalho Enomera">
+        <div className="content-stretch flex gap-[10px] items-center overflow-clip relative shrink-0" data-node-id="I60:3062;38:141" data-name="Brand">
+          <div className="h-[25px] relative shrink-0 w-[30px]" data-node-id="I60:3062;38:142" data-name="Enomera Flower">
+            <img alt="" className="absolute block inset-0 max-w-none size-full" src={imgEnomeraFlower} />
+          </div>
+          <p className="[word-break:break-word] font-['Manrope:SemiBold'] font-semibold leading-[1.45] relative shrink-0 text-[#202d50] text-[20px] whitespace-nowrap" data-node-id="I60:3062;38:148">
+            enomera
+          </p>
+        </div>
+        <div className="bg-[#eef2ff] content-stretch flex items-start overflow-clip px-[12px] py-[8px] relative rounded-[999px] shrink-0" data-node-id="I60:3062;38:149" data-name="Menu">
+          <p className="[word-break:break-word] font-['Manrope:SemiBold'] font-semibold leading-[1.45] relative shrink-0 text-[#202d50] text-[13px] whitespace-nowrap" data-node-id="I60:3062;38:150">
+            Minha conta
+          </p>
+        </div>
+      </div>
+      <p className="[word-break:break-word] font-['Manrope:Medium'] font-medium leading-[1.4] min-w-full relative shrink-0 text-[11px] text-[color:var(--prim-enomera-ink-muted,#516083)] w-[min-content] whitespace-pre-wrap" data-node-id="60:3073">{`Escolha  →  Conta  →  Verificação  →  Revisão`}</p>
+      <p className="[word-break:break-word] font-['Manrope:Medium'] font-medium leading-[1.4] min-w-full relative shrink-0 text-[27px] text-[color:var(--prim-enomera-ink,#202d50)] w-[min-content]" data-node-id="60:3074">
+        O que sua prática precisa agora?
+      </p>
+      <div className="content-stretch flex flex-col gap-[12px] items-start overflow-clip relative shrink-0 w-full" data-node-id="60:3075" data-name="Tarefa principal">
+        <ProdutoSelecionado className="[word-break:break-word] bg-[var(--prim-enomera-petal-low-a,#dfe6fb)] border border-[var(--prim-neutral-white,white)] border-solid content-stretch flex flex-col font-['Manrope:SemiBold'] font-semibold gap-[4px] items-start leading-[1.4] px-[18px] py-[14px] relative rounded-[var(--radius-md,16px)] shrink-0 w-full" descricao="Agendamento e área do paciente" descricaoVisivel={false} preco="R$ 39/mês" produto="Selecionado · Ambo" />
+        <ProdutoSelecionado className="[word-break:break-word] bg-[var(--prim-enomera-petal-low-a,#dfe6fb)] border border-[var(--prim-neutral-white,white)] border-solid content-stretch cursor-pointer flex flex-col font-['Manrope:SemiBold'] font-semibold gap-[4px] items-start leading-[1.4] px-[18px] py-[14px] relative rounded-[var(--radius-md,16px)] shrink-0 text-left w-full" descricao="Gestão clínica, agenda e prontuários" descricaoVisivel={false} preco="R$ 69/mês" produto="Selecionado · Minne" />
+        <div className="[word-break:break-word] bg-[var(--prim-neutral-white,rgba(255,255,255,0.1))] border border-[var(--prim-neutral-white,white)] border-solid content-stretch flex flex-col gap-[6px] items-start leading-[1.4] overflow-clip px-[16px] py-[14px] relative rounded-[var(--radius-lg,24px)] shadow-[0px_10px_28px_0px_rgba(64,97,166,0.12)] shrink-0 w-full" data-node-id="60:3090" data-name="Sua combinação">
+          <p className="font-['Manrope:SemiBold'] font-semibold relative shrink-0 text-[15px] text-[color:var(--prim-enomera-ink,#202d50)] w-full" data-node-id="60:3091">
+            Ambo + Minne · Mensal
+          </p>
+          <p className="font-['Manrope:SemiBold'] font-semibold relative shrink-0 text-[23px] text-[color:var(--prim-enomera-ink,#202d50)] w-full" data-node-id="60:3092">
+            R$ 89,00 / mês
+          </p>
+          <p className="font-['Manrope:Regular'] font-normal relative shrink-0 text-[12px] text-[color:var(--prim-enomera-ink,#202d50)] w-full" data-node-id="60:3093">
+            Desconto do combo: −R$ 19/mês
+          </p>
+          <p className="font-['Manrope:SemiBold'] font-semibold relative shrink-0 text-[12px] text-[color:var(--prim-semantic-success-ink,#1b653e)] w-full" data-node-id="60:3094">
+            Hoje: R$ 0,00 · Pagamento simulado
+          </p>
+        </div>
+        <ProdutoDisponivel className="[word-break:break-word] bg-[var(--prim-neutral-white,white)] border border-[var(--prim-neutral-white,white)] border-solid content-stretch cursor-pointer flex flex-col gap-[4px] items-start leading-[1.4] px-[18px] py-[14px] relative rounded-[var(--radius-md,16px)] shrink-0 text-left w-full" descricao="R$ 1.190 · 50/50 + hospedagem após publicar" preco="Site exclusivo · Conhecer o serviço" produto="Conhecer · Etha" />
+        <a className="bg-[rgba(91,112,178,0.93)] border border-[rgba(255,255,255,0.9)] border-solid content-stretch cursor-pointer drop-shadow-[0px_12px_15px_rgba(77,102,178,0.12)] flex h-[52px] items-center justify-center min-h-[52px] px-[24px] py-[14px] relative rounded-[28px] shrink-0 w-full" data-node-id="60:3088" data-name="continuar">
+          <p className="[word-break:break-word] flex-[1_0_0] font-['Manrope:SemiBold'] font-semibold leading-[normal] min-w-px relative text-[15px] text-center text-white" data-node-id="I60:3088;25:62">
+            Continuar com esta combinação
+          </p>
+        </a>
+      </div>
+    </div>
+  );
+}
+
+SUPER CRITICAL: The generated React+Tailwind code MUST be converted to match the target project's technology stack and styling system.
+1. Analyze the target codebase to identify: technology stack, styling approach, component patterns, and design tokens
+2. Convert React syntax to the target framework/library
+3. Transform all Tailwind classes to the target styling system while preserving exact visual design
+4. Follow the project's existing patterns and conventions
+DO NOT install any Tailwind as a dependency unless the user instructs you to do so.
+
+
+Node ids have been added to the code as data attributes, e.g. `data-node-id="1:2"`.
+
+Component descriptions: The following components have usage descriptions or documentation links defined in Figma. These descriptions provide important context about the intended usage, best practices, and any constraints for each component. Follow these guidelines when implementing or using these components.
+
+## Header · Enomera
+**Node ID:** 38:151
+
+Cabeçalho Liquid Glass oficial da Enomera com símbolo floral vetorial exclusivo da marca.
+
+## Button · Direção A
+**Node ID:** 25:85
+
+Botão padrão do ecossistema Enomera (área mínima de toque 46px). Cada produto usa sua própria cor de ação da Direção A.
+
+The generated code contains image and SVG URL constants, e.g. const image = 'https://www.figma.com/api/mcp/asset/550e8400-e29b-41d4-a716-446655440000.png'. These URLs are temporary download sources and expire after 7 days. Download each asset into the project with curl -L, then replace its URL in the generated code with a reference to the downloaded asset. Never use the temporary URLs as runtime image sources.

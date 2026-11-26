@@ -1,0 +1,74 @@
+{
+  "date": "2026-11-18",
+  "timezone": "America/Sao_Paulo",
+  "authorization": "Usuário aprovou todos os previews e pediu deploy de todos.",
+  "deployments": [
+    {
+      "project": "enomera",
+      "id": "dpl_H9F3AfGG5W5ATPUqXcYi6mZC1GyS",
+      "commit": "faf057a0b3787db8d3c2e47a09bc925e848a8676",
+      "target": "production",
+      "status": "READY",
+      "aliases": [
+        "enomera.vercel.app",
+        "enomera-marcosvmgs-projects.vercel.app",
+        "enomera-git-faf057a0b3787db8d3c2e47a-28c0b3-marcosvmgs-projects.vercel.app"
+      ],
+      "url": "https://enomera-31q9ocyko-marcosvmgs-projects.vercel.app"
+    },
+    {
+      "project": "lotus-app",
+      "id": "dpl_8hzw1Cn66NRMgQ7AhVtZgpDYcao1",
+      "commit": "0d071f15993213ec6bb0d7d2f86010991ad28198",
+      "target": "production",
+      "status": "READY",
+      "aliases": [
+        "ambo-enomera.vercel.app",
+        "lotus-app-phi.vercel.app",
+        "lotus-app-marcosvmgs-projects.vercel.app",
+        "lotus-app-git-codex-ambo-direction-a-marcosvmgs-projects.vercel.app"
+      ],
+      "url": "https://lotus-6jmof4w6i-marcosvmgs-projects.vercel.app"
+    },
+    {
+      "project": "compasso-app",
+      "id": "dpl_3sbE2t88Th3qVtRcNyPXk4Es3TYL",
+      "commit": "ae0ecd023ef1bd8ffa852912ea7660a8a0fd7559",
+      "target": "production",
+      "status": "READY",
+      "aliases": [
+        "minne-enomera.vercel.app",
+        "compasso-app-seven.vercel.app",
+        "compasso-app-marcosvmgs-projects.vercel.app",
+        "compasso-app-git-feat-minne-direction-a-marcosvmgs-projects.vercel.app"
+      ],
+      "url": "https://compasso-k9cgeyzvx-marcosvmgs-projects.vercel.app"
+    },
+    {
+      "project": "etha-enomera",
+      "id": "dpl_C8c9S68iC9xDCPyUgo8NttVkyktq",
+      "commit": "0f6f9e80da54445608c462f09ced13fe25d89f6d",
+      "target": "production",
+      "status": "READY",
+      "aliases": [
+        "etha-enomera.vercel.app",
+        "etha-enomera-marcosvmgs-projects.vercel.app",
+        "etha-enomera-git-feat-direction-a-etha-marcosvmgs-projects.vercel.app"
+      ],
+      "url": "https://etha-enomera-6ads3vezi-marcosvmgs-projects.vercel.app"
+    },
+    {
+      "project": "mrsaoc-portfolio",
+      "id": "dpl_8wnTqMeeXR1yhS5hJfFKjSfXFGep",
+      "commit": "6a42560a5aaf3b2e63378a0c7777616b05e36b15",
+      "target": "production",
+      "status": "READY",
+      "aliases": [
+        "mrsaoc-portfolio.vercel.app",
+        "mrsaoc-portfolio-marcosvmgs-projects.vercel.app",
+        "mrsaoc-portfolio-git-codex-direction-f6c37d-marcosvmgs-projects.vercel.app"
+      ],
+      "url": "https://mrsaoc-portfolio-pn62vgnex-marcosvmgs-projects.vercel.app"
+    }
+  ]
+}

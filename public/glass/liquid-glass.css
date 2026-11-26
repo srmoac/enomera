@@ -1,0 +1,208 @@
+/* Liquid Glass · módulo compartilhado do ecossistema Enomera
+   -----------------------------------------------------------------------------
+   Uso:  <div class="lg">…</div>
+         <div class="lg" data-glass="clear|regular|reading" data-glass-tint="etha|ambo|minne|enomera">…</div>
+
+   Três camadas, do fundo para a frente:
+     host      sombra externa e contexto de empilhamento (sem backdrop-filter próprio,
+               para não virar "backdrop root" e cegar as camadas filhas)
+     ::before  corpo do vidro: desfoque, refração (quando liquid-glass.js a liga),
+               saturação, brilho e a tinta do produto
+     ::after   bisel: anel que intensifica o fundo na borda + borda especular
+
+   Níveis de fidelidade (progressivo):
+     1. Chromium com liquid-glass.js  refração real por feDisplacementMap + dispersão
+     2. Safari / iOS / Firefox        desfoque + saturação + bisel luminoso
+     3. sem backdrop-filter           superfície quase opaca
+     4. prefers-reduced-transparency, prefers-contrast, forced-colors  superfície sólida
+*/
+
+@property --lg-angle {
+  syntax: "<angle>";
+  inherits: true;
+  initial-value: 135deg;
+}
+
+.lg {
+  /* Tinta e opacidade do corpo */
+  --lg-tint: 255 255 255;
+  --lg-alpha: .38;
+  --lg-alpha-end: .22;          /* a tinta afina na diagonal, como vidro real */
+  /* Ótica */
+  --lg-blur: 9px;
+  --lg-saturate: 140%;
+  --lg-brightness: 1;      /* acima de 1 estoura fundos claros para branco */
+  --lg-bezel: 20px;             /* largura do bisel que refrata */
+  --lg-refraction: 1;           /* força da refração, 0 a 1 (lido pelo JS) */
+  --lg-dispersion: .02;         /* separação cromática na borda, 0 desliga (lido pelo JS) */
+  /* Luz */
+  --lg-angle: 135deg;
+  --lg-rim: .92;                /* intensidade do brilho especular */
+  --lg-shadow: 48 78 138;
+  --lg-solid: #f4f7fe;          /* superfície usada quando não há transparência */
+  --lg-stroke: rgb(150 168 208 / .55);
+
+  position: relative;
+  isolation: isolate;
+  background: none;
+  border: 0;
+  border-radius: 24px;
+  box-shadow:
+    0 0 0 .5px rgb(var(--lg-shadow) / .22),
+    0 18px 40px -12px rgb(var(--lg-shadow) / .22),
+    0 4px 12px -4px rgb(var(--lg-shadow) / .12);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.lg::before,
+.lg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+/* Corpo */
+.lg::before {
+  z-index: -2;
+  background:
+    linear-gradient(var(--lg-angle),
+      rgb(var(--lg-tint) / var(--lg-alpha)) 0%,
+      rgb(var(--lg-tint) / var(--lg-alpha-end)) 55%,
+      rgb(var(--lg-tint) / var(--lg-alpha)) 100%);
+  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-saturate)) brightness(var(--lg-brightness));
+  backdrop-filter: blur(var(--lg-blur)) var(--lg-refract, ) saturate(var(--lg-saturate)) brightness(var(--lg-brightness));
+}
+
+/* Bisel: o anel volta a filtrar o que o corpo já filtrou, então a borda fica
+   mais viva e mais clara que o centro. A máscara some para dentro. */
+.lg::after {
+  z-index: -1;
+  background:
+    linear-gradient(var(--lg-angle),
+      rgb(255 255 255 / calc(var(--lg-rim) * .55)) 0%,
+      rgb(255 255 255 / 0) 32%,
+      rgb(255 255 255 / 0) 68%,
+      rgb(255 255 255 / calc(var(--lg-rim) * .38)) 100%);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / calc(var(--lg-rim) * .5)),
+    inset 1.5px 1.5px 1px -.5px rgb(255 255 255 / var(--lg-rim)),
+    inset -1.5px -1.5px 1px -.5px rgb(255 255 255 / calc(var(--lg-rim) * .7)),
+    inset 0 -6px 10px -8px rgb(var(--lg-shadow) / .35);
+  -webkit-backdrop-filter: saturate(135%) brightness(1.02);
+  backdrop-filter: saturate(135%) brightness(1.02);
+  --lg-m: var(--lg-bezel);
+  -webkit-mask:
+    linear-gradient(to bottom, #000, transparent var(--lg-m)),
+    linear-gradient(to top, #000, transparent var(--lg-m)),
+    linear-gradient(to right, #000, transparent var(--lg-m)),
+    linear-gradient(to left, #000, transparent var(--lg-m));
+  mask:
+    linear-gradient(to bottom, #000, transparent var(--lg-m)),
+    linear-gradient(to top, #000, transparent var(--lg-m)),
+    linear-gradient(to right, #000, transparent var(--lg-m)),
+    linear-gradient(to left, #000, transparent var(--lg-m));
+}
+
+/* Variantes ---------------------------------------------------------------- */
+
+/* clear: lentes, CTAs, barras flutuantes. Só para rótulos grandes ou ícones. */
+.lg[data-glass="clear"] {
+  --lg-alpha: .16;
+  --lg-alpha-end: .06;
+  --lg-blur: .5px;
+  --lg-saturate: 150%;
+  --lg-bezel: 24px;
+  --lg-dispersion: .02;
+}
+
+/* regular (padrão): cartões e painéis com título e texto curto. */
+
+/* reading: formulários, prontuários, texto longo. O centro é quase sólido para o
+   contraste não depender do que passa atrás; o vidro aparece só no bisel. */
+.lg[data-glass="reading"] {
+  --lg-alpha: .9;
+  --lg-alpha-end: .84;
+  --lg-blur: 18px;
+  --lg-saturate: 140%;
+  --lg-refraction: .7;
+  --lg-dispersion: 0;
+  --lg-tint: 250 251 255;
+}
+
+/* Tinta por produto (Direção A: uma cor de pétala por produto) */
+.lg[data-glass-tint="enomera"] { --lg-tint: 232 238 253; --lg-shadow: 54 76 140; }
+.lg[data-glass-tint="etha"]    { --lg-tint: 240 236 254; --lg-shadow: 83 69 154; }
+.lg[data-glass-tint="ambo"]    { --lg-tint: 232 244 254; --lg-shadow: 35 93 148; }
+.lg[data-glass-tint="minne"]   { --lg-tint: 232 247 245; --lg-shadow: 30 98 94; }
+.lg[data-glass="reading"][data-glass-tint="enomera"] { --lg-tint: 247 249 255; }
+.lg[data-glass="reading"][data-glass-tint="etha"]    { --lg-tint: 250 248 255; }
+.lg[data-glass="reading"][data-glass-tint="ambo"]    { --lg-tint: 247 252 255; }
+.lg[data-glass="reading"][data-glass-tint="minne"]   { --lg-tint: 247 253 252; }
+
+/* Estados: o material responde sem trocar de cor de texto. */
+.lg[data-glass-interactive] {
+  transition: transform 160ms cubic-bezier(.23, 1, .32, 1), box-shadow 200ms cubic-bezier(.23, 1, .32, 1);
+}
+.lg[data-glass-interactive]:active { transform: scale(.985); }
+.lg[data-glass-interactive]:focus-visible,
+.lg:focus-visible {
+  outline: 2px solid #36599e;
+  outline-offset: 3px;
+}
+.lg[aria-pressed="true"],
+.lg[aria-selected="true"],
+.lg[aria-current="true"] {
+  --lg-alpha: .78;
+  --lg-alpha-end: .62;
+  box-shadow:
+    0 0 0 1.5px rgb(var(--lg-shadow) / .7),
+    0 14px 30px -12px rgb(var(--lg-shadow) / .3);
+}
+.lg:disabled,
+.lg[aria-disabled="true"] {
+  --lg-rim: .35;
+  --lg-saturate: 60%;
+  box-shadow: 0 0 0 1px rgb(var(--lg-shadow) / .18);
+}
+
+/* Fallbacks ---------------------------------------------------------------- */
+
+/* Sem backdrop-filter: superfície quase opaca, borda preservada. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .lg::before { background: var(--lg-solid); opacity: .96; }
+}
+
+/* Transparência reduzida, contraste alto ou simulação pela página de demonstração. */
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .lg { box-shadow: 0 0 0 1px var(--lg-stroke), 0 10px 24px -12px rgb(var(--lg-shadow) / .2); }
+  .lg::before { background: var(--lg-solid); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .lg::after { -webkit-backdrop-filter: none; backdrop-filter: none; background: none; }
+}
+:root[data-lg-force="solid"] .lg { box-shadow: 0 0 0 1px var(--lg-stroke), 0 10px 24px -12px rgb(var(--lg-shadow) / .2); }
+:root[data-lg-force="solid"] .lg::before { background: var(--lg-solid); -webkit-backdrop-filter: none; backdrop-filter: none; }
+:root[data-lg-force="solid"] .lg::after { -webkit-backdrop-filter: none; backdrop-filter: none; background: none; }
+/* Sem transparência, seleção e desabilitado continuam distintos pelo contorno. */
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .lg:is([aria-pressed="true"], [aria-selected="true"], [aria-current="true"]) { box-shadow: 0 0 0 2px rgb(var(--lg-shadow) / .9); }
+  .lg:is(:disabled, [aria-disabled="true"]) { box-shadow: 0 0 0 1px rgb(var(--lg-shadow) / .25); }
+}
+:root[data-lg-force="solid"] .lg:is([aria-pressed="true"], [aria-selected="true"], [aria-current="true"]) { box-shadow: 0 0 0 2px rgb(var(--lg-shadow) / .9); }
+:root[data-lg-force="solid"] .lg:is(:disabled, [aria-disabled="true"]) { box-shadow: 0 0 0 1px rgb(var(--lg-shadow) / .25); }
+
+@media (prefers-contrast: more) {
+  .lg { --lg-stroke: #202d50; }
+}
+
+@media (forced-colors: active) {
+  .lg { border: 1px solid CanvasText; box-shadow: none; }
+  .lg::before { background: Canvas; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .lg::after { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lg[data-glass-interactive] { transition: none; }
+  .lg[data-glass-interactive]:active { transform: none; }
+}

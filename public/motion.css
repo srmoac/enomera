@@ -1,20 +1,473 @@
-:root{--motion-response:120ms;--motion-selection:240ms;--motion-surface:280ms;--motion-narrative:1100ms;--motion-rest:420ms;--ease-drawer:cubic-bezier(.32,.72,0,1)}
-.hero-flower,.closing-flower,.portal-flower{overflow:visible;pointer-events:none}.closing-flower{max-width:30%;height:auto}.petal{transform-box:view-box}.motion-lens{position:absolute;left:0;top:0;pointer-events:none;border:1px solid #ffffffcc;background:linear-gradient(130deg,#ffffff80,#b8cbed50);border-radius:24px;box-shadow:inset 0 1px 2px white,0 5px 16px #4061a614;z-index:-1;transition:transform var(--motion-selection) var(--ease),width var(--motion-selection) var(--ease),height var(--motion-selection) var(--ease)}
-#nav-links,.billing-toggle,.mini-sidebar,.portal-side nav,.choice-group{position:relative;isolation:isolate}#nav-links>a:not(.button){padding:10px 8px;margin-inline:-8px}.billing-toggle [aria-pressed=true],.choice-group:has([data-mode]) [aria-pressed=true],.mini-sidebar [aria-pressed=true],.portal-side button[aria-current=page]{background:transparent!important;box-shadow:none;border-color:transparent!important}.billing-toggle button,.choice-group button{transition:background var(--motion-selection),border-color var(--motion-selection),box-shadow var(--motion-selection)}
-.service-option{transition:background var(--motion-surface),box-shadow var(--motion-surface),border-color var(--motion-selection),transform var(--motion-response) var(--ease)}.service-option .check{transition:transform var(--motion-selection) var(--ease),opacity var(--motion-selection)}.service-option[aria-pressed=false] .check{transform:rotate(-35deg);opacity:.65}.service-option[aria-pressed=true]{box-shadow:var(--elevation),inset 0 0 32px #ffffff40}.button,button{transition:box-shadow var(--motion-response),background var(--motion-response),transform var(--motion-response) var(--ease)}.button:active,button:active,.is-pressed{transform:translateY(1px)!important;box-shadow:inset 0 2px 8px #202d5020}input,select,textarea{transition:border-color var(--motion-selection),box-shadow var(--motion-selection),background var(--motion-selection)}input:focus,select:focus,textarea:focus{border-color:#5b70b2;box-shadow:0 0 0 5px #aebff03d,inset 0 1px 3px white;background:#fff}*:focus-visible{outline:3px solid #415fa8;outline-offset:5px}dialog[open]{animation:dialog-enter 240ms var(--ease)}@keyframes dialog-enter{from{opacity:.4;transform:scale(.97)}to{opacity:1;transform:scale(1)}}
-@media(max-width:700px){.closing-flower{display:none}.nav nav{display:flex;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(-8px) scale(.97);transform-origin:calc(100% - 32px) 0;transition:opacity 200ms var(--ease),transform 240ms var(--ease-drawer),visibility 240ms}.nav.menu-open nav{opacity:1;visibility:visible;pointer-events:auto;transform:translateY(0) scale(1)}.nav nav>.motion-lens{display:none}.menu-toggle{transition:background 180ms,box-shadow 180ms}.menu-toggle[aria-expanded=true]{background:#aebff060}}
-@media(prefers-reduced-motion:reduce){.petal{transform:none!important}.motion-lens{transition-duration:60ms}.nav nav{transform:none!important}dialog[open]{animation:none}}
-/* One floral cast across the document. Wrappers stay above it; glass samples it. */
-body.has-petal-journey{isolation:isolate}
-.has-petal-journey section{isolation:auto}
-.has-petal-journey .substrate{z-index:0}
-.has-petal-journey .wrap,.has-petal-journey .connection-sticky{z-index:2}
-.has-petal-journey .hero-flower,.has-petal-journey .closing-top>img,.has-petal-journey .portal-flower{visibility:hidden}
-.has-petal-journey .portal-main{z-index:2}
-.has-petal-journey .portal-side{z-index:3}
-.petal-journey{position:fixed;inset:0;overflow:hidden;overflow:clip;pointer-events:none;z-index:1;contain:strict}
-.journey-petal{position:absolute;top:0;left:0;width:0;height:0;pointer-events:none;transform-origin:0 0;will-change:transform}
-.journey-petal svg{position:absolute;left:-235px;top:-335px;max-width:none;overflow:visible;pointer-events:none}
-.journey-petal g{transform-box:view-box;transform-origin:235px 335px}
-@media(max-width:700px){#nav-links{position:absolute}}
-@media(prefers-reduced-motion:reduce){.journey-petal{will-change:auto}}
+:root {
+  --motion-response: 130ms;
+  --motion-selection: 240ms;
+  --motion-surface: 280ms;
+  --motion-narrative: 1100ms;
+  --motion-rest: 420ms;
+  --ease-spring: cubic-bezier(.22, 1, .36, 1);
+  --ease-drawer: cubic-bezier(.32, .72, 0, 1);
+}
+
+.hero-flower, .closing-flower, .portal-flower {
+  overflow: visible;
+  pointer-events: none;
+}
+.closing-flower { max-width: 30%; height: auto; }
+.petal { transform-box: view-box; }
+
+/* Liquid Glass lens: smoothly animates position AND real width/height with interruptible reversal. */
+.motion-lens {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  z-index: -1;
+  contain: layout style;
+  border: 1px solid #ffffffdc;
+  border-radius: 24px;
+  background: linear-gradient(135deg, #ffffff8c, #ffffff38 55%, #c3d6ee66);
+  box-shadow: inset 0 1px 2px #fff, 0 5px 16px #4061a61f;
+  backdrop-filter: blur(14px) saturate(135%);
+  -webkit-backdrop-filter: blur(14px) saturate(135%);
+  transition:
+    transform var(--motion-selection) var(--ease-spring),
+    width var(--motion-selection) var(--ease-spring),
+    height var(--motion-selection) var(--ease-spring),
+    border-radius var(--motion-selection) var(--ease-spring),
+    opacity 160ms var(--ease);
+}
+
+#nav-links, .billing-toggle, .mini-sidebar, .minne-list, .portal-side nav, .choice-group {
+  position: relative;
+  isolation: isolate;
+}
+#nav-links > a:not(.button) {
+  padding: 10px 8px;
+  margin-inline: -8px;
+  transition: color 160ms var(--ease);
+}
+#nav-links > a[data-current] {
+  font-weight: 600;
+  color: var(--ink);
+}
+.ambo-hint {
+  color: #7D5112;
+  background: #F8EDD3;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  margin: 8px 0 10px;
+}
+
+/* Desktop local sticky stages: sustain framing while petals complete wider curves
+   without empty height or scroll hijacking. Removed completely under reduced motion. */
+@media (min-width: 701px) {
+  .story .product {
+    align-items: start;
+    padding: 40px 0;
+    margin-top: 64px;
+  }
+  .story #etha { min-height: 1120px; }
+  .story #ambo { min-height: 920px; }
+  .story #minne { min-height: 880px; }
+  .story .product > .product-copy,
+  .story .product > .demo-wrap {
+    position: sticky;
+    top: clamp(104px, 13.5svh, 148px);
+  }
+}
+
+.billing-toggle [aria-pressed=true],
+.choice-group:has([data-mode]) [aria-pressed=true],
+.mini-sidebar [aria-pressed=true],
+.minne-list [aria-pressed=true],
+.portal-side button[aria-current=page] {
+  background: transparent !important;
+  box-shadow: none;
+  border-color: transparent !important;
+}
+
+.billing-toggle button,
+.choice-group button {
+  transition:
+    background-color var(--motion-selection) var(--ease),
+    border-color var(--motion-selection) var(--ease),
+    box-shadow var(--motion-selection) var(--ease),
+    color var(--motion-selection) var(--ease),
+    transform var(--motion-response) var(--ease);
+}
+
+.mini-sidebar button,
+.minne .mini-sidebar button[aria-pressed=true] {
+  padding-inline: 8px;
+  border-radius: 10px;
+}
+.portal-side button {
+  border: 1px solid transparent;
+  transition:
+    background-color 160ms var(--ease),
+    color 160ms var(--ease),
+    transform 130ms var(--ease);
+}
+.back {
+  border-radius: 18px;
+  transition:
+    background-color 160ms var(--ease),
+    box-shadow 160ms var(--ease),
+    transform 130ms var(--ease),
+    color 160ms var(--ease);
+}
+
+/* Tactile buttons, links & cards: recovered press, release, lift, and icon transitions. */
+.button {
+  position: relative;
+  overflow: hidden;
+  transition:
+    transform 170ms var(--ease-spring),
+    box-shadow 180ms var(--ease),
+    background-color 170ms var(--ease),
+    border-color 170ms var(--ease),
+    color 170ms var(--ease);
+}
+button {
+  transition:
+    background-color 160ms var(--ease),
+    color 160ms var(--ease),
+    border-color 160ms var(--ease),
+    box-shadow 180ms var(--ease),
+    transform 140ms var(--ease-spring);
+}
+.button:active,
+.button.is-pressed {
+  transform: translateY(0) scale(.982) !important;
+  box-shadow: inset 0 2px 6px #202d501f, 0 4px 12px #4061a614 !important;
+}
+button:active,
+button.is-pressed {
+  transform: scale(.984);
+}
+.choice-group[aria-label=Dias] button:active,
+.choice-group[aria-label=Dias] button.is-pressed {
+  transform: scale(.955);
+}
+
+.text-link {
+  transition: color 160ms var(--ease), transform 170ms var(--ease-spring);
+}
+
+.service-option {
+  transition:
+    transform 200ms var(--ease-spring),
+    background-color 220ms var(--ease),
+    border-color 200ms var(--ease),
+    box-shadow 240ms var(--ease);
+}
+.service-option .check {
+  display: inline-block;
+  width: fit-content;
+  transform-origin: center;
+  transform: rotate(0deg) scale(1);
+  transition:
+    transform 240ms var(--ease-spring),
+    opacity 180ms var(--ease),
+    color 180ms var(--ease);
+}
+.service-option[aria-pressed=false] .check {
+  transform: rotate(-35deg) scale(.86);
+  opacity: .62;
+}
+.service-option[aria-pressed=true] {
+  box-shadow: var(--elevation), inset 0 0 32px #ffffff46;
+}
+.service-option:active,
+.service-option.is-pressed {
+  transform: translateY(0) scale(.988) !important;
+}
+
+.stat {
+  transition:
+    transform 190ms var(--ease-spring),
+    box-shadow 200ms var(--ease),
+    border-color 180ms var(--ease);
+}
+.stat:active,
+.stat.is-pressed {
+  transform: translateY(0) scale(.986) !important;
+}
+
+/* Custom Liquid Glass checkbox in Portal active products. */
+.active-products input {
+  appearance: none;
+  -webkit-appearance: none;
+  display: grid;
+  place-content: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  border: 1px solid #ffffffed;
+  border-radius: 7px;
+  background: #ffffff50;
+  box-shadow: inset 0 1px 2px #fff, 0 3px 8px #4061a61a;
+  transition:
+    background-color 160ms var(--ease),
+    border-color 160ms var(--ease),
+    transform 140ms var(--ease-spring),
+    box-shadow 160ms var(--ease);
+}
+.active-products input:checked {
+  background: #5b70b280;
+  border-color: #5b70b2;
+}
+.active-products input:active { transform: scale(.92); }
+.active-products input:after {
+  content: '';
+  width: 9px;
+  height: 5px;
+  border-left: 2px solid white;
+  border-bottom: 2px solid white;
+  transform: translateY(-1px) rotate(-45deg) scale(.6);
+  opacity: 0;
+  transition: transform 180ms var(--ease-spring), opacity 140ms var(--ease);
+}
+.active-products input:checked:after {
+  opacity: 1;
+  transform: translateY(-1px) rotate(-45deg) scale(1);
+}
+.active-products input:focus-visible { outline: 2px solid #415fa8; outline-offset: 3px; }
+
+input, select, textarea {
+  transition:
+    border-color var(--motion-selection),
+    box-shadow var(--motion-selection),
+    background-color var(--motion-selection);
+}
+input:focus, select:focus, textarea:focus {
+  border-color: #5b70b2;
+  box-shadow: inset 0 1px 3px white;
+  background: #fff;
+}
+
+/* Pilot disclosure accordion. */
+.pilot summary { margin-bottom: 0 !important; }
+.disclosure-content { padding-top: 24px; }
+.disclosure-content > :last-child { margin-bottom: 0; }
+.pilot summary span {
+  display: inline-block;
+  transition: transform 200ms var(--ease-spring);
+  transform: rotate(0deg);
+}
+.pilot[open] summary span { transform: rotate(45deg); }
+
+/* Dialog top-layer transitions. */
+dialog[open] { animation: dialog-enter 240ms var(--ease-spring); }
+@keyframes dialog-enter {
+  from { opacity: .4; transform: scale(.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+@supports (transition-behavior: allow-discrete) {
+  dialog {
+    opacity: 0;
+    transform: translateY(6px) scale(.98);
+    transition:
+      opacity 160ms var(--ease),
+      transform 220ms var(--ease-spring),
+      display 220ms allow-discrete,
+      overlay 220ms allow-discrete;
+  }
+  dialog[open] { opacity: 1; transform: none; animation: none; }
+  dialog::backdrop {
+    background: #202d5000;
+    backdrop-filter: none;
+    transition:
+      background-color 180ms var(--ease),
+      display 220ms allow-discrete,
+      overlay 220ms allow-discrete;
+  }
+  dialog[open]::backdrop { background: #202d5045; }
+  @starting-style {
+    dialog[open] { opacity: 0; transform: translateY(6px) scale(.98); }
+    dialog[open]::backdrop { background: #202d5000; }
+  }
+}
+
+/* Progressive select: browser keeps selection, keyboard and focus ownership. */
+@supports (appearance: base-select) {
+  .ambo select, .ambo select::picker(select) { appearance: base-select; }
+  .ambo select::picker(select) {
+    background: #ECF6FE;
+    border: 1px solid #235D9433;
+    border-radius: 16px;
+    padding: 6px;
+    box-shadow: 0 8px 24px #202d5018;
+    opacity: 0;
+    transform: translateY(-4px);
+    transform-origin: top;
+    transition:
+      opacity 160ms var(--ease),
+      transform 180ms var(--ease),
+      display 180ms allow-discrete,
+      overlay 180ms allow-discrete;
+  }
+  .ambo select::picker(select):popover-open { opacity: 1; transform: none; }
+  @starting-style {
+    .ambo select::picker(select):popover-open { opacity: 0; transform: translateY(-4px); }
+  }
+  .ambo select option { padding: 10px 12px; border-radius: 10px; color: #235D94; }
+  .ambo select option:checked { background: #A4CFF680; }
+  .ambo select::picker-icon { transition: transform 160ms var(--ease); }
+  .ambo select:open::picker-icon { transform: rotate(180deg); }
+}
+
+/* Desktop pointer hover feedback: crisp lift on buttons, cards & portal stats. */
+@media (hover: hover) and (pointer: fine) {
+  .button:hover {
+    transform: translateY(-2px);
+    box-shadow: inset 0 1px 2px #fffb, 0 12px 26px #4061a62e;
+  }
+  .service-option:hover {
+    transform: translateY(-3px);
+    border-color: var(--action, var(--blue));
+    box-shadow: 0 16px 34px rgba(64, 97, 166, .16), inset 0 1px 2px #fff;
+  }
+  .stat:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 30px rgba(64, 97, 166, .16), inset 0 1px 2px #fff;
+  }
+  .text-link:hover {
+    transform: translateX(2px);
+  }
+  .back:hover {
+    background: #ffffff52;
+    box-shadow: inset 0 1px 1px #ffffffb8;
+  }
+  .mini-sidebar button:hover,
+  .portal-side button:hover {
+    background-color: #ffffff58;
+  }
+}
+
+/* Mobile menu drawer, calibrated vertical breathing rhythm & closing flower space. */
+@media (max-width: 700px) {
+  .story .product {
+    padding: 42px 0;
+    margin-top: 52px;
+    gap: 34px;
+  }
+  .story #etha { padding-top: 48px; }
+  .closing-flower { display: none; }
+  .closing-top { padding-bottom: 132px; }
+  #nav-links { position: absolute; }
+  .nav nav {
+    display: flex;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(-8px) scale(.97);
+    transform-origin: calc(100% - 32px) 0;
+    transition:
+      opacity 200ms var(--ease),
+      transform 240ms var(--ease-drawer),
+      visibility 0s linear 240ms;
+  }
+  .nav.menu-open nav {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0) scale(1);
+    transition:
+      opacity 200ms var(--ease),
+      transform 240ms var(--ease-drawer),
+      visibility 0s;
+  }
+  .nav nav > .motion-lens { display: none; }
+  .menu-toggle { transition: background-color 180ms, box-shadow 180ms, transform 140ms var(--ease); }
+  .menu-toggle[aria-expanded=true] { background: #aebff060; }
+}
+
+/* Petal journey 5-slot depth layers (z:1 behind glass / z:12 foreground sweep / nav stays z:20). */
+body.has-petal-journey { isolation: isolate; }
+.has-petal-journey section { isolation: auto; }
+.has-petal-journey .substrate { z-index: 0; }
+.has-petal-journey .wrap,
+.has-petal-journey .connection-sticky { z-index: 2; }
+.has-petal-journey .hero-flower,
+.has-petal-journey .closing-top > img,
+.has-petal-journey .portal-flower { visibility: hidden; }
+.has-petal-journey .portal-main { z-index: 2; }
+.has-petal-journey .portal-side { z-index: 3; }
+
+.petal-slot {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  overflow: clip;
+  pointer-events: none;
+  z-index: 1;
+  contain: strict;
+}
+.journey-petal {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  transform-origin: 0 0;
+  will-change: transform, opacity;
+}
+.journey-petal-plane {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+.journey-petal svg {
+  position: absolute;
+  left: -235px;
+  top: -335px;
+  max-width: none;
+  overflow: visible;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Direct compact reading layout: remove choreography-only sticky stages & extra height. */
+  .story .product,
+  .story #etha,
+  .story #ambo,
+  .story #minne {
+    min-height: auto !important;
+    padding: 24px 0 !important;
+    margin-top: 32px !important;
+    gap: 24px !important;
+  }
+  .story .product > .product-copy,
+  .story .product > .demo-wrap {
+    position: static !important;
+    top: auto !important;
+  }
+  .petal { transform: none !important; }
+  .motion-lens { transition: none; }
+  .pilot summary span { transition: none; }
+  .button:hover, .button:active, button:active,
+  .service-option:hover, .service-option:active,
+  .stat:hover, .stat:active, .text-link:hover { transform: none !important; }
+  .service-option .check, .service-option[aria-pressed=false] .check { transform: none !important; transition: none; }
+  .nav nav { transform: none !important; }
+  dialog, dialog[open] { animation: none; transform: none; }
+  .ambo select::picker(select) { transform: none !important; transition: none; }
+  .ambo select::picker-icon { transition: none; }
+  .journey-petal, .journey-petal-plane,
+  .etha-dock-glow, .ambo-dock-glow, .minne-dock-glow { will-change: auto; }
+  .etha-dock-pill { transition: none; }
+}
+
+@media (forced-colors: active) {
+  .active-products input { appearance: auto; }
+  .active-products input:after { display: none; }
+}
