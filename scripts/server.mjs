@@ -48,8 +48,11 @@ export function createEnomeraServer(customDb = null) {
       res.writeHead(200, { 'Content-Type': mime[path.extname(file)] || 'application/octet-stream' });
       res.end(data);
     } catch {
-      res.writeHead(404);
-      res.end('Not found');
+      // Mesma página 404 que a Vercel serve a partir de dist/404.html.
+      let page = null;
+      try { page = await readFile(path.join(root, '404.html')); } catch {}
+      res.writeHead(404, { 'Content-Type': page ? 'text/html; charset=utf-8' : 'text/plain; charset=utf-8' });
+      res.end(page || 'Not found');
     }
   });
 }

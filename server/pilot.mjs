@@ -114,6 +114,7 @@ const batchSchema = z.object({
   pu: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/).optional(),
   f: z.enum(['celular', 'tablet', 'computador']).optional().default('computador'),
   e: z.array(z.unknown()).max(MAX_EVENTS_PER_BATCH),
+  nc: z.union([z.literal(1), z.boolean()]).optional(), // sem consentimento no aviso de privacidade
 });
 
 function cleanMeta(m = {}) {
@@ -155,6 +156,8 @@ export async function ingestPilotEvents(db, { body, auth, userAgent }) {
   if (!participant && device?.participant_id) participant = await db.get('SELECT * FROM pilot_participants WHERE id = ?', device.participant_id);
   if (participant?.kind === 'admin') return { ok: true, track: false, reason: 'admin' };
   if (participant?.withdrawn_at) return { ok: true, track: false, reason: 'withdrawn' };
+  // Visitante sem permissão no aviso de privacidade e que não é convidado: nada é gravado.
+  if (batch.nc && !participant) return { ok: true, track: false, reason: 'sem_consentimento' };
 
   const { os, browser } = uaSummary(userAgent);
   if (!device) {
