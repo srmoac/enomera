@@ -1,8 +1,9 @@
 export const CATALOG_VERSION = '2026-11-22-aprovado';
 
-// Preços aprovados por Marcos em 22/11/2026 (19:28). Agendamento + Site e Site + Consultório foram
-// definidos pela equipe (decisão reversível). Anual = 10x o mensal. Nenhuma cobrança real.
-const MONTHLY_BY_COMBO = {
+// Preços aprovados por Marcos: 39/49/59, combinações 69/79/89/99, anual = 10x o mensal, 30 dias grátis.
+// ÚNICA fonte dos preços no servidor: a cobrança (asaas.mjs) lê daqui. As telas trazem os mesmos
+// valores para abrir sem esperar a API, e o teste "preços das telas iguais ao catálogo" impede divergência.
+export const MONTHLY_BY_COMBO = {
   ambo: 3900,
   etha: 4900,
   minne: 5900,
@@ -16,7 +17,7 @@ export const ANNUAL_MONTHS = 10;
 export const COMMERCIAL_CATALOG = {
   version: CATALOG_VERSION,
   isSimulationOnly: true,
-  disclaimer: 'Nenhuma cobrança real é feita neste ambiente.',
+  disclaimer: 'No piloto por convite nada é cobrado. Fora do convite, os primeiros 30 dias são grátis e a cobrança só começa com a sua contratação.',
   currency: 'BRL',
   trialDays: 30,
   pilotWeeks: 4,
@@ -101,7 +102,7 @@ export function ethaSetup(products = [], ethaService) {
 
 export function calculateSimulatedQuote({ products = [], ethaFormat = null, ethaService = null, mode = 'monthly' }) {
   const unique = new Set(products.filter((p) => ['ambo', 'minne', 'etha'].includes(p)));
-  if (unique.size === 0) throw new Error('EMPTY_SELECTION');
+  if (unique.size === 0) throw Object.assign(new Error('Escolha pelo menos um serviço.'), { status: 400, code: 'EMPTY_SELECTION' });
   const selected = [...unique];
   const { monthlyCents, listCents, savingsCents } = comboPricing(selected);
   const hasEtha = unique.has('etha');
@@ -196,7 +197,7 @@ export function selectionLabel(products = []) {
  */
 export function buildContractSummary(input = {}) {
   const sel = normalizeSelection(input);
-  if (!sel.products.length) throw new Error('EMPTY_SELECTION');
+  if (!sel.products.length) throw Object.assign(new Error('Escolha pelo menos um serviço.'), { status: 400, code: 'EMPTY_SELECTION' });
   const { products, billing, ethaFormat, ethaService } = sel;
   const annual = billing === 'permanent';
   const mult = annual ? ANNUAL_MONTHS : 1;

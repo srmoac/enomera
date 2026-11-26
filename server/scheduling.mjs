@@ -1,11 +1,46 @@
 import { nowIso, randomId } from './crypto.mjs';
 import { runTransaction, writeAudit } from './db.mjs';
 
-const SAO_PAULO_OFFSET = '-03:00';
+const DEFAULT_TIMEZONE = 'America/Sao_Paulo';
 
 /**
- * Generates dynamic availability slots for the next `daysAhead` days
- * in explicit America/Sao_Paulo (-03:00) timezone semantics.
+ * Diferença do fuso para UTC, em minutos, numa data (ex.: America/Sao_Paulo → -180,
+ * America/Manaus → -240, America/Rio_Branco → -300, America/Noronha → -120).
+ * Fuso desconhecido cai no de São Paulo.
+ */
+export function tzOffsetMinutes(timeZone, date = new Date()) {
+  const read = (tz) => {
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'longOffset' }).formatToParts(date);
+    const name = parts.find((x) => x.type === 'timeZoneName')?.value || 'GMT';
+    const m = /GMT([+-])(\d{1,2})(?::?(\d{2}))?/.exec(name);
+    return m ? (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3] || 0)) : 0;
+  };
+  try { return read(timeZone || DEFAULT_TIMEZONE); } catch { return read(DEFAULT_TIMEZONE); }
+}
+
+function offsetLabel(minutes) {
+  const sign = minutes < 0 ? '-' : '+';
+  const abs = Math.abs(minutes);
+  return `${sign}${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`;
+}
+
+/**
+ * Valor da sessão gravado na consulta. Só vale o que a profissional informou: sem valor
+ * informado (conta nova ou "valor não definido"), grava 0, que significa "não informado".
+ */
+export function sessionPriceFor(account) {
+  let prefs = {};
+  try { prefs = JSON.parse(account?.ui_preferences_json || '{}') || {}; } catch { prefs = {}; }
+  const setup = prefs.amboSetup || {};
+  const cents = Number(account?.session_price_cents);
+  // 22000 é só o valor-padrão da coluna: sozinho, não prova que a profissional informou um preço.
+  const informed = Boolean(account?.is_demo_sandbox) || (!setup.priceUnset && Boolean(setup.reviewedAt || setup.openedAt || prefs.priceInformed || cents !== 22000));
+  return informed && Number.isFinite(cents) && cents > 0 ? cents : 0;
+}
+
+/**
+ * Gera os horários livres dos próximos `daysAhead` dias no fuso da conta
+ * (professional_accounts.timezone; padrão America/Sao_Paulo).
  */
 export async function generateAvailableSlots(db, accountId, { daysAhead = 14, modality = null } = {}) {
   const account = await db.get('SELECT id, session_duration_min, timezone FROM professional_accounts WHERE id = ?', accountId);
@@ -27,9 +62,12 @@ export async function generateAvailableSlots(db, accountId, { daysAhead = 14, mo
   const minLeadMs = now.getTime() + 60 * 60_000;
   const slots = [];
 
+  const timeZone = account.timezone || DEFAULT_TIMEZONE;
   for (let d = 0; d <= daysAhead; d++) {
     const dt = new Date(now.getTime() + d * 86_400_000);
-    const sp = new Date(dt.getTime() - 3 * 3600_000);
+    const offsetMin = tzOffsetMinutes(timeZone, dt);
+    const tzOffset = offsetLabel(offsetMin);
+    const sp = new Date(dt.getTime() + offsetMin * 60_000);
     const yyyy = sp.getUTCFullYear();
     const mm = String(sp.getUTCMonth() + 1).padStart(2, '0');
     const dd = String(sp.getUTCDate()).padStart(2, '0');
@@ -49,8 +87,8 @@ export async function generateAvailableSlots(db, accountId, { daysAhead = 14, mo
         const hh2 = String(Math.floor(endCursor / 60)).padStart(2, '0');
         const mm2 = String(endCursor % 60).padStart(2, '0');
 
-        const startAt = `${dateStr}T${hh1}:${mm1}:00${SAO_PAULO_OFFSET}`;
-        const endAt = `${dateStr}T${hh2}:${mm2}:00${SAO_PAULO_OFFSET}`;
+        const startAt = `${dateStr}T${hh1}:${mm1}:00${tzOffset}`;
+        const endAt = `${dateStr}T${hh2}:${mm2}:00${tzOffset}`;
         const sMs = Date.parse(startAt);
         const eMs = Date.parse(endAt);
 
@@ -65,7 +103,7 @@ export async function generateAvailableSlots(db, accountId, { daysAhead = 14, mo
             endTime: `${hh2}:${mm2}`,
             startAt,
             endAt,
-            timezone: account.timezone || 'America/Sao_Paulo',
+            timezone: timeZone,
             modality: rule.modality,
           });
         }
@@ -170,7 +208,7 @@ export async function confirmConsultationRequest(db, {
 
     await assertSlotAvailableTx(tx, accountId, startAt, endAt);
 
-    const account = await tx.get('SELECT session_price_cents, timezone FROM professional_accounts WHERE id = ?', accountId);
+    const account = await tx.get('SELECT session_price_cents, timezone, ui_preferences_json, is_demo_sandbox FROM professional_accounts WHERE id = ?', accountId);
     const now = nowIso();
     let patientId = req.patient_id;
 
@@ -204,7 +242,7 @@ export async function confirmConsultationRequest(db, {
     await tx.run(
       `INSERT INTO appointments (id, account_id, patient_id, request_id, idempotency_key, origin, modality, start_at, end_at, timezone, status, price_cents, version, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, 'ambo_request', ?, ?, ?, ?, 'confirmed', ?, 1, ?, ?)`,
-      appointmentId, accountId, patientId, req.id, idempotencyKey || `confirm_${req.id}`, modality || req.modality, startAt, endAt, account.timezone || 'America/Sao_Paulo', account.session_price_cents || 22000, now, now
+      appointmentId, accountId, patientId, req.id, idempotencyKey || `confirm_${req.id}`, modality || req.modality, startAt, endAt, account.timezone || 'America/Sao_Paulo', sessionPriceFor(account), now, now
     );
 
     await tx.run(
@@ -251,13 +289,13 @@ export async function createManualAppointment(db, { accountId, actorUserId, pati
 
     await assertSlotAvailableTx(tx, accountId, startAt, endAt);
 
-    const account = await tx.get('SELECT session_price_cents, timezone FROM professional_accounts WHERE id = ?', accountId);
+    const account = await tx.get('SELECT session_price_cents, timezone, ui_preferences_json, is_demo_sandbox FROM professional_accounts WHERE id = ?', accountId);
     const now = nowIso();
     const id = randomId('apt');
     await tx.run(
       `INSERT INTO appointments (id, account_id, patient_id, idempotency_key, origin, modality, start_at, end_at, timezone, status, price_cents, version, created_at, updated_at)
        VALUES (?, ?, ?, ?, 'minne_manual', ?, ?, ?, ?, 'confirmed', ?, 1, ?, ?)`,
-      id, accountId, patientId, idempotencyKey, modality || 'online', startAt, endAt, account.timezone || 'America/Sao_Paulo', account.session_price_cents || 22000, now, now
+      id, accountId, patientId, idempotencyKey, modality || 'online', startAt, endAt, account.timezone || 'America/Sao_Paulo', sessionPriceFor(account), now, now
     );
 
     await writeAudit(tx, { actorUserId, actorType: 'professional', accountId, action: 'appointment.create_manual', resourceType: 'appointment', resourceId: id });
@@ -278,15 +316,32 @@ export async function reserveSlotByInvitation(db, { accountId, patientId, invita
       throw Object.assign(new Error('Este convite expirou. Solicite um reenvio à profissional.'), { status: 410, code: 'INVITE_EXPIRED' });
     }
 
+    // O paciente só reserva horário que a agenda realmente oferece: dentro das regras de
+    // disponibilidade, com a duração configurada, fora de bloqueios e com a antecedência mínima.
+    const sMs = Date.parse(startAt);
+    const eMs = Date.parse(endAt);
+    const offered = Number.isFinite(sMs) && Number.isFinite(eMs)
+      ? (await generateAvailableSlots(tx, accountId, { daysAhead: 60 })).find((slot) => Date.parse(slot.startAt) === sMs && Date.parse(slot.endAt) === eMs)
+      : null;
+    if (!offered) {
+      throw Object.assign(new Error('Este horário não está disponível na agenda. Escolha um dos horários oferecidos.'), {
+        status: 409,
+        code: 'SLOT_NOT_OFFERED',
+        suggestions: (await generateAvailableSlots(tx, accountId, { daysAhead: 14 })).slice(0, 4),
+      });
+    }
+    if (modality && offered.modality !== 'both' && offered.modality !== modality) {
+      throw Object.assign(new Error('Este horário não atende nessa modalidade. Escolha outro horário.'), { status: 409, code: 'SLOT_MODALITY_MISMATCH' });
+    }
     await assertSlotAvailableTx(tx, accountId, startAt, endAt);
 
-    const account = await tx.get('SELECT session_price_cents, timezone FROM professional_accounts WHERE id = ?', accountId);
+    const account = await tx.get('SELECT session_price_cents, timezone, ui_preferences_json, is_demo_sandbox FROM professional_accounts WHERE id = ?', accountId);
     const now = nowIso();
     const id = randomId('apt');
     await tx.run(
       `INSERT INTO appointments (id, account_id, patient_id, idempotency_key, origin, modality, start_at, end_at, timezone, status, price_cents, version, created_at, updated_at)
        VALUES (?, ?, ?, ?, 'ambo_invite', ?, ?, ?, ?, 'confirmed', ?, 1, ?, ?)`,
-      id, accountId, patientId, idempotencyKey || `inv_${inv.id}`, modality || 'online', startAt, endAt, account.timezone || 'America/Sao_Paulo', account.session_price_cents || 22000, now, now
+      id, accountId, patientId, idempotencyKey || `inv_${inv.id}`, modality || 'online', startAt, endAt, account.timezone || 'America/Sao_Paulo', sessionPriceFor(account), now, now
     );
 
     await tx.run("UPDATE patient_invitations SET status = 'used', used_at = ? WHERE id = ?", now, inv.id);

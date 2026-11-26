@@ -10,6 +10,12 @@ export const PILOT_PRODUCTS = ['enomera', 'ambo', 'minne', 'etha', 'site'];
 const UNLINKED_RETENTION_HOURS = 24;
 const MAX_EVENTS_PER_BATCH = 120;
 
+// Convites novos nascem pelo painel (Convites > Novo convite), com validade: por padrão 30 dias.
+export const INVITE_VALID_DAYS = 30;
+// Os convites abaixo foram distribuídos no início do piloto e continuam válidos enquanto abertos;
+// os que ainda não foram usados vencem em PILOT_SEED_INVITES_EXPIRE_AT (migração 009).
+export const PILOT_SEED_INVITES_EXPIRE_AT = '2027-01-31T23:59:59.000Z';
+
 // Convites iniciais (22/11/2026). Só o hash do token fica no código; os links ficam com o Marcos.
 const INITIAL_INVITES = [
   { id: 'inv_piloto_t1', kind: 'tester', label: 'Convidado 1', hash: 'dd89e33c8542ab0997894c3fd8d51fcc6566262724d83a40286bf96890119b68' },
@@ -142,7 +148,7 @@ export async function ingestPilotEvents(db, { body, auth, userAgent }) {
   let userId = auth?.user?.id || null;
   if (!userId && batch.sh) {
     const sess = await db.get('SELECT user_id, revoked_at, expires_at FROM sessions WHERE token_hash = ?', batch.sh);
-    if (sess && !sess.revoked_at) userId = sess.user_id;
+    if (sess && !sess.revoked_at && Date.parse(sess.expires_at) > Date.now()) userId = sess.user_id;
   }
   let participant = await participantForUser(db, userId);
   if (!participant && userId) {
@@ -217,20 +223,29 @@ const acceptSchema = z.object({
   crpOrCrm: z.string().trim().max(40).optional().default(''),
   specialty: z.enum(['Psicologia', 'Psiquiatria']).optional().default('Psicologia'),
   consent: z.literal(true),
+  code: z.string().trim().regex(/^\d{6}$/),
 });
 
-export async function acceptInvite(db, { token, body, createProfessionalUser, issueSession, writeAudit }) {
+// Sessão do administrador do piloto: curta. A dos convidados segue em 14 dias.
+const ADMIN_SESSION_MINUTES = 12 * 60;
+
+export async function acceptInvite(db, { token, body, createProfessionalUser, issueSession, writeAudit, consumeVerificationCode, recordTermsAcceptance }) {
   const inv = await findInvite(db, token);
   const state = inviteState(inv);
   if (state !== 'open') {
     const msg = state === 'used' ? 'Este convite já foi usado. Entre com o e-mail e a senha que você cadastrou.' : 'Este convite não é válido. Peça um novo link ao Marcos.';
     throw Object.assign(new Error(msg), { status: state === 'used' ? 409 : 404, code: state === 'used' ? 'INVITE_USED' : 'INVITE_INVALID' });
   }
+  if (!/^\d{6}$/.test(String(body?.code || '').trim())) {
+    throw Object.assign(new Error('Digite o código de 6 dígitos que enviamos ao seu e-mail.'), { status: 400, code: 'CODE_REQUIRED' });
+  }
   const data = acceptSchema.parse(body);
   const email = data.email.toLowerCase();
   if (await db.get('SELECT id FROM users WHERE email = ?', email)) {
     throw Object.assign(new Error('Já existe uma conta com este e-mail. Use outro e-mail para o piloto.'), { status: 409, code: 'EMAIL_EXISTS' });
   }
+  // O e-mail só é dado como verificado porque o código enviado a ele foi conferido aqui.
+  await consumeVerificationCode(db, { purpose: 'pilot_invite', targetContact: email, code: data.code });
   // Reserva o convite antes de criar a conta: dois envios ao mesmo tempo não geram duas contas.
   const now = nowIso();
   const claim = await db.run('UPDATE pilot_invites SET used_at = ? WHERE id = ? AND used_at IS NULL AND revoked_at IS NULL', now, inv.id);
@@ -254,7 +269,9 @@ export async function acceptInvite(db, { token, body, createProfessionalUser, is
   const participantId = randomId('ppt');
   await db.run(`INSERT INTO pilot_participants (id, user_id, invite_id, kind, label, track_key, consent_version, consent_at, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, participantId, userId, inv.id, inv.kind, inv.label, randomToken(18), PILOT_CONSENT_VERSION, now, now);
-  const sess = await issueSession(db, { userId, actorType: inv.kind === 'admin' ? 'pilot_admin' : 'professional', accountId, ttlMinutes: 60 * 24 * 14 });
+  // O cadastro do convite traz o aceite dos Termos e da Política junto com o do registro de uso.
+  if (inv.kind !== 'admin' && recordTermsAcceptance) await recordTermsAcceptance(userId, accountId);
+  const sess = await issueSession(db, { userId, actorType: inv.kind === 'admin' ? 'pilot_admin' : 'professional', accountId, ttlMinutes: inv.kind === 'admin' ? ADMIN_SESSION_MINUTES : 60 * 24 * 14, verifiedByCode: true });
   await writeAudit(db, { actorUserId: userId, actorType: inv.kind === 'admin' ? 'pilot_admin' : 'professional', accountId, action: 'pilot.invite_accept', resourceType: 'pilot_invite', resourceId: inv.id, meta: { consentVersion: PILOT_CONSENT_VERSION } });
   return { sess, kind: inv.kind, next: inv.kind === 'admin' ? '/piloto/painel' : '/checkout', participantId };
 }
@@ -460,13 +477,24 @@ export async function participantTimeline(db, participantId, limit = 400) {
   return rows.map((r) => ({ ...r, meta: parseMeta(r.meta_json), meta_json: undefined }));
 }
 
-export async function handlePilotRoutes({ db, req, res, method, pathname, url, auth, json, readJsonBody, createProfessionalUser, issueSession, writeAudit }) {
+export async function handlePilotRoutes({ db, req, res, method, pathname, url, auth, json, readJsonBody, createProfessionalUser, issueSession, writeAudit, issueVerificationCode, consumeVerificationCode, recordTermsAcceptance, publicBaseUrl }) {
   if (!pathname.startsWith('/api/v1/pilot/')) return false;
 
   if (method === 'POST' && pathname === '/api/v1/pilot/events') {
     const out = await ingestPilotEvents(db, { body: await readJsonBody(req), auth, userAgent: req.headers['user-agent'] });
     await ensureDailyDigests(db).catch(() => null); // fecha o dia anterior na primeira atividade (no máximo a cada 10 min)
     json(res, 200, out); return true;
+  }
+
+  // Código de confirmação do e-mail, pedido na página do convite antes de criar a conta.
+  const invCode = pathname.match(/^\/api\/v1\/pilot\/invites\/([A-Za-z0-9_-]{8,64})\/code$/);
+  if (invCode && method === 'POST') {
+    const inv = await findInvite(db, invCode[1]);
+    if (inviteState(inv) !== 'open') throw Object.assign(new Error('Este convite não é válido. Peça um novo link ao Marcos.'), { status: 404, code: 'INVITE_INVALID' });
+    const email = z.string().trim().toLowerCase().email().max(160).safeParse((await readJsonBody(req)).email);
+    if (!email.success) throw Object.assign(new Error('Informe um e-mail válido.'), { status: 400, code: 'INVALID_EMAIL' });
+    const ver = await issueVerificationCode(db, { purpose: 'pilot_invite', targetContact: email.data, subject: 'Seu código para entrar no piloto · Enomera' });
+    json(res, 200, { ok: true, expiresAt: ver.expiresAt, resendAfterSec: 30, delivery: { sentExternally: Boolean(ver.delivery?.sentExternally) }, devCode: ver.devCode }); return true;
   }
 
   const invMatch = pathname.match(/^\/api\/v1\/pilot\/invites\/([A-Za-z0-9_-]{8,64})(\/accept)?$/);
@@ -476,7 +504,7 @@ export async function handlePilotRoutes({ db, req, res, method, pathname, url, a
     json(res, state === 'invalid' ? 404 : 200, { state, kind: inv?.kind || null, consentVersion: PILOT_CONSENT_VERSION }); return true;
   }
   if (invMatch && method === 'POST' && invMatch[2]) {
-    const out = await acceptInvite(db, { token: invMatch[1], body: await readJsonBody(req), createProfessionalUser, issueSession, writeAudit });
+    const out = await acceptInvite(db, { token: invMatch[1], body: await readJsonBody(req), createProfessionalUser, issueSession, writeAudit, consumeVerificationCode, recordTermsAcceptance: (userId, accountId) => recordTermsAcceptance(db, req, userId, accountId) });
     json(res, 201, { ok: true, kind: out.kind, next: out.next, sessionToken: out.sess.rawToken, expiresAt: out.sess.expiresAt }, { 'Set-Cookie': out.sess.cookie }); return true;
   }
 
@@ -506,13 +534,15 @@ export async function handlePilotRoutes({ db, req, res, method, pathname, url, a
     const tl = pathname.match(/^\/api\/v1\/pilot\/admin\/participants\/([A-Za-z0-9_-]+)\/timeline$/);
     if (method === 'GET' && tl) { json(res, 200, { events: await participantTimeline(db, tl[1]) }); return true; }
     if (method === 'POST' && pathname === '/api/v1/pilot/admin/invites') {
-      const body = z.object({ label: z.string().trim().min(1).max(60) }).parse(await readJsonBody(req));
+      const body = z.object({ label: z.string().trim().min(1).max(60), expiresInDays: z.coerce.number().int().min(1).max(60).optional().default(INVITE_VALID_DAYS) }).parse(await readJsonBody(req));
       const token = randomToken(18);
       const id = randomId('inv');
-      await db.run('INSERT INTO pilot_invites (id, kind, label, token_hash, created_at) VALUES (?, ?, ?, ?, ?)', id, 'tester', body.label, sha256Hex(token), nowIso());
-      const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim();
-      const proto = host.startsWith('localhost') || host.startsWith('127.') ? 'http' : 'https';
-      json(res, 201, { id, label: body.label, link: `${proto}://${host}/convite/${token}` }); return true;
+      const expiresAt = new Date(Date.now() + body.expiresInDays * 86_400_000).toISOString();
+      await db.run('INSERT INTO pilot_invites (id, kind, label, token_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)', id, 'tester', body.label, sha256Hex(token), nowIso(), expiresAt);
+      // O link sai sempre sobre o endereço público da Enomera (nunca um endereço interno ou antigo).
+      const base = publicBaseUrl(req);
+      if (!base) throw Object.assign(new Error('Endereço público não configurado. Defina ENOMERA_PUBLIC_URL.'), { status: 503, code: 'PUBLIC_URL_NOT_CONFIGURED' });
+      json(res, 201, { id, label: body.label, expiresAt, link: `${base}/convite/${token}` }); return true;
     }
     if (method === 'GET' && pathname === '/api/v1/pilot/admin/digests') {
       await ensureDailyDigests(db, { force: true }).catch(() => null);

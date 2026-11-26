@@ -71,7 +71,8 @@ export function rateLimitRulesFor(method, pathname, ip, body = {}) {
 
   // Pedidos de código enviam e-mail: limitar protege a caixa de quem recebe e a conta de envio.
   if (['/api/v1/auth/email-code/request', '/api/v1/auth/recovery/request', '/api/v1/ambo/patient-access/request',
-    '/api/v1/auth/resend-verification', '/api/v1/auth/signup', '/api/v1/auth/change-email', '/api/v1/auth/stepup/request'].includes(pathname)) {
+    '/api/v1/auth/resend-verification', '/api/v1/auth/signup', '/api/v1/auth/change-email', '/api/v1/auth/stepup/request'].includes(pathname)
+    || /^\/api\/v1\/pilot\/invites\/[^/]+\/code$/.test(pathname)) {
     return [
       { key: `otpreq:ip:${ip}`, limit: 20, windowSec: HOUR },
       contact && { key: `otpreq:c:${contact}`, limit: 6, windowSec: HOUR, message: codeMsg },

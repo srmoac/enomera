@@ -131,7 +131,8 @@ export async function listDailyDigests(db, limit = 14) {
 }
 
 function panelUrl() {
-  const base = String(process.env.ENOMERA_PUBLIC_URL || 'https://enomera-entrega.vercel.app').replace(/\/+$/, '');
+  // Endereço público único; sem a variável, vale o domínio de produção.
+  const base = String(process.env.ENOMERA_PUBLIC_URL || 'https://enomera.vercel.app').replace(/\/+$/, '');
   return `${base}/piloto/painel#resumo-dia`;
 }
 

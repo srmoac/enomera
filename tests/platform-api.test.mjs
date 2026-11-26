@@ -1,3 +1,4 @@
+import { DEMO_PASSWORD, OPERATOR_PASSWORD } from './demo-credentials.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -150,7 +151,7 @@ test('2. Commercial simulation catalog (R$ 79 combo Ambo + Minne), idempotent ch
   // Declined checkout preserves order without activating entitlements
   const decl = await api('/api/v1/commercial/orders', {
     method: 'POST', token, headers: { 'X-Idempotency-Key': 'ord-clara-1' },
-    body: { products: ['ambo', 'minne'], simulatedOutcome: 'declined', method: 'simulated_card' },
+    body: { products: ['ambo', 'minne'], acceptTerms: true, simulatedOutcome: 'declined', method: 'simulated_card' },
   });
   assert.equal(decl.status, 201);
   assert.equal(decl.data.order.status, 'declined');
@@ -159,7 +160,7 @@ test('2. Commercial simulation catalog (R$ 79 combo Ambo + Minne), idempotent ch
   // Double-click idempotency returns same order
   const replay = await api('/api/v1/commercial/orders', {
     method: 'POST', token, headers: { 'X-Idempotency-Key': 'ord-clara-1' },
-    body: { products: ['ambo', 'minne'], simulatedOutcome: 'approved' },
+    body: { products: ['ambo', 'minne'], acceptTerms: true, simulatedOutcome: 'approved' },
   });
   assert.equal(replay.status, 200);
   assert.equal(replay.data.idempotentReplay, true);
@@ -167,7 +168,7 @@ test('2. Commercial simulation catalog (R$ 79 combo Ambo + Minne), idempotent ch
 
   // Retry approves and activates Ambo + Minne server-side
   const retry = await api(`/api/v1/commercial/orders/${decl.data.order.id}/retry`, {
-    method: 'POST', token, body: { simulatedOutcome: 'approved', method: 'simulated_pix' },
+    method: 'POST', token, body: { acceptTerms: true, simulatedOutcome: 'approved', method: 'simulated_pix' },
   });
   assert.equal(retry.status, 200);
   assert.equal(retry.data.entitlements.ambo.status, 'active');
@@ -181,7 +182,7 @@ test('2. Commercial simulation catalog (R$ 79 combo Ambo + Minne), idempotent ch
 });
 
 test('3. Milestone 1 End-to-End: Ambo request -> Minne confirm -> Concurrency conflict -> Patient verified tracking -> Reschedule keeping original -> Approve', async () => {
-  const helenaLogin = await api('/api/v1/auth/login', { method: 'POST', body: { email: 'helena@helenaduartepsi.com.br', password: 'HelenaDemo!2026' } });
+  const helenaLogin = await api('/api/v1/auth/login', { method: 'POST', body: { email: 'helena@helenaduartepsi.com.br', password: DEMO_PASSWORD } });
   const helenaToken = helenaLogin.data.sessionToken;
 
   // Patient submits 1st consultation request on Ambo (idempotent!)
@@ -284,8 +285,8 @@ test('3. Milestone 1 End-to-End: Ambo request -> Minne confirm -> Concurrency co
 });
 
 test('4. Strict Isolation: Paulo (Pro 2), Marina (Patient), and Marcos (Etha Operator) CANNOT access Helena clinical notes or private files', async () => {
-  const pauloToken = (await api('/api/v1/auth/login', { method: 'POST', body: { email: 'paulo@consultorio-exemplo.com.br', password: 'PauloDemo!2026' } })).data.sessionToken;
-  const marcosToken = (await api('/api/v1/auth/login', { method: 'POST', body: { email: 'marcos@enomera-ops.exemplo.com.br', password: 'MarcosOps!2026' } })).data.sessionToken;
+  const pauloToken = (await api('/api/v1/auth/login', { method: 'POST', body: { email: 'paulo@consultorio-exemplo.com.br', password: DEMO_PASSWORD } })).data.sessionToken;
+  const marcosToken = (await api('/api/v1/auth/login', { method: 'POST', body: { email: 'marcos@enomera-ops.exemplo.com.br', password: OPERATOR_PASSWORD } })).data.sessionToken;
 
   // Paulo trying to read Helena's patient Ana -> 404 (scoped to Paulo's account)
   const pauloRead = await api('/api/v1/minne/patients/pat_ana_demo/notes', { token: pauloToken });
@@ -299,7 +300,7 @@ test('4. Strict Isolation: Paulo (Pro 2), Marina (Patient), and Marcos (Etha Ope
 });
 
 test('5. Minne 6-mode Import Engine: text, PDF, DOCX, CSV, XLSX (no formula exec), JSON, PNG scan, ZIP batch + duplicate + partial fail + revert', async () => {
-  const helenaToken = (await api('/api/v1/auth/login', { method: 'POST', body: { email: 'helena@helenaduartepsi.com.br', password: 'HelenaDemo!2026' } })).data.sessionToken;
+  const helenaToken = (await api('/api/v1/auth/login', { method: 'POST', body: { email: 'helena@helenaduartepsi.com.br', password: DEMO_PASSWORD } })).data.sessionToken;
 
   // 5a. Pasted text with unknown date/author -> preserved as external_import
   const bText = await api('/api/v1/minne/imports/stage', {
@@ -355,7 +356,7 @@ test('5. Minne 6-mode Import Engine: text, PDF, DOCX, CSV, XLSX (no formula exec
   // Private file downloadable by Helena, FORBIDDEN to Marcos (operator) & Paulo!
   const helenaFile = await api(`/api/v1/files/${pngItem.file_id}`, { token: helenaToken });
   assert.equal(helenaFile.status, 200);
-  const marcosToken = (await api('/api/v1/auth/login', { method: 'POST', body: { email: 'marcos@enomera-ops.exemplo.com.br', password: 'MarcosOps!2026' } })).data.sessionToken;
+  const marcosToken = (await api('/api/v1/auth/login', { method: 'POST', body: { email: 'marcos@enomera-ops.exemplo.com.br', password: OPERATOR_PASSWORD } })).data.sessionToken;
   const marcosFile = await api(`/api/v1/files/${pngItem.file_id}`, { token: marcosToken });
   assert.equal(marcosFile.status, 403);
 
@@ -437,7 +438,7 @@ test('7. Ambo Solo -> later Minne adoption + Patient Invitation single-use + Min
   assert.equal((await api('/api/v1/auth/verify-email', {method:'POST',token:soloTok,body:{email:'solo.ambo@exemplo.invalid',code:soloCode}})).status,200);
   await api('/api/v1/commercial/orders', {
     method: 'POST', token: soloTok, headers: { 'X-Idempotency-Key': 'solo-ambo-1' },
-    body: { products: ['ambo'], simulatedOutcome: 'approved' },
+    body: { products: ['ambo'], acceptTerms: true, simulatedOutcome: 'approved' },
   });
   // Minne MUST be blocked (403) while only Ambo is active
   const blockedMinne = await api('/api/v1/minne/workspace', { token: soloTok });
@@ -511,7 +512,7 @@ test('7. Ambo Solo -> later Minne adoption + Patient Invitation single-use + Min
   // Now adopts Minne later -> existing patient Joana Solo and both appointments appear automatically!
   await api('/api/v1/commercial/orders', {
     method: 'POST', token: soloTok, headers: { 'X-Idempotency-Key': 'solo-add-minne' },
-    body: { products: ['ambo', 'minne'], simulatedOutcome: 'approved' },
+    body: { products: ['ambo', 'minne'], acceptTerms: true, simulatedOutcome: 'approved' },
   });
   const ws = await api('/api/v1/minne/workspace', { token: soloTok });
   assert.equal(ws.status, 200);
@@ -541,8 +542,8 @@ test('7. Ambo Solo -> later Minne adoption + Patient Invitation single-use + Min
 });
 
 test('6. Etha service delivery, Marcos operator parity, draft vs published separation & Helena live staging site CTA', async () => {
-  const helenaToken = (await api('/api/v1/auth/login', { method: 'POST', body: { email: 'helena@helenaduartepsi.com.br', password: 'HelenaDemo!2026' } })).data.sessionToken;
-  const marcosToken = (await api('/api/v1/auth/login', { method: 'POST', body: { email: 'marcos@enomera-ops.exemplo.com.br', password: 'MarcosOps!2026' } })).data.sessionToken;
+  const helenaToken = (await api('/api/v1/auth/login', { method: 'POST', body: { email: 'helena@helenaduartepsi.com.br', password: DEMO_PASSWORD } })).data.sessionToken;
+  const marcosToken = (await api('/api/v1/auth/login', { method: 'POST', body: { email: 'marcos@enomera-ops.exemplo.com.br', password: OPERATOR_PASSWORD } })).data.sessionToken;
 
   // Editing in Etha panel saves DRAFT without silently changing published Helena site!
   const beforeSite = await api('/api/v1/public/sites/helena-duarte');
@@ -551,7 +552,7 @@ test('6. Etha service delivery, Marcos operator parity, draft vs published separ
 
   const draftEdit = await api('/api/v1/etha/project/editor', {
     method: 'POST', token: helenaToken,
-    body: { stage: 'draft', content: { headline: 'Novo titulo em rascunho privado', displayName: 'Helena Duarte' } },
+    body: { stage: 'preview', content: { headline: 'Novo titulo em rascunho privado', displayName: 'Helena Duarte' } },
   });
   assert.equal(draftEdit.status, 201);
   assert.equal(draftEdit.data.published, false);
@@ -627,12 +628,12 @@ test('8. Two independent real accounts: isolation, clinical file attachment 403,
   // Activate Ambo + Minne + Etha on Account A and Minne on Account B (simulated checkout)
   const ordA = await api('/api/v1/commercial/orders', {
     method: 'POST', token: tokenA, headers: { 'X-Idempotency-Key': 'ord_a_full' },
-    body: { products: ['ambo', 'minne', 'etha'], ethaFormat: 'one_page', simulatedOutcome: 'approved' },
+    body: { products: ['ambo', 'minne', 'etha'], ethaFormat: 'one_page', acceptTerms: true, simulatedOutcome: 'approved' },
   });
   assert.equal(ordA.status, 201);
   const ordB = await api('/api/v1/commercial/orders', {
     method: 'POST', token: tokenB, headers: { 'X-Idempotency-Key': 'ord_b_minne' },
-    body: { products: ['minne'], simulatedOutcome: 'approved' },
+    body: { products: ['minne'], acceptTerms: true, simulatedOutcome: 'approved' },
   });
   assert.equal(ordB.status, 201);
 
@@ -670,7 +671,7 @@ test('8. Two independent real accounts: isolation, clinical file attachment 403,
   // Account A publishes its own Etha site -> public endpoint reflects Dra. Beatriz (not Helena!)
   const draftSiteA = await api('/api/v1/etha/project/editor', {
     method: 'POST', token: tokenA,
-    body: { stage: 'draft', content: { displayName: 'Dra. Beatriz Real', crp: 'CRP 06/301010', headline: 'Escuta clínica dedicada em Campinas.' } },
+    body: { stage: 'preview', content: { displayName: 'Dra. Beatriz Real', crp: 'CRP 06/301010', headline: 'Escuta clínica dedicada em Campinas.' } },
   });
   assert.equal(draftSiteA.status, 201);
   const pubSiteA = await api('/api/v1/etha/project/publish-staging', { method: 'POST', token: tokenA, body: { ctaMode: 'ambo' } });
@@ -728,7 +729,7 @@ test('8. Two independent real accounts: isolation, clinical file attachment 403,
   await closeDb();
   const reopenedDb = await getDb(process.env.ENOMERA_DB_PATH);
   const migrations = await getAppliedMigrations(reopenedDb);
-  assert.equal(migrations.length, 8);
+  assert.equal(migrations.length, 9);
   const persistedNote = await reopenedDb.get('SELECT id, attachment_file_ids_json FROM clinical_notes WHERE id = ?', draftA.data.noteId);
   assert.ok(persistedNote);
   assert.ok(JSON.parse(persistedNote.attachment_file_ids_json).includes(fileIdA));
@@ -781,7 +782,15 @@ test('9. Remote delivery infra guard (ENOMERA_REQUIRE_REMOTE_INFRA / VERCEL=1): 
     assert.equal(guard.ready, false);
     assert.deepEqual(guard.missingEnvVars, ['DATABASE_URL', 'BLOB_READ_WRITE_TOKEN', 'SMTP_PASSWORD']);
 
-    const remoteHealth = await api('/api/v1/health');
+    // Público: só "fora do ar", sem nomes de variáveis nem provedores.
+    const publicHealth = await api('/api/v1/health');
+    assert.equal(publicHealth.status, 503);
+    assert.equal(publicHealth.data.code, 'REMOTE_INFRA_NOT_CONFIGURED');
+    assert.equal(publicHealth.data.missingEnvVars, undefined);
+    assert.equal(publicHealth.data.integrations, undefined);
+    process.env.ENOMERA_HEALTH_TOKEN = 'token-de-diagnostico-so-de-teste';
+    const remoteHealth = await api('/api/v1/health', { headers: { 'x-enomera-health-token': process.env.ENOMERA_HEALTH_TOKEN } });
+    delete process.env.ENOMERA_HEALTH_TOKEN;
     assert.equal(remoteHealth.status, 503);
     assert.equal(remoteHealth.data.ok, false);
     assert.equal(remoteHealth.data.code, 'REMOTE_INFRA_NOT_CONFIGURED');
@@ -814,7 +823,7 @@ test('9. Remote delivery infra guard (ENOMERA_REQUIRE_REMOTE_INFRA / VERCEL=1): 
     // 7. Subsystem guard: private storage refuses silent fallback to local disk (503 REMOTE_BLOB_NOT_CONFIGURED)
     const loginHelena = await api('/api/v1/auth/login', {
       method: 'POST',
-      body: { email: 'helena@helenaduartepsi.com.br', password: 'HelenaDemo!2026' },
+      body: { email: 'helena@helenaduartepsi.com.br', password: DEMO_PASSWORD },
     });
     assert.equal(loginHelena.status, 200);
     const pdfBuf = makeSimplePdfBuffer('Teste guard blob remoto');

@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { getDb, closeDb } from '../server/db.mjs';
-import { priceFor, getAsaasConfig, createCheckout, handleAsaasWebhook, __setAsaasFetchForTests } from '../server/asaas.mjs';
+import { priceFor, getAsaasConfig, createCheckout, handleAsaasWebhook, cancelProductBilling, refundFirstPayment, isValidCpfCnpj, __setAsaasFetchForTests } from '../server/asaas.mjs';
 
 test('preços aprovados: mensal e anual = 10x', () => {
   assert.equal(priceFor(['ambo']).valueCents, 3900);
@@ -41,13 +41,19 @@ test('checkout cria assinatura com 30 dias grátis; webhook ativa e é idempoten
   process.env.ASAAS_WEBHOOK_TOKEN = 'tok_test_123';
   process.env.ENOMERA_PUBLIC_URL = 'https://core.example';
   const calls = [];
+  const state = { paid: false };
   __setAsaasFetchForTests(async (url, opts) => {
     calls.push({ url, method: opts.method, body: opts.body ? JSON.parse(opts.body) : null, key: opts.headers.access_token });
     const r = (d) => ({ ok: true, status: 200, json: async () => d });
     if (url.endsWith('/webhooks') && opts.method === 'GET') return r({ data: [] });
     if (url.endsWith('/webhooks')) return r({ id: 'wh_1' });
     if (url.endsWith('/customers')) return r({ id: 'cus_1' });
-    if (url.endsWith('/subscriptions')) return r({ id: 'sub_asaas_1' });
+    if (url.endsWith('/subscriptions')) return r({ id: JSON.parse(opts.body).externalReference === 'acc1' ? 'sub_asaas_1' : 'sub_asaas_2' });
+    if (url.endsWith('/subscriptions/sub_asaas_1') && opts.method === 'POST') return r({ id: 'sub_asaas_1' });
+    if (url.endsWith('/subscriptions/sub_asaas_1') && opts.method === 'DELETE') return r({ deleted: true });
+    if (url.endsWith('/payments/pay_1/refund')) return r({ id: 'pay_1', status: 'REFUNDED' });
+    if (url.endsWith('/subscriptions/sub_asaas_1/payments') && state.paid) return r({ data: [{ id: 'pay_1', status: 'RECEIVED', value: 39, dueDate: '2026-12-22', paymentDate: new Date().toISOString().slice(0, 10) }] });
+    if (url.endsWith('/payments') && opts.method === 'POST') return r({ id: 'pay_setup_1' });
     if (url.endsWith('/payments/pay_1')) return r({ id: 'pay_1', subscription: 'sub_asaas_1', status: 'PENDING', dueDate: '2026-12-22' });
     if (url.includes('/payments')) return r({ data: [{ id: 'pay_1', invoiceUrl: 'https://sandbox.asaas.com/i/abc' }] });
     return { ok: false, status: 404, json: async () => ({}) };
@@ -77,8 +83,27 @@ test('checkout cria assinatura com 30 dias grátis; webhook ativa e é idempoten
     assert.equal(wh.body.url, 'https://core.example/api/v1/billing/asaas/webhook');
     assert.ok(calls.every((c) => c.url.startsWith('https://api-sandbox.asaas.com/v3')));
 
-    const again = await createCheckout(db, { account, user, products: ['ambo'], cycle: 'monthly', cpfCnpj: '52998224725' });
+    // CPF com tamanho certo e dígito verificador errado é recusado antes de chegar ao Asaas.
+    await assert.rejects(createCheckout(db, { account, user, products: ['ambo'], cycle: 'monthly', cpfCnpj: '52998224724' }), /CPF/);
+
+    // Mesma escolha de novo (duplo clique, reenvio): reaproveita, sem criar cliente nem assinatura.
+    const before = calls.length;
+    const again = await createCheckout(db, { account, user, products: ['ambo', 'minne'], cycle: 'monthly', cpfCnpj: '52998224725' });
     assert.equal(again.reused, true);
+    assert.equal(calls.length, before);
+    // Duas chamadas ao mesmo tempo numa conta nova: só uma cria assinatura no Asaas.
+    await db.run("INSERT INTO users (id,email,password_hash,password_salt,full_name,email_verified_at,created_at,updated_at) VALUES ('u2','bia@example.com','x','x','Bia Teste',?,?,?)", now, now, now);
+    await db.run("INSERT INTO professional_accounts (id,owner_user_id,slug,display_name,created_at,updated_at) VALUES ('acc2','u2','bia-teste','Bia Teste',?,?)", now, now);
+    const user2 = await db.get("SELECT * FROM users WHERE id='u2'");
+    const account2 = await db.get("SELECT * FROM professional_accounts WHERE id='acc2'");
+    const race = await Promise.allSettled([1, 2].map(() => createCheckout(db, { account: account2, user: user2, products: ['etha'], cycle: 'annual', cpfCnpj: '52998224725', ethaService: 'sob_medida' })));
+    assert.equal(race.filter((x) => x.status === 'fulfilled').length, 1);
+    assert.equal(race.filter((x) => x.status === 'rejected' && x.reason.code === 'CHECKOUT_IN_PROGRESS').length, 1);
+    assert.equal(Number((await db.get("SELECT COUNT(*) AS c FROM billing_subscriptions WHERE account_id='acc2'")).c), 1);
+    // Site sob medida: a implantação única (R$ 790) vira cobrança avulsa; o ciclo anual fica gravado.
+    const setup = calls.find((c) => c.url.endsWith('/payments') && c.method === 'POST');
+    assert.equal(setup.body.value, 790);
+    assert.equal((await db.get("SELECT billing_mode FROM entitlements WHERE account_id='acc2' AND product='etha'")).billing_mode, 'annual');
 
     // Sem token válido: o corpo é ignorado e vale a situação real consultada no Asaas (aqui, PENDING).
     const forged = await handleAsaasWebhook(db, { 'asaas-access-token': 'errado' }, { id: 'evt_forjado', event: 'PAYMENT_RECEIVED', payment: { id: 'pay_1', subscription: 'sub_asaas_1' } });
@@ -91,6 +116,44 @@ test('checkout cria assinatura com 30 dias grátis; webhook ativa e é idempoten
     const ents = await db.all("SELECT product, status, current_period_end FROM entitlements WHERE account_id='acc1' ORDER BY product");
     assert.deepEqual(ents.map((e) => [e.product, e.status]), [['ambo', 'active'], ['minne', 'active']]);
     assert.equal(ents[0].current_period_end, '2027-01-21');
+
+    // Troca de plano: a assinatura existente tem o valor atualizado no Asaas (não cria outra).
+    const changed = await createCheckout(db, { account, user, products: ['ambo', 'minne', 'etha'], cycle: 'monthly', cpfCnpj: '52998224725' });
+    assert.equal(changed.changed, true);
+    assert.equal(changed.subscription.valueCents, 9900);
+    const upd = calls.filter((c) => c.url.endsWith('/subscriptions/sub_asaas_1') && c.method === 'POST').at(-1);
+    assert.equal(upd.body.value, 99);
+    assert.equal(calls.filter((c) => c.url.endsWith('/subscriptions') && c.method === 'POST' && c.body.externalReference === 'acc1').length, 1);
+
+    // Atraso: assinatura fica "overdue", o aviso sai uma vez, e não nasce assinatura nova ao tentar contratar de novo.
+    const late = await handleAsaasWebhook(db, { 'asaas-access-token': 'tok_test_123' }, { id: 'evt_2', event: 'PAYMENT_OVERDUE', payment: { id: 'pay_2', subscription: 'sub_asaas_1', dueDate: '2027-01-21', invoiceUrl: 'https://sandbox.asaas.com/i/atraso' } });
+    assert.equal(late.status, 'overdue');
+    assert.ok(late.notify && late.notify.suspendOn === '2027-01-28');
+    const late2 = await handleAsaasWebhook(db, { 'asaas-access-token': 'tok_test_123' }, { id: 'evt_3', event: 'PAYMENT_OVERDUE', payment: { id: 'pay_2', subscription: 'sub_asaas_1', dueDate: '2027-01-21' } });
+    assert.equal(late2.notify, null);
+    const regular = await createCheckout(db, { account, user, products: ['ambo', 'minne', 'etha'], cycle: 'monthly', cpfCnpj: '52998224725' });
+    assert.equal(regular.reused, true);
+    assert.equal(regular.subscription.invoiceUrl, 'https://sandbox.asaas.com/i/atraso');
+    assert.equal(Number((await db.get("SELECT COUNT(*) AS c FROM billing_subscriptions WHERE account_id='acc1'")).c), 1);
+
+    // Cancelar um serviço: o valor cai no Asaas; cancelar o último remove a assinatura lá.
+    await handleAsaasWebhook(db, { 'asaas-access-token': 'tok_test_123' }, { id: 'evt_4', event: 'PAYMENT_RECEIVED', payment: { id: 'pay_2', subscription: 'sub_asaas_1', dueDate: '2099-01-21' } });
+    const c1 = await cancelProductBilling(db, { accountId: 'acc1', product: 'etha' });
+    assert.equal(c1.paidUntil, '2099-02-20');
+    assert.equal((await db.get("SELECT status FROM entitlements WHERE account_id='acc1' AND product='etha'")).status, 'cancelled_grace');
+    assert.equal(calls.filter((c) => c.url.endsWith('/subscriptions/sub_asaas_1') && c.method === 'POST').at(-1).body.value, 79);
+    await cancelProductBilling(db, { accountId: 'acc1', product: 'ambo' });
+    await cancelProductBilling(db, { accountId: 'acc1', product: 'minne' });
+    assert.ok(calls.some((c) => c.url.endsWith('/subscriptions/sub_asaas_1') && c.method === 'DELETE'));
+    assert.equal((await db.get("SELECT status FROM billing_subscriptions WHERE account_id='acc1'")).status, 'cancelled');
+
+    // Arrependimento em até 7 dias do primeiro pagamento: estorno integral no Asaas.
+    await db.run("UPDATE billing_subscriptions SET status = 'active' WHERE account_id='acc1'");
+    state.paid = true;
+    const refund = await refundFirstPayment(db, { accountId: 'acc1' });
+    assert.equal(refund.refundedCents, 3900);
+    assert.ok(calls.some((c) => c.url.endsWith('/payments/pay_1/refund')));
+    assert.equal((await db.get("SELECT status FROM entitlements WHERE account_id='acc1' AND product='minne'")).status, 'read_only');
   } finally {
     __setAsaasFetchForTests(null);
     await closeDb();

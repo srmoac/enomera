@@ -4,7 +4,9 @@ import { fileURLToPath } from 'node:url';
 import { nowIso, randomId, sanitizeAuditMeta } from './crypto.mjs';
 import { applyPilotDigestMigration } from './pilot-digest.mjs';
 import { applyRateLimitMigration } from './security.mjs';
-import { applyPilotMigration, applyPilotSelfTestMigration, applyPilotFriendInvitesMigration } from './pilot.mjs';
+import { ensureBillingTables } from './asaas.mjs';
+import * as migration009 from './migrations/009_auditoria_2611.mjs';
+import { PILOT_SEED_INVITES_EXPIRE_AT, applyPilotMigration, applyPilotSelfTestMigration, applyPilotFriendInvitesMigration } from './pilot.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MIGRATION_001_SQLITE = path.join(__dirname, 'migrations', '001_init.sql');
@@ -286,6 +288,12 @@ async function applyMigrations(db) {
       await applyRateLimitMigration(tx);
       await tx.run('INSERT INTO schema_migrations (version, description, applied_at) VALUES (?, ?, ?) ON CONFLICT(version) DO NOTHING',
         '008_rate_limits', 'Shared rate limit buckets (security audit 2026-11-24)', nowIso());
+    }
+
+    if (!applied.has(migration009.version)) {
+      await migration009.apply(tx, { ensureBillingTables, seedInvitesExpireAt: PILOT_SEED_INVITES_EXPIRE_AT });
+      await tx.run('INSERT INTO schema_migrations (version, description, applied_at) VALUES (?, ?, ?) ON CONFLICT(version) DO NOTHING',
+        migration009.version, migration009.description, nowIso());
     }
 
     await tx.run(

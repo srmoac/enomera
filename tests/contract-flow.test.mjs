@@ -1,3 +1,4 @@
+import './demo-credentials.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -111,7 +112,7 @@ test('Combinação segue por conta: e-mail → código → checkout → retorno 
   const order = await api('/api/v1/commercial/orders', {
     method: 'POST',
     token,
-    body: { products: ['ambo', 'minne'], billing: 'permanent', simulatedOutcome: 'approved', idempotencyKey: 'chk_contract_1' },
+    body: { products: ['ambo', 'minne'], billing: 'permanent', acceptTerms: true, simulatedOutcome: 'approved', idempotencyKey: 'chk_contract_1' },
   });
   assert.equal(order.status, 201);
   assert.equal(order.data.order.due_today_cents, 0);

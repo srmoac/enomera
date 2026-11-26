@@ -1101,15 +1101,6 @@ export async function mountEnomeraPlatform(rootEl) {
       if (state.tab === 'plans') render();
     }));
 
-    rootEl.querySelector('#eno-fill-helena')?.addEventListener('click', () => {
-      state.formCache.email = 'helena@helenaduartepsi.com.br';
-      state.formCache.loginPwd = 'HelenaDemo!2026';
-      const e = rootEl.querySelector('#l-email');
-      const p = rootEl.querySelector('#l-pwd');
-      if (e) e.value = state.formCache.email;
-      if (p) p.value = state.formCache.loginPwd;
-    });
-
     rootEl.querySelector('#eno-login-form')?.addEventListener('submit', async (ev) => {
       ev.preventDefault();
       const fd = new FormData(ev.currentTarget);

@@ -7,9 +7,26 @@ import { isRemoteInfraRequired } from './db.mjs';
  * destinatário sem domínio próprio. Ativo quando SMTP_USER + SMTP_PASSWORD existem.
  * Tem prioridade sobre o Resend, que sem domínio verificado só entrega ao dono da conta.
  */
+// Remetente provisório do piloto (definido por Marcos em 22/11). Único lugar do código com este
+// endereço: sai daqui quando existir domínio próprio com SPF/DKIM (RESEND_FROM_EMAIL no domínio
+// da Enomera, que então passa a ter prioridade) ou quando SMTP_USER/ENOMERA_CONTACT_EMAIL forem definidos.
+const PILOT_FALLBACK_SENDER = 'mrsaocwork@gmail.com';
+
+/** E-mail de contato/operacional da Enomera, vindo do ambiente sempre que possível. */
+export function contactEmail() {
+  return (process.env.ENOMERA_CONTACT_EMAIL || process.env.SMTP_USER || PILOT_FALLBACK_SENDER).trim();
+}
+
+/** Resend com domínio próprio verificado (não o endereço de teste @resend.dev). */
+function resendOwnDomain() {
+  const from = (process.env.RESEND_FROM_EMAIL || '').trim();
+  return Boolean(process.env.RESEND_API_KEY && from && !/@resend\.dev>?$/i.test(from));
+}
+
 export function getSmtpConfig() {
-  // Remetente do piloto definido por Marcos em 22/11: o Gmail de trabalho dele.
-  const user = (process.env.SMTP_USER || 'mrsaocwork@gmail.com').trim();
+  // Com domínio próprio no Resend, o envio sai pelo domínio da marca e o SMTP do Gmail fica de reserva.
+  if (resendOwnDomain()) return null;
+  const user = (process.env.SMTP_USER || PILOT_FALLBACK_SENDER).trim();
   const pass = (process.env.SMTP_PASSWORD || '').replace(/\s+/g, '');
   if (!user || !pass) return null;
   return {
@@ -39,6 +56,37 @@ function getSmtpTransport(cfg) {
 
 /** Para testes: permite injetar um transporte falso. */
 export function __setSmtpTransportForTests(t) { smtpTransport = t; }
+
+const escHtml = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/**
+ * Modelo de e-mail da marca: fundo claro, cartão branco, nome enomera e rodapé.
+ * `inner` já é HTML confiável; sem ele, o texto simples é escapado e os links viram âncoras.
+ */
+export function brandEmailHtml({ subject = '', textBody = '', inner = '' } = {}) {
+  const body = inner || String(textBody || '').split(/\n{2,}/).map((para) => {
+    const safe = escHtml(para).replace(/\n/g, '<br>')
+      .replace(/(https:\/\/[^\s<]+[^\s<.,;:!?)])/g, '<a href="$1" style="color:#5b4bd6">$1</a>');
+    return `<p style="margin:0 0 14px">${safe}</p>`;
+  }).join('');
+  return `<!doctype html><html lang="pt-BR"><body style="margin:0;padding:0;background:#f4f2fb">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f2fb;padding:28px 12px"><tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:20px;border:1px solid #e6e1f5">
+<tr><td style="padding:24px 28px 0;font-family:Manrope,'Segoe UI',Arial,sans-serif;font-size:20px;font-weight:800;letter-spacing:-.02em;color:#2a2440">enomera</td></tr>
+<tr><td style="padding:16px 28px 24px;font-family:Manrope,'Segoe UI',Arial,sans-serif;font-size:15px;line-height:1.6;color:#2a2440">
+${subject ? `<h1 style="margin:0 0 14px;font-size:18px;line-height:1.35;color:#2a2440">${escHtml(subject)}</h1>` : ''}${body}</td></tr>
+<tr><td style="padding:14px 28px 22px;border-top:1px solid #efeaf9;font-family:Manrope,'Segoe UI',Arial,sans-serif;font-size:12px;line-height:1.5;color:#6b6480">Enomera · Agendamento, Consultório e Site para profissionais de saúde.<br>Você recebeu este e-mail porque usa ou foi convidado a usar a Enomera. Se não reconhece este aviso, ignore-o.</td></tr>
+</table></td></tr></table></body></html>`;
+}
+
+function maskEmail(value) {
+  const v = String(value || '');
+  const at = v.indexOf('@');
+  if (at < 1) return v ? `${v.slice(0, 2)}***` : '';
+  return `${v[0]}***${v.slice(at)}`;
+}
+
+const OUTBOX_RETENTION_DAYS = 30;
 
 /**
  * Pluggable transactional email transport.
@@ -87,6 +135,7 @@ export async function sendTransactionalEmail(db, { recipient, subject, textBody,
   const fromEmail = process.env.RESEND_FROM_EMAIL || '';
   const remoteRequired = isRemoteInfraRequired();
   const smtp = channel === 'email' ? getSmtpConfig() : null;
+  const html = brandEmailHtml({ subject, textBody, inner: htmlBody });
 
   if (remoteRequired && !smtp && (!apiKey || !fromEmail)) {
     const missingEnvVars = ['SMTP_PASSWORD'];
@@ -122,7 +171,7 @@ export async function sendTransactionalEmail(db, { recipient, subject, textBody,
         to: recipient,
         subject,
         text: textBody,
-        html: htmlBody || `<p>${textBody}</p>`,
+        html,
       });
       deliveryStatus = 'sent_smtp';
       providerId = info?.messageId || null;
@@ -144,7 +193,7 @@ export async function sendTransactionalEmail(db, { recipient, subject, textBody,
           to: [recipient],
           subject,
           text: textBody,
-          html: htmlBody || `<p>${textBody}</p>`,
+          html,
         }),
       });
       const json = await resp.json().catch(() => ({}));
@@ -176,11 +225,16 @@ export async function sendTransactionalEmail(db, { recipient, subject, textBody,
     ? '[Enviado externamente — conteúdo oculto da caixa local por segurança]'
     : textBody;
 
+  // Registro mínimo: quando o e-mail saiu de verdade, guardamos só o destinatário mascarado e a
+  // finalidade (sem assunto, que pode trazer nome de pessoa). Tudo é apagado depois de 30 dias.
   await db.run(
     `INSERT INTO dev_outbox_messages (id, channel, recipient, subject, body_preview, purpose, delivery_status, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, channel, recipient, subject, storedPreview, purpose, deliveryStatus, createdAt
+    id, channel, sentExternally ? maskEmail(recipient) : recipient, sentExternally ? String(purpose || 'e-mail') : subject, storedPreview, purpose, deliveryStatus, createdAt
   );
+  try {
+    await db.run('DELETE FROM dev_outbox_messages WHERE created_at < ?', new Date(Date.now() - OUTBOX_RETENTION_DAYS * 86_400_000).toISOString());
+  } catch { /* limpeza oportunista: nunca impede o envio */ }
 
   return {
     id,

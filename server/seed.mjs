@@ -1,4 +1,4 @@
-import { addDaysIso, hashPassword, nowIso, randomId, verifyPassword } from './crypto.mjs';
+import { addDaysIso, hashPassword, nowIso, randomId, randomToken, verifyPassword } from './crypto.mjs';
 import { getDb, runTransaction } from './db.mjs';
 
 // Contas fictícias de homologação (Preview). Só existem quando o ambiente define
@@ -15,6 +15,19 @@ const HOMOLOG_ACCOUNTS = [
     bio: 'Psicóloga clínica.' },
 ];
 let homologSeedDone = false;
+
+// Nenhuma senha fica no código. As contas de demonstração recebem a senha do ambiente
+// (ENOMERA_DEMO_PASSWORD, ou ENOMERA_HOMOLOG_PASSWORD; operador: ENOMERA_OPERATOR_PASSWORD).
+// Sem variável (ou com menos de 12 caracteres), a conta nasce com senha aleatória que ninguém
+// conhece: ela existe para os dados de exemplo, mas não aceita entrada por senha.
+function demoPassword() {
+  const v = process.env.ENOMERA_DEMO_PASSWORD || process.env.ENOMERA_HOMOLOG_PASSWORD || '';
+  return v.length >= 12 ? v : randomToken(24);
+}
+function operatorPassword() {
+  const v = process.env.ENOMERA_OPERATOR_PASSWORD || '';
+  return v.length >= 12 ? v : randomToken(24);
+}
 
 export async function seedHomologAccounts(db) {
   const password = process.env.ENOMERA_HOMOLOG_PASSWORD || '';
@@ -60,9 +73,10 @@ export async function seedHomologAccounts(db) {
       created += 1;
     }, `seed_homolog_${acc.key}`);
   }
-  // As contas demo nasceram com senha fixa no repositório. Em ambiente público, a senha passa a vir do ambiente.
+  // Bancos antigos nasceram com senhas de demonstração conhecidas: aqui elas são trocadas pelas do ambiente.
   const rotations = [
     ['helena@helenaduartepsi.com.br', password],
+    ['paulo@consultorio-exemplo.com.br', password],
     ['marcos@enomera-ops.exemplo.com.br', process.env.ENOMERA_OPERATOR_PASSWORD || ''],
   ];
   for (const [email, next] of rotations) {
@@ -102,7 +116,7 @@ export async function seedDatabase(db) {
     // 1. Fictional Demo Professional: Helena Duarte (Full Suite: Agendamento + Consultório + Site)
     const helenaUserId = 'usr_helena_demo';
     const helenaAccId = 'acc_helena_demo';
-    const helenaPwd = hashPassword('HelenaDemo!2026');
+    const helenaPwd = hashPassword(demoPassword());
     await tx.run(
       `INSERT INTO users (id, email, password_hash, password_salt, full_name, role, email_verified_at, mfa_enabled, is_demo, created_at, updated_at)
        VALUES (?, 'helena@helenaduartepsi.com.br', ?, ?, 'Helena Duarte', 'professional', ?, 1, 1, ?, ?)`,
@@ -201,7 +215,7 @@ export async function seedDatabase(db) {
     // 2. Second Isolated Demo Professional: Dr. Paulo Mendes (Consultório Solo — tests tenant isolation)
     const pauloUserId = 'usr_paulo_demo';
     const pauloAccId = 'acc_paulo_demo';
-    const pauloPwd = hashPassword('PauloDemo!2026');
+    const pauloPwd = hashPassword(demoPassword());
     await tx.run(
       `INSERT INTO users (id, email, password_hash, password_salt, full_name, role, email_verified_at, mfa_enabled, is_demo, created_at, updated_at)
        VALUES (?, 'paulo@consultorio-exemplo.com.br', ?, ?, 'Dr. Paulo Mendes', 'professional', ?, 1, 1, ?, ?)`,
@@ -225,7 +239,7 @@ export async function seedDatabase(db) {
 
     // 3. Site Delivery Operator: Marcos Martins (ZERO clinical access!)
     const marcosUserId = 'usr_marcos_operator';
-    const marcosPwd = hashPassword('MarcosOps!2026');
+    const marcosPwd = hashPassword(operatorPassword());
     await tx.run(
       `INSERT INTO users (id, email, password_hash, password_salt, full_name, role, email_verified_at, mfa_enabled, is_demo, created_at, updated_at)
        VALUES (?, 'marcos@enomera-ops.exemplo.com.br', ?, ?, 'Marcos Martins', 'operator', ?, 1, 1, ?, ?)`,

@@ -1,3 +1,4 @@
+import './demo-credentials.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import fs from 'node:fs';
@@ -31,6 +32,9 @@ test('Piloto: convite único, consentimento, eventos ligados à pessoa e painel 
     const res = await fetch(`${base}${p}`, { method, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: body ? JSON.stringify(body) : undefined });
     return { status: res.status, data: await res.json() };
   };
+  // Código de confirmação do e-mail pedido na página do convite (em teste, vem na resposta como devCode).
+  const inviteCode = async (tok, email) => (await call(`/api/v1/pilot/invites/${tok}/code`, { email })).data.devCode;
+  globalThis.__inviteCode = inviteCode;
   try {
     assert.equal((await call(`/api/v1/pilot/invites/${T}`)).data.state, 'open');
     assert.equal((await call('/api/v1/pilot/invites/naoexisteeste1234567')).status, 404);
@@ -43,7 +47,10 @@ test('Piloto: convite único, consentimento, eventos ligados à pessoa e painel 
 
     const noConsent = await call(`/api/v1/pilot/invites/${T}/accept`, { fullName: 'Convidada Teste', email: 'convidada@exemplo.invalid', password: 'senha-ficticia-1', consent: false });
     assert.equal(noConsent.status, 400);
-    const acc = await call(`/api/v1/pilot/invites/${T}/accept`, { fullName: 'Convidada Teste', email: 'convidada@exemplo.invalid', password: 'senha-ficticia-1', consent: true });
+    // Sem o código do e-mail a conta não nasce (o link sozinho não comprova o e-mail).
+    assert.equal((await call(`/api/v1/pilot/invites/${T}/accept`, { fullName: 'Convidada Teste', email: 'convidada@exemplo.invalid', password: 'senha-ficticia-1', consent: true })).data.code, 'CODE_REQUIRED');
+    assert.equal((await call(`/api/v1/pilot/invites/${T}/accept`, { fullName: 'Convidada Teste', email: 'convidada@exemplo.invalid', password: 'senha-ficticia-1', consent: true, code: '000000' })).status, 400);
+    const acc = await call(`/api/v1/pilot/invites/${T}/accept`, { fullName: 'Convidada Teste', email: 'convidada@exemplo.invalid', password: 'senha-ficticia-1', consent: true, code: await inviteCode(T, 'convidada@exemplo.invalid') });
     assert.equal(acc.status, 201); assert.equal(acc.data.next, '/checkout');
     const again = await call(`/api/v1/pilot/invites/${T}/accept`, { fullName: 'Outra', email: 'outra@exemplo.invalid', password: 'senha-ficticia-1', consent: true });
     assert.equal(again.status, 409); assert.equal(again.data.code, 'INVITE_USED');
@@ -74,7 +81,7 @@ test('Piloto: convite único, consentimento, eventos ligados à pessoa e painel 
     assert.equal(free.data.recurringMonthlyCents, 0); assert.equal(free.data.contract.pilotFree, true);
     assert.ok(free.data.contract.lines.every((l) => l.amountCents === 0));
     assert.equal((await call('/api/v1/auth/me', null, acc.data.sessionToken)).data.pilot.free, true);
-    const ord = await call('/api/v1/commercial/orders', { ...sel, idempotencyKey: 'piloto-gratis-1', simulatedOutcome: 'declined' }, acc.data.sessionToken);
+    const ord = await call('/api/v1/commercial/orders', { ...sel, idempotencyKey: 'piloto-gratis-1', acceptTerms: true, simulatedOutcome: 'declined' }, acc.data.sessionToken);
     assert.equal(ord.status, 201); assert.equal(ord.data.order.status, 'approved');
     assert.equal(Number(ord.data.order.due_today_cents), 0); assert.equal(Number(ord.data.order.recurring_monthly_cents), 0);
     for (const prodKey of ['ambo', 'minne', 'etha']) {
@@ -88,11 +95,15 @@ test('Piloto: convite único, consentimento, eventos ligados à pessoa e painel 
 
     // Painel: convidada não entra; administrador entra e não é rastreado.
     assert.equal((await call('/api/v1/pilot/admin/overview', null, acc.data.sessionToken)).status, 403);
-    const adm = await call(`/api/v1/pilot/invites/${A}/accept`, { fullName: 'Admin Teste', email: 'admin@exemplo.invalid', password: 'senha-ficticia-2', consent: true });
+    const adm = await call(`/api/v1/pilot/invites/${A}/accept`, { fullName: 'Admin Teste', email: 'admin@exemplo.invalid', password: 'senha-ficticia-2', consent: true, code: await inviteCode(A, 'admin@exemplo.invalid') });
     assert.equal(adm.status, 201); assert.equal(adm.data.next, '/piloto/painel');
     const off = await call('/api/v1/pilot/events', { d: 'dAdmin000001', p: 'enomera', s: 'sAdm0001', e: [ev('view')] }, adm.data.sessionToken);
     assert.equal(off.data.track, false);
-    const login = await call('/api/v1/auth/login', { email: 'admin@exemplo.invalid', password: 'senha-ficticia-2' });
+    // Administrador: senha sozinha não abre o painel; precisa do código enviado ao e-mail.
+    const step1 = await call('/api/v1/auth/login', { email: 'admin@exemplo.invalid', password: 'senha-ficticia-2' });
+    assert.equal(step1.status, 401); assert.equal(step1.data.code, 'ADMIN_CODE_REQUIRED'); assert.equal(step1.data.sessionToken, undefined);
+    const login = await call('/api/v1/auth/login', { email: 'admin@exemplo.invalid', password: 'senha-ficticia-2', code: step1.data.devCode });
+    assert.ok((Date.parse(login.data.expiresAt) - Date.now()) / 3600_000 <= 12.1);
     assert.equal(login.data.user.role, 'pilot_admin');
     const ov = await call('/api/v1/pilot/admin/overview?dias=7', null, login.data.sessionToken);
     assert.equal(ov.status, 200);
@@ -148,7 +159,7 @@ test('Piloto: convite único, consentimento, eventos ligados à pessoa e painel 
     // Conta de teste do administrador: entra só com ?teste=1.
     const S = 'tokenDeTesteDoMarcosTeste';
     await db.run("INSERT INTO pilot_invites (id, kind, label, token_hash, created_at) VALUES ('inv_s', 'self_test', 'Teste do Marcos', ?, ?)", sha256Hex(S), now);
-    const self = await call(`/api/v1/pilot/invites/${S}/accept`, { fullName: 'Marcos Teste', email: 'marcos.teste@exemplo.invalid', password: 'senha-ficticia-3', consent: true });
+    const self = await call(`/api/v1/pilot/invites/${S}/accept`, { fullName: 'Marcos Teste', email: 'marcos.teste@exemplo.invalid', password: 'senha-ficticia-3', consent: true, code: await globalThis.__inviteCode(S, 'marcos.teste@exemplo.invalid') });
     assert.equal(self.status, 201); assert.equal(self.data.next, '/checkout');
     await call('/api/v1/pilot/events', { d: 'dSelfTeste01', p: 'enomera', s: 'sSelf001', e: [ev('time', { n: 5000 })] }, self.data.sessionToken);
     const ov2 = await call('/api/v1/pilot/admin/overview?dias=7', null, login.data.sessionToken);

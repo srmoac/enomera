@@ -1,3 +1,4 @@
+import './demo-credentials.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import fs from 'node:fs';
@@ -39,14 +40,14 @@ test('Approved journey persists selection, activates once, isolates portraits an
     const login = await request('/api/v1/auth/login','POST',{email:corrected,password:'SenhaFicticia!2026'});
     assert.deepEqual((await request('/api/v1/commercial/selection','GET',null,login.data.sessionToken)).data.selection.products,['ambo','minne']);
     await request('/api/v1/commercial/selection','PUT',{products:['ambo','minne','etha'],ethaFormat:'one_page'},token);
-    const orders = await Promise.all(Array.from({length:4},()=>request('/api/v1/commercial/orders','POST',{products:['ambo','minne','etha'],simulatedOutcome:'approved'},token,{'X-Idempotency-Key':'concurrent-same-checkout'})));
+    const orders = await Promise.all(Array.from({length:4},()=>request('/api/v1/commercial/orders','POST',{products:['ambo','minne','etha'],acceptTerms: true, simulatedOutcome:'approved'},token,{'X-Idempotency-Key':'concurrent-same-checkout'})));
     assert.ok(orders.every(r=>[200,201].includes(r.status)),JSON.stringify(orders.map(r=>r.status)));
     assert.equal(new Set(orders.map(r=>r.data.order.id)).size,1);
     assert.equal(orders[0].data.order.due_today_cents,0);
     assert.equal((await db.get('SELECT COUNT(*) AS c FROM commercial_orders WHERE account_id = ?',signup.data.account.id)).c,1);
-    const declined = await request('/api/v1/commercial/orders','POST',{products:['ambo'],simulatedOutcome:'declined'},token,{'X-Idempotency-Key':'retry-approved-selection'});
+    const declined = await request('/api/v1/commercial/orders','POST',{products:['ambo'],acceptTerms: true, simulatedOutcome:'declined'},token,{'X-Idempotency-Key':'retry-approved-selection'});
     await request('/api/v1/commercial/selection','PUT',{products:['ambo'],stage:'review'},token);
-    assert.equal((await request(`/api/v1/commercial/orders/${declined.data.order.id}/retry`,'POST',{simulatedOutcome:'approved'},token)).status,200);
+    assert.equal((await request(`/api/v1/commercial/orders/${declined.data.order.id}/retry`,'POST',{acceptTerms: true, simulatedOutcome:'approved'},token)).status,200);
     const resumed = (await request('/api/v1/commercial/selection','GET',null,token)).data.selection;
     assert.equal(resumed.stage,'confirmed');
     assert.deepEqual(resumed.products,['ambo']);
@@ -56,7 +57,10 @@ test('Approved journey persists selection, activates once, isolates portraits an
     assert.equal(photo.status,200);
     assert.equal((await request(photo.data.photoUrl)).status,401);
     assert.equal((await request(photo.data.photoUrl,'GET',null,other)).status,403);
-    const firstDraft = await request('/api/v1/etha/project/editor','POST',{content:{displayName:'Profissional de teste',headline:'Primeira versão',photoAssetId:photo.data.photoAssetId}},token);
+    const rawDraft = await request('/api/v1/etha/project/editor','POST',{content:{displayName:'Profissional de teste',headline:'Rascunho'}},token);
+    // Rascunho nunca vai ao ar direto: só a prévia confirmada.
+    assert.equal((await request('/api/v1/etha/project/publish-staging','POST',{versionId:rawDraft.data.versionId,ctaMode:'ambo'},token)).data.code,'VERSION_NOT_READY');
+    const firstDraft = await request('/api/v1/etha/project/editor','POST',{stage:'preview',content:{displayName:'Profissional de teste',headline:'Primeira versão',photoAssetId:photo.data.photoAssetId}},token);
     assert.equal(firstDraft.status,201);
     const published = await request('/api/v1/etha/project/publish-staging','POST',{versionId:firstDraft.data.versionId,ctaMode:'ambo'},token);
     assert.equal(published.status,200);
@@ -64,7 +68,7 @@ test('Approved journey persists selection, activates once, isolates portraits an
     assert.equal(before.data.headline,'Primeira versão');
     assert.equal(before.data.amboProfileSlug,slug);
     assert.equal((await request(before.data.photoUrl)).status,200);
-    const draft = await request('/api/v1/etha/project/editor','POST',{content:{headline:'Segunda versão',photoAssetId:null}},token);
+    const draft = await request('/api/v1/etha/project/editor','POST',{stage:'preview',content:{headline:'Segunda versão',photoAssetId:null}},token);
     assert.equal((await request(`/api/v1/public/sites/${slug}`)).data.photoAssetId,photo.data.photoAssetId);
     assert.equal((await request(`/api/v1/public/sites/${slug}`)).data.headline,'Primeira versão');
     await request('/api/v1/etha/project/publish-staging','POST',{versionId:draft.data.versionId},token);

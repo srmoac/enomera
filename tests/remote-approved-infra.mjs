@@ -14,8 +14,8 @@ const call=async(route,method='GET',body=null,token=null)=>{
 const check=(name,actual,expected)=>{assert.equal(actual,expected,name);report.checks.push({name,result:actual});};
 const login=async(email,password)=>{const r=await call('/api/v1/auth/login','POST',{email,password});check('login fictitious professional',r.status,200);return r.data.sessionToken;};
 try {
- const helena=await login('helena@helenaduartepsi.com.br','HelenaDemo!2026');
- const paulo=await login('paulo@consultorio-exemplo.com.br','PauloDemo!2026');
+ const helena=await login('helena@helenaduartepsi.com.br',process.env.ENOMERA_DEMO_PASSWORD);
+ const paulo=await login('paulo@consultorio-exemplo.com.br',process.env.ENOMERA_DEMO_PASSWORD);
  const me=await call('/api/v1/auth/me','GET',null,helena);check('correct Helena account',me.data.account.slug,'helena-duarte');
  const portrait=await fs.readFile('../lotus-app/public/ambo/approved-helena-portrait.png');
  const body={originalName:'helena-retrato-ficticio-autorizado.png',contentBase64:portrait.toString('base64')};
@@ -36,7 +36,7 @@ try {
  await call('/api/v1/etha/project/editor','POST',{content:{...content,headline:'Rascunho de teste ainda não publicado',photoAssetId:null}},helena);
  const unchanged=await call('/api/v1/public/sites/helena-duarte');check('draft does not change published title',unchanged.data.headline,content.headline);check('draft photo removal does not change published snapshot',unchanged.data.photoAssetId,photo.data.photoAssetId);
  await call('/api/v1/etha/project/editor','POST',{content},helena);
- const freshSession=await login('helena@helenaduartepsi.com.br','HelenaDemo!2026');
+ const freshSession=await login('helena@helenaduartepsi.com.br',process.env.ENOMERA_DEMO_PASSWORD);
  const reloaded=await call('/api/v1/etha/project','GET',null,freshSession);check('project readable after new login',reloaded.status,200);
  check('private file readable after new login',(await call(photo.data.photoUrl,'GET',null,freshSession)).status,200);
  check('logout',(await call('/api/v1/auth/logout','POST',{},freshSession)).status,200);

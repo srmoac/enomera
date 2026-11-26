@@ -32,6 +32,21 @@ async function loadPdfParse() {
 
 const MAX_ZIP_ENTRIES = 50;
 const MAX_ZIP_UNCOMPRESSED = 25 * 1024 * 1024; // 25 MB
+const MAX_OFFICE_UNCOMPRESSED = 60 * 1024 * 1024; // DOCX/XLSX são ZIPs: teto do conteúdo descompactado
+
+// DOCX e XLSX são arquivos ZIP. Antes de entregar ao leitor (que descompacta tudo na memória),
+// soma o tamanho declarado de cada parte; arquivo-bomba é recusado sem ser aberto.
+async function assertOfficeArchiveSafe(buffer) {
+  const JSZip = await loadJSZip();
+  const zip = await JSZip.loadAsync(buffer);
+  let total = 0;
+  for (const entry of Object.values(zip.files)) {
+    total += Number(entry?._data?.uncompressedSize) || 0;
+    if (total > MAX_OFFICE_UNCOMPRESSED) {
+      throw Object.assign(new Error('Arquivo grande demais depois de aberto. Divida o documento e envie em partes.'), { status: 413, code: 'ZIP_BOMB_GUARD' });
+    }
+  }
+}
 
 export const SUPPORTED_IMPORT_FORMATS = {
   pasted_text: { supported: true, label: 'Texto colado (revisão obrigatória antes de salvar)' },
@@ -222,6 +237,7 @@ async function extractSingleFile(buffer, filename) {
   }
   if (magic.format === 'docx') {
     try {
+      await assertOfficeArchiveSafe(buffer);
       const mammoth = await loadMammoth();
       const res = await mammoth.extractRawText({ buffer });
       const text = (res.value || '').trim();
@@ -378,6 +394,7 @@ export async function stageImportBatch(db, {
       try {
         const ExcelJS = await loadExcelJS();
         const wb = new ExcelJS.Workbook();
+        await assertOfficeArchiveSafe(file.buffer);
         await wb.xlsx.load(file.buffer);
         const ws = wb.worksheets[0];
         if (!ws) throw new Error('Planilha vazia');
@@ -593,6 +610,12 @@ export async function stageImportBatch(db, {
       if (entry.name.includes('..') || path.posix.isAbsolute(entry.name)) {
         batchWarnings.push(`Entrada ignorada por segurança (path traversal): ${entry.name}`);
         continue;
+      }
+      // Tamanho declarado no próprio ZIP: confere ANTES de descompactar, para um arquivo-bomba
+      // não ocupar a memória. Depois de descompactar, o tamanho real é conferido de novo.
+      const declared = Number(entry?._data?.uncompressedSize);
+      if (Number.isFinite(declared) && (declared > MAX_ZIP_UNCOMPRESSED || totalUncompressed + declared > MAX_ZIP_UNCOMPRESSED)) {
+        throw Object.assign(new Error('Conteúdo descompactado do ZIP excede o limite de segurança (25 MB).'), { status: 413, code: 'ZIP_BOMB_GUARD' });
       }
       const buf = await entry.async('nodebuffer');
       totalUncompressed += buf.length;

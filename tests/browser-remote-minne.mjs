@@ -5,9 +5,9 @@ const minne='https://compasso-app-git-codex-minne-approve-8c6367-marcosvmgs-proj
 const site='https://clara-azevedo-site-git-codex-helena-9838a4-marcosvmgs-projects.vercel.app';
 const out=path.resolve('../../enomera-review/remote-approved');await fs.mkdir(out,{recursive:true});const report=[];
 async function api(route,token='',body,method=body===undefined?'GET':'POST',key){const r=await fetch(apiBase+route,{method,headers:{...(token?{Authorization:'Bearer '+token}:{}),...(body?{'Content-Type':'application/json'}:{}),...(key?{'X-Idempotency-Key':key}:{})},body:body?JSON.stringify(body):undefined});return{status:r.status,data:r.headers.get('content-type')?.includes('application/json')?await r.json():null};}
-const credentials={email:'paulo@consultorio-exemplo.com.br',password:'PauloDemo!2026'};
+const credentials={email:'paulo@consultorio-exemplo.com.br',password:process.env.ENOMERA_DEMO_PASSWORD};
 const login=await api('/api/v1/auth/login','',credentials);expect(login.status).toBe(200);const token=login.data.sessionToken;
-const foreign=await api('/api/v1/auth/login','',{email:'helena@helenaduartepsi.com.br',password:'HelenaDemo!2026'});const other=foreign.data.sessionToken;
+const foreign=await api('/api/v1/auth/login','',{email:'helena@helenaduartepsi.com.br',password:process.env.ENOMERA_DEMO_PASSWORD});const other=foreign.data.sessionToken;
 expect((await api('/api/v1/commercial/orders',token,{products:['ambo','minne','etha'],simulatedOutcome:'approved'},'POST','paulo-preview-qa-suite-v1')).status).toBeLessThan(300);
 await api('/api/v1/professional/availability',token,{rules:Array.from({length:7},(_,weekday)=>({weekday,startTime:'09:00',endTime:'18:00',modality:'both'}))},'PUT');
 const version=await api('/api/v1/etha/project/editor',token,{content:{displayName:'Dr. Paulo Mendes',headline:'Um espaço de cuidado com a sua saúde mental.',subheadline:'Atendimento de psiquiatria. Perfil fictício de homologação.',photoAssetId:null,ctaLabel:'Agendar consulta'}});

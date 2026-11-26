@@ -159,3 +159,24 @@ export async function readPrivateFileBinary(fileRow) {
   if (!fs.existsSync(resolved)) return null;
   return fs.readFileSync(resolved);
 }
+
+/** Apaga o conteúdo de um arquivo privado (exclusão de conta). Falha de um arquivo não interrompe os demais. */
+export async function deletePrivateFileBinary(fileRow) {
+  if (!fileRow || !fileRow.storage_path) return false;
+  try {
+    if (fileRow.storage_backend === 'vercel_blob_private') {
+      if (!process.env.BLOB_READ_WRITE_TOKEN) return false;
+      const blobMod = await import('@vercel/blob');
+      await blobMod.del(fileRow.storage_path, { token: process.env.BLOB_READ_WRITE_TOKEN });
+      return true;
+    }
+    const root = path.resolve(resolvePrivateStorageRoot());
+    const resolved = path.resolve(fileRow.storage_path);
+    if (!resolved.startsWith(root + path.sep)) return false;
+    if (fs.existsSync(resolved)) fs.unlinkSync(resolved);
+    return true;
+  } catch (err) {
+    console.error('[storage] arquivo não apagado:', fileRow.id, err?.message || err);
+    return false;
+  }
+}

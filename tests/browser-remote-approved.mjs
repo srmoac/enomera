@@ -12,7 +12,7 @@ for(const [engineName,engine] of [['chromium',chromium],['webkit',webkit]].filte
   const id=`${engineName}-${width}`;const context=await browser.newContext({viewport:{width,height:width===390?844:1000},reducedMotion:width===1440?'reduce':'no-preference',recordVideo:{dir:out,size:{width,height:width===390?844:1000}}});
   const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));let popup;
   try{
-   await page.goto(core+'/conta');await page.getByLabel('E-mail profissional',{exact:true}).fill('helena@helenaduartepsi.com.br');await page.getByLabel('Senha',{exact:true}).fill('HelenaDemo!2026');await page.getByRole('button',{name:'Entrar e continuar',exact:true}).click();await expect(page.getByRole('heading',{name:'Seu portal',exact:true})).toBeVisible();
+   await page.goto(core+'/conta');await page.getByLabel('E-mail profissional',{exact:true}).fill('helena@helenaduartepsi.com.br');await page.getByLabel('Senha',{exact:true}).fill(process.env.ENOMERA_DEMO_PASSWORD);await page.getByRole('button',{name:'Entrar e continuar',exact:true}).click();await expect(page.getByRole('heading',{name:'Seu portal',exact:true})).toBeVisible();
    await page.screenshot({path:path.join(out,id+'-portal.png')});
    const ethaPopup=page.waitForEvent('popup');await page.getByRole('button',{name:'Abrir Etha',exact:true}).click();popup=await ethaPopup;
    await expect(popup.getByRole('heading',{name:'Conte sobre a sua prática.',exact:true})).toBeVisible({timeout:15000}).catch(async()=>{await expect(popup.locator('#el-workspace-heading')).toBeVisible({timeout:15000});});
