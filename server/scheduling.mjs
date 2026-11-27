@@ -542,14 +542,18 @@ export async function proposeRescheduleByProfessional(db, { accountId, actorUser
     if (existing) key = `${key}_${randomId('r')}`;
     const appt = await tx.get('SELECT * FROM appointments WHERE id = ? AND account_id = ?', appointmentId, accountId);
     if (!appt) throw Object.assign(new Error('Consulta não encontrada.'), { status: 404, code: 'APPOINTMENT_NOT_FOUND' });
-    if (appt.status !== 'confirmed') {
-      throw Object.assign(new Error(appt.status === 'reschedule_requested'
-        ? 'O paciente pediu remarcação desta consulta. Responda o pedido na aba Pedidos.'
-        : 'Só consultas confirmadas podem receber proposta de outro horário.'), { status: 409, code: appt.status === 'reschedule_requested' ? 'RESCHEDULE_PENDING' : 'INVALID_STATUS' });
+    if (!['confirmed', 'reschedule_requested'].includes(appt.status)) {
+      throw Object.assign(new Error('Só consultas confirmadas podem receber proposta de outro horário.'), { status: 409, code: 'INVALID_STATUS' });
     }
     if (Date.parse(startAt) <= Date.now()) throw Object.assign(new Error('Escolha um horário futuro.'), { status: 400, code: 'INVALID_SLOT' });
     await assertSlotAvailableTx(tx, accountId, startAt, endAt, appt.id);
     const now = nowIso();
+    // O paciente tinha pedido outro horário: a proposta de quem atende responde esse pedido
+    // (o pedido fica como "contraproposta" e a consulta volta a valer no horário atual até a resposta).
+    if (appt.status === 'reschedule_requested') {
+      await tx.run("UPDATE reschedule_requests SET status = 'countered', decided_by_user_id = ?, decided_at = ?, updated_at = ? WHERE appointment_id = ? AND status = 'pending'", actorUserId, now, now, appt.id);
+      await tx.run("UPDATE appointments SET status = 'confirmed', version = version + 1, updated_at = ? WHERE id = ?", now, appt.id);
+    }
     await tx.run("UPDATE reschedule_requests SET status = 'cancelled', updated_at = ? WHERE appointment_id = ? AND status = 'proposed'", now, appt.id);
     const id = randomId('rsc');
     await tx.run(

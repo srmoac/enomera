@@ -2141,7 +2141,8 @@ export async function handleApiRequest(req, res, customDb = null) {
         patient: patientRow ? { id: patientRow.id, fullName: patientRow.full_name, email: patientRow.email } : { fullName: null, contact: contactVal },
         requests: requests.map((r) => ({ ...r, preferences: JSON.parse(r.preferences_json || '{}') })),
         appointments,
-        availableSlots: (await generateAvailableSlots(db, acc.id, { daysAhead: 14 })).slice(0, 20),
+        // Lista completa dos 14 dias: o Agendamento ordena pelo que o paciente pediu e espalha pelos dias.
+        availableSlots: (await generateAvailableSlots(db, acc.id, { daysAhead: 14 })).slice(0, 400),
       });
     }
 
@@ -2315,8 +2316,15 @@ export async function handleApiRequest(req, res, customDb = null) {
         // Ações que esta Core oferece (o Agendamento só mostra os botões quando vierem true).
         capabilities: { declineRequest: isOwner, cancelAppointment: isOwner, proposeReschedule: isOwner },
         requests,
-        appointments: appointments.map((a) => ({ ...a, proposedReschedule: proposalByAppt.get(a.id) || null })),
-        pendingReschedules: reschedules,
+        appointments: appointments.map((a) => ({
+          ...a,
+          proposedReschedule: proposalByAppt.get(a.id) || null,
+          // Pedido de remarcação do paciente ainda sem resposta (para responder também pela Agenda).
+          pendingReschedule: reschedules.find((r) => r.appointment_id === a.id) || null,
+          // Dias e turnos que o paciente pediu na primeira consulta: orientam qualquer novo horário.
+          requestPreferences: requests.find((r) => r.appointment_id === a.id)?.preferences || null,
+        })),
+        pendingReschedules: reschedules.map((r) => ({ ...r, requestPreferences: requests.find((q) => q.appointment_id === r.appointment_id)?.preferences || null })),
         patients,
         invitations,
         availableSlots: await generateAvailableSlots(db, auth.account.id, { daysAhead: 14 }),
