@@ -49,3 +49,15 @@ Todos os valores são calculados exclusivamente no servidor (o cliente nunca def
 
 ## 6. Limitações de Conformidade Clínica Real
 Passar nos testes funcionais e de isolamento **não certifica uso clínico real em produção**. Antes de aceitar prontuários reais de pacientes, ainda é obrigatório validar juridicamente: política de retenção/guarda CFP e LGPD, termo de consentimento, DPO, backup criptografado gerenciado, rotação de chaves e aprovação de provedor de e-mail/OCR (caso desejado).
+
+## 7. Acréscimos de 27/11 na API do Agendamento (compatíveis)
+Nenhuma rota existente mudou de formato; só entraram rotas e campos novos.
+- **Ações da profissional (só a dona da agenda; outro papel recebe `403 OWNER_REQUIRED`)**:
+  - `POST /api/v1/ambo/pro/requests/:id/decline` `{ message }`: encerra o pedido; o paciente vê "Não foi possível atender" com a mensagem.
+  - `POST /api/v1/ambo/pro/appointments/:id/cancel` `{ reason }`: cancela a consulta, libera o horário e avisa o paciente.
+  - `POST /api/v1/ambo/pro/appointments/:id/reschedule` `{ startAt, endAt, reason }` → `201`: propõe outro horário (`reschedule_requests.status = 'proposed'`, `initiated_by = 'professional'`). A consulta fica no horário atual até o paciente responder.
+- **Resposta do paciente**: `POST /api/v1/ambo/patient/reschedules/:id/respond` `{ decision: 'accept' | 'decline' }`. Aceitar confere de novo se o horário está livre.
+- **Overview da profissional**: novo `capabilities: { declineRequest, cancelAppointment, proposeReschedule }` (verdadeiro só para a dona), `account.timezone` e `proposedReschedule` por consulta. Clientes antigos ignoram os campos.
+- **`GET /api/v1/ambo/patient/me`**: pedidos trazem `decline_message`; remarcações trazem `reason` e `initiated_by`.
+- **Homônimos**: um pedido só reaproveita um paciente existente com o mesmo nome **e** o mesmo e-mail (ou o mesmo telefone quando não há dois e-mails diferentes). Cadastros juntados antes continuam visíveis para cada e-mail que fez pedido.
+- **Migração 011**: colunas `consultation_requests.decline_message`, `declined_at`, `reschedule_requests.initiated_by` (padrão `'patient'`) e limpeza do link fictício de sala online em contas reais.
