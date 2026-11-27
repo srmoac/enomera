@@ -1282,12 +1282,15 @@ export async function handleApiRequest(req, res, customDb = null) {
       if (!isAllowedOrigin(targetOrigin)) {
         throw Object.assign(new Error('Origem de destino não autorizada para passagem autenticada.'), { status: 400, code: 'INVALID_TARGET_ORIGIN' });
       }
+      // Produtos no mesmo domínio vêm como origem + caminho (https://enomera.vercel.app/consultorio).
+      // O navegador manda só a origem no cabeçalho Origin da troca: é ela que fica gravada e é conferida.
+      const exchangeOrigin = new URL(targetOrigin).origin;
       const code = `hc_${randomToken(24)}`;
       const expiresAt = addMinutesIso(1); // 60 seconds single-use
       (await db.run(`
         INSERT INTO auth_handoff_codes (id, code_hash, session_id, target_origin, return_path, expires_at, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-      `, randomId('hnd'), sha256Hex(code), auth.session.id, targetOrigin, /^\/(?!\/)/.test(body.returnPath || '/') ? String(body.returnPath || '/') : '/', expiresAt, nowIso()));
+      `, randomId('hnd'), sha256Hex(code), auth.session.id, exchangeOrigin, /^\/(?!\/)/.test(body.returnPath || '/') ? String(body.returnPath || '/') : '/', expiresAt, nowIso()));
       await writeAudit(db, { actorUserId: auth.user.id, actorType: auth.session.actor_type, accountId: auth.session.account_id, action: 'auth.handoff_issue', resourceType: 'handoff', meta: { targetOrigin } });
       return json(res, 200, { handoffCode: code, expiresAt, targetOrigin });
     }

@@ -262,3 +262,21 @@ test('Conta nova não herda o link fictício da sala online; a migração limpa 
   const row = await db.get('SELECT pa.online_meeting_url u FROM professional_accounts pa JOIN users us ON us.id = pa.owner_user_id WHERE us.email = ?', email);
   assert.equal(row?.u, '');
 });
+
+test('Passagem para produto no mesmo domínio (origem + caminho) é trocada pela página do produto', async () => {
+  process.env.ENOMERA_PUBLIC_URL = 'https://enomera.exemplo.invalid';
+  try {
+    const target = 'https://enomera.exemplo.invalid/consultorio';
+    const h = await api('/api/v1/auth/handoff', { method: 'POST', token: helena, body: { targetOrigin: target, returnPath: '/?aba=dia' } });
+    assert.equal(h.status, 200, JSON.stringify(h.data));
+    const other = await api('/api/v1/auth/exchange', { method: 'POST', headers: { Origin: 'https://outro.exemplo.invalid' }, body: { handoffCode: h.data.handoffCode } });
+    assert.equal(other.status, 403);
+    const ex = await api('/api/v1/auth/exchange', { method: 'POST', headers: { Origin: 'https://enomera.exemplo.invalid' }, body: { handoffCode: h.data.handoffCode } });
+    assert.equal(ex.status, 200, JSON.stringify(ex.data));
+    assert.equal(ex.data.returnPath, '/?aba=dia');
+    const bad = await api('/api/v1/auth/handoff', { method: 'POST', token: helena, body: { targetOrigin: 'https://enomera.exemplo.invalid/outra-coisa' } });
+    assert.equal(bad.status, 400, 'só /agendamento, /consultorio e /site');
+  } finally {
+    delete process.env.ENOMERA_PUBLIC_URL;
+  }
+});

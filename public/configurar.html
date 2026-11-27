@@ -21,6 +21,13 @@
 <link rel="stylesheet" href="/eno-gestures.css">
 <script src="/eno-gestures.js" defer></script>
 <style>
+  /* Mesma passagem da home/portal (ux-polish.css): sem a adesão dos dois lados o navegador aborta a
+     transição vinda do portal ou do checkout e registra erro. */
+  @view-transition { navigation: auto; }
+  ::view-transition-old(root) { animation: cfgPageOut 160ms var(--eno-ease-out) both; }
+  ::view-transition-new(root) { animation: none; }
+  @keyframes cfgPageOut { to { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { ::view-transition-old(root) { animation: none; } }
   :root { --eno-toast-offset: 90px; }
   body { --c1: #b8c4ff; --c2: #ffd3c2; --c3: #dfe6ff; background: #f4f6fd; }
   body[data-produto="ambo"] { --c1: #a9d3fb; --c2: #cfe9ff; --c3: #e3f1ff; }

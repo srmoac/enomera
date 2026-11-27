@@ -519,12 +519,14 @@ export async function mountEnomeraPlatform(rootEl) {
         etha: 'Seu site profissional, montado a partir de 6 perguntas. Você atualiza respondendo de novo.',
       }[prod];
       const actions = {
-        ambo: `<button type="button" class="eno-btn eno-btn-ambo" data-launch="ambo" data-path="/?pro=${encodeURIComponent(s.account.slug)}&visao=profissional">Ver como o paciente vê ↗</button>
+        // Páginas públicas abrem por link comum: a passagem de sessão (handoff) é só para a área logada
+        // e, no Agendamento, sempre leva à área profissional.
+        ambo: `<a class="eno-btn eno-btn-ambo" href="${esc(`${APP_ORIGINS.ambo}/?pro=${encodeURIComponent(s.account.slug)}&visao=profissional`)}" target="_blank" rel="noopener">Ver como o paciente vê ↗</a>
                <button type="button" class="eno-btn eno-btn-sec" data-launch="ambo" data-path="/operacao">Abrir minha agenda ↗</button>`,
         minne: `<button type="button" class="eno-btn eno-btn-minne" data-launch="minne" data-path="/?modo=ao-vivo">Abrir Consultório ↗</button>
                 <button type="button" class="eno-btn eno-btn-sec" data-launch="minne" data-path="/?modo=ao-vivo&aba=importar">Importar prontuários ↗</button>`,
         etha: `<button type="button" class="eno-btn eno-btn-etha" data-launch="etha" data-path="/?modo=ao-vivo">Abrir Site ↗</button>
-               <button type="button" class="eno-btn eno-btn-sec" data-launch="helena" data-path="/?site=${encodeURIComponent(s.account.slug)}">Ver site publicado ↗</button>`,
+               ${s.routine.ethaProject?.published_at ? `<a class="eno-btn eno-btn-sec" href="${esc(`${APP_ORIGINS.helena}/?site=${encodeURIComponent(s.account.slug)}`)}" target="_blank" rel="noopener">Ver site publicado ↗</a>` : ''}`,
       }[prod];
       const offer = isPilot() ? `Ativar ${name} grátis` : prod === 'etha' ? 'Adicionar Enomera Site' : 'Contratar ou testar 30 dias grátis';
       return `
