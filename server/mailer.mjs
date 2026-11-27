@@ -169,8 +169,7 @@ export async function sendTransactionalEmail(db, { recipient, subject, textBody,
       const info = await getSmtpTransport(smtp).sendMail({
         from: smtp.from,
         to: recipient,
-        // Respostas vão para o contato oficial da Enomera, mesmo quando o envio sai por outra caixa.
-        ...(contactEmail().toLowerCase() !== smtp.user.toLowerCase() ? { replyTo: contactEmail() } : {}),
+        // Sem Reply-To diferente do remetente: no Gmail isso pesa como sinal de spam. O contato oficial fica no texto.
         subject,
         text: textBody,
         html,

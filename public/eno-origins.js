@@ -20,7 +20,9 @@ function usable(url) {
 export function productOrigin(key, loc = globalThis.location, injected = globalThis) {
   const override = clean(injected?.[WINDOW_KEYS[key]]);
   const local = loc && (loc.hostname === '127.0.0.1' || loc.hostname === 'localhost');
-  if (override && (local || usable(override))) return override;
+  // Os sites publicados ainda moram em etha-enomera-sites (o renome do projeto não aconteceu):
+  // para eles vale o endereço configurado, mesmo com o nome antigo; sem isso o link caía num domínio que não existe.
+  if (override && (local || usable(override) || (key === 'sites' && /^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(override)))) return override;
   if (local) return `http://127.0.0.1:${LOCAL_PORTS[key]}`;
   if (key === 'helena') return HELENA_DEFAULT;
   if (key === 'sites') return SITES_DEFAULT;

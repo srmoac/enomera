@@ -293,7 +293,7 @@ export function renderChoice({ combo, contract, signedIn, returnedFromReview, cu
   `;
 }
 
-export function renderAccount({ mode, email, contract, codeDigits, codeError, cooldown, busy, devCode, deliveryNote, fieldError, termsError = '', acceptTerms = false, login = false, verified = false }) {
+export function renderAccount({ mode, email, name = '', nameError = '', contract, codeDigits, codeError, cooldown, busy, devCode, deliveryNote, fieldError, termsError = '', acceptTerms = false, login = false, verified = false }) {
   const isCode = mode === 'code';
   // Entrada simples ("Entrar" do site): sem etapas nem resumo de compra.
   const flowLogin = login;
@@ -306,6 +306,7 @@ export function renderAccount({ mode, email, contract, codeDigits, codeError, co
         ${isCode ? `
           <h1 class="eno-flow-title">Digite o código.</h1>
           <p class="eno-flow-lead">Enviado para <b>${esc(email)}</b></p>
+          <p class="eno-flow-note">Não chegou em 1 minuto? Olhe a pasta Spam e marque como "Não é spam" para os próximos chegarem direto.</p>
           <form id="eno-code-form" class="eno-flow-card eno-glass" novalidate>
             ${otpFieldHTML({ value: (codeDigits || []).join(''), error: Boolean(codeError), describedBy: codeError ? 'eno-code-err' : 'eno-code-status', state: verified ? 'verified' : (busy ? 'verifying' : '') })}
             ${codeError ? `<p class="eno-flow-err" id="eno-code-err" role="alert">${esc(codeError)}</p>` : ''}
@@ -326,6 +327,9 @@ export function renderAccount({ mode, email, contract, codeDigits, codeError, co
             : `<h1 class="eno-flow-title">Verifique sua conta<br> para continuar.</h1>
           <p class="eno-flow-lead">Enviaremos um código de 6 dígitos. Sua combinação fica guardada<span class="eno-hide-sm"> enquanto você confirma</span>.</p>`}
           <form id="eno-email-form" class="eno-flow-card eno-glass" novalidate>
+            ${flowLogin ? '' : `<label for="eno-name" class="eno-flow-label">Seu nome profissional</label>
+            <input id="eno-name" name="fullName" type="text" autocomplete="name" class="eno-input" required maxlength="120" value="${esc(name)}" placeholder="Como os pacientes vão ver, ex.: Ana Souza" aria-invalid="${nameError ? 'true' : 'false'}"${nameError ? ' aria-describedby="eno-name-err"' : ''}>
+            ${nameError ? `<p class="eno-flow-err" id="eno-name-err" role="alert">${esc(nameError)}</p>` : ''}`}
             <label for="eno-email" class="eno-flow-label">E-mail profissional</label>
             <input id="eno-email" name="email" type="email" autocomplete="email" class="eno-input" required value="${esc(email)}" placeholder="voce@consultorio.com.br" aria-invalid="${fieldError ? 'true' : 'false'}" aria-describedby="eno-email-hint${fieldError ? ' eno-email-err' : ''}">
             ${fieldError ? `<p class="eno-flow-err" id="eno-email-err" role="alert">${esc(fieldError)}</p>` : ''}

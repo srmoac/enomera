@@ -134,6 +134,7 @@ export async function mountEnomeraPlatform(rootEl) {
     returnAfterAuth: 'portal',
     // Percurso de contratação aprovado (22 nov)
     flowEmail: loadFlowEmail(),
+    flowName: (() => { try { return sessionStorage.getItem('eno_flow_name') || ''; } catch { return ''; } })(),
     codeError: '',
     devCode: '',
     returnedFromReview: false,
@@ -371,11 +372,7 @@ export async function mountEnomeraPlatform(rootEl) {
     const targetOrigin = APP_ORIGINS[appKey];
     if (!targetOrigin) return;
     if (!state.me) { window.open(targetOrigin + returnPath, '_blank', 'noopener'); return; }
-    // Agenda do Agendamento ainda fechada: primeiro o fluxo de configuração, dentro da Enomera.
-    if (appKey === 'ambo' && returnPath.startsWith('/operacao')) {
-      const ov = await apiFetch('/api/v1/ambo/pro/overview');
-      if (ov.ok && !ov.data?.setup?.open) { window.location.href = '/configurar?etapa=consultorio'; return; }
-    }
+    // Agenda ainda fechada não prende ninguém: a própria agenda mostra o que falta configurar.
     const res = await apiFetch('/api/v1/auth/handoff', { method: 'POST', body: { targetOrigin, returnPath } });
     if (res.ok) {
       const sep = returnPath.includes('?') ? '&' : '?';
@@ -854,6 +851,8 @@ export async function mountEnomeraPlatform(rootEl) {
         ? renderAccount({
           mode: state.authMode === 'code' ? 'code' : 'email',
           email: state.flowEmail,
+          name: state.flowName || '',
+          nameError: state.fieldError?.field === 'name' ? state.fieldError.text : '',
           contract,
           codeDigits: state.otpDigits,
           codeError: state.codeError,
@@ -1407,9 +1406,21 @@ export async function mountEnomeraPlatform(rootEl) {
     rootEl.querySelector('#eno-email-form')?.addEventListener('submit', async (ev) => {
       ev.preventDefault();
       if (state.busyAction === 'email') return;
-      const email = String(new FormData(ev.currentTarget).get('email') || '').trim();
+      const fd = new FormData(ev.currentTarget);
+      const email = String(fd.get('email') || '').trim();
       state.flowEmail = email;
       saveFlowEmail(email);
+      // Contratação: o nome vem da pessoa (aparece para os pacientes e forma o link público), nunca do e-mail.
+      if (ev.currentTarget.querySelector('#eno-name')) {
+        state.flowName = String(fd.get('fullName') || '').replace(/\s+/g, ' ').trim();
+        try { sessionStorage.setItem('eno_flow_name', state.flowName); } catch {}
+        if (state.flowName.length < 3 || !/\p{L}/u.test(state.flowName)) {
+          state.fieldError = { field: 'name', text: 'Escreva o seu nome, como os pacientes vão ver.' };
+          render();
+          rootEl.querySelector('#eno-name')?.focus();
+          return;
+        }
+      }
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         state.fieldError = { field: 'email', text: 'Confira o e-mail: ele precisa ter o formato nome@dominio.com.br.' };
         render();
@@ -1459,7 +1470,7 @@ export async function mountEnomeraPlatform(rootEl) {
       render();
       const res = await apiFetch('/api/v1/auth/email-code/verify', {
         method: 'POST',
-        body: { email: state.flowEmail, code, selection: state.combo.products.length ? selectionPayload() : null, ...(state.acceptTerms ? { acceptTerms: true } : {}) },
+        body: { email: state.flowEmail, code, ...(state.flowName ? { fullName: state.flowName } : {}), selection: state.combo.products.length ? selectionPayload() : null, ...(state.acceptTerms ? { acceptTerms: true } : {}) },
       });
       state.busyAction = null;
       if (res.infraError) state.infraError = res.infraError;

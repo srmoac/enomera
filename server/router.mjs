@@ -724,8 +724,9 @@ async function issueVerificationCode(db, { purpose, targetContact, userId = null
     channel: targetContact.includes('@') ? 'email' : 'whatsapp',
     recipient: targetContact,
     subject,
-    textBody: `Seu código de uso único (expira em ${ttlMinutes} min): ${code}`,
-    htmlBody: `<p>Seu código de uso único na Enomera (expira em ${ttlMinutes} minutos):</p><p style="font-size:24px;font-weight:700;letter-spacing:4px">${code}</p>`,
+    // Texto completo e pessoal (e não só o número): e-mails curtos demais com um código são mais marcados como spam.
+    textBody: `Olá,\n\nUse este código para entrar na Enomera: ${code}\n\nEle vale por ${ttlMinutes} minutos e só funciona uma vez. Digite na mesma tela em que você pediu o código.\n\nSe não foi você que pediu, ignore este e-mail. Ninguém entra na sua conta sem este código.\n\nEquipe Enomera`,
+    htmlBody: `<p style="margin:0 0 14px">Olá,</p><p style="margin:0 0 14px">Use este código para entrar na Enomera:</p><p style="margin:0 0 14px;font-size:26px;font-weight:700;letter-spacing:6px">${code}</p><p style="margin:0 0 14px">Ele vale por ${ttlMinutes} minutos e só funciona uma vez. Digite na mesma tela em que você pediu o código.</p><p style="margin:0 0 14px">Se não foi você que pediu, ignore este e-mail. Ninguém entra na sua conta sem este código.</p><p style="margin:0">Equipe Enomera</p>`,
     purpose,
   });
 
@@ -1007,8 +1008,10 @@ export async function handleApiRequest(req, res, customDb = null) {
       let u = await db.get('SELECT * FROM users WHERE email = ?', email);
       let isNewAccount = false;
       if (!u) {
+        // Nome digitado na contratação; o e-mail só serve de último recurso (contas antigas ou chamadas sem nome).
+        const typedName = String(body.fullName || '').replace(/\s+/g, ' ').trim().slice(0, 120);
         await createProfessionalUser(db, {
-          fullName: displayNameFromEmail(email),
+          fullName: typedName.length >= 3 && /\p{L}/u.test(typedName) ? typedName : displayNameFromEmail(email),
           email,
           password: randomToken(24),
           emailVerifiedAt: now,

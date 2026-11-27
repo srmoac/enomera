@@ -207,7 +207,11 @@ function paint() {
       return ok;
     } });
   }
-  nextBtn.hidden = slideMode;
+  // Abrir a agenda é opcional: no passo a passo dá para seguir sem abrir (abre depois em Configurar).
+  const laterLink = slideMode && !edit;
+  nextBtn.hidden = slideMode && !laterLink;
+  nextBtn.classList.toggle('is-glass', laterLink);
+  if (laterLink) nextBtn.textContent = 'Abrir depois';
   if (slot) slot.hidden = !slideMode;
   if (slot && !slideMode && S.form.open) slot.remove();
 }
@@ -609,7 +613,7 @@ async function go(delta, skip = false) {
   }
   show(k, delta > 0 ? 'next' : 'prev');
 }
-nextBtn.addEventListener('click', () => go(+1));
+nextBtn.addEventListener('click', () => go(+1, S.mode === 'wizard' && S.steps[S.i] === 'link' && !S.form.open));
 backBtn.addEventListener('click', () => go(-1));
 
 // ---------- Início ----------

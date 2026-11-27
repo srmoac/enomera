@@ -2,7 +2,7 @@
 
 Versão · 26 de novembro de 2026 (antes: 25 de novembro de 2026)
 
-> Este texto foi escrito pela própria equipe da Enomera para o piloto e **ainda não foi revisado por advogado**. Ele descreve com honestidade como tratamos dados hoje e será revisto antes da abertura comercial ampla.
+> Este texto foi escrito pela própria equipe da Enomera e **ainda não foi revisado por advogado**. Ele descreve com honestidade como tratamos dados hoje e será revisto antes do lançamento público.
 
 ## 1. Quem é responsável
 

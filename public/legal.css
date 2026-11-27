@@ -48,3 +48,10 @@ html { scroll-behavior: smooth; }
 .lgl-nav-ind.is-ready { opacity: 1; }
 .lgl-nav:has(.lgl-nav-ind.is-ready) a[aria-current="page"] { background: transparent; box-shadow: none; }
 .lgl-body > * { will-change: auto; }
+/* Mesma navegação entre páginas da home (ux-polish.css): as duas pontas aceitam a transição,
+   então ela não é abortada ao entrar ou sair de Termos/Privacidade. */
+@view-transition { navigation: auto; }
+::view-transition-old(root) { animation: lglPageOut 160ms var(--eno-ease-out) both; }
+::view-transition-new(root) { animation: none; }
+@keyframes lglPageOut { to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { ::view-transition-old(root) { animation: none; } }

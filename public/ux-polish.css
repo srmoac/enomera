@@ -340,3 +340,7 @@ html.is-app-route #portal[hidden] { display: block; }
 .billing-row .billing-link { display: inline; min-height: 0; padding: 0; font-size: inherit; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; color: var(--blue); font-weight: 600; }
 /* "Criada e conduzida por Marcos Martins": link para o portfólio, sublinhado discreto. */
 .founder-link { text-decoration: underline; text-underline-offset: 5px; text-decoration-thickness: 1px; }
+/* Passagem suave entre a faixa com pétalas e "Escolha seus serviços": o degradê da faixa
+   termina na mesma cor do fundo, sem o corte reto que aparecia em telas largas (gravação 27/11). */
+.connection::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 200px; background: linear-gradient(to bottom, rgb(240 244 254 / 0), rgb(240 244 254)); pointer-events: none; }
+.commercial .substrate { -webkit-mask-image: linear-gradient(to bottom, transparent, #000 240px); mask-image: linear-gradient(to bottom, transparent, #000 240px); }
