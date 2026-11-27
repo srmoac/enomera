@@ -32,7 +32,7 @@ test('chave de produção fica bloqueada sem autorização explícita', () => {
   }
 });
 
-test('checkout cria assinatura com 30 dias grátis; webhook ativa e é idempotente', async () => {
+test('checkout cria assinatura com 2 semanas grátis; webhook ativa e é idempotente', async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'asaas-'));
   const prev = { ...process.env };
   process.env.ENOMERA_DB_PATH = path.join(tmp, 'db.sqlite');
@@ -78,7 +78,7 @@ test('checkout cria assinatura com 30 dias grátis; webhook ativa e é idempoten
     assert.equal(sub.body.billingType, 'UNDEFINED');
     const due = new Date(`${sub.body.nextDueDate}T12:00:00Z`);
     const days = Math.round((due - Date.now()) / 86_400_000);
-    assert.ok(days >= 29 && days <= 31, `vencimento em ~30 dias, veio ${days}`);
+    assert.ok(days >= 13 && days <= 15, `vencimento em ~14 dias, veio ${days}`);
     const wh = calls.find((c) => c.url.endsWith('/webhooks') && c.method === 'POST');
     assert.equal(wh.body.url, 'https://core.example/api/v1/billing/asaas/webhook');
     assert.ok(calls.every((c) => c.url.startsWith('https://api-sandbox.asaas.com/v3')));

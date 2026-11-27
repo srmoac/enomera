@@ -49,19 +49,19 @@ test.after(async () => {
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
-test('P0 CORE-2: sem convite ninguém ativa de graça; a oferta de 30 dias vale uma vez e depois exige pagamento', async () => {
+test('P0 CORE-2: sem convite ninguém ativa de graça; a oferta de 2 semanas vale uma vez e depois exige pagamento', async () => {
   const acc = await newAccount('sem.convite@exemplo.invalid');
   const token = acc.sessionToken;
-  // O navegador pede "aprovado", mas a decisão é do servidor: vira teste de 30 dias, não serviço ativo.
+  // O navegador pede "aprovado", mas a decisão é do servidor: vira teste de 2 semanas, não serviço ativo.
   const ord = await api('/api/v1/commercial/orders', { method: 'POST', token, body: { products: ['ambo', 'minne'], billing: 'monthly', simulatedOutcome: 'approved', method: 'simulated_pix', idempotencyKey: 'o1' } });
   assert.equal(ord.status, 201);
   assert.equal(ord.data.entitlements.ambo.status, 'trial');
   assert.equal(ord.data.entitlements.minne.billingMode, 'trial');
   assert.equal(Number(ord.data.order.is_simulated), 0);
   const days = (Date.parse(ord.data.entitlements.ambo.trialEndsAt) - Date.now()) / 86_400_000;
-  assert.ok(days > 29 && days < 31);
+  assert.ok(days > 13 && days < 15);
 
-  // Passados os 30 dias: só leitura, e nova ativação gratuita é recusada (pedido, teste, reativar e nova tentativa).
+  // Passadas as 2 semanas: só leitura, e nova ativação gratuita é recusada (pedido, teste, reativar e nova tentativa).
   await db.run("UPDATE entitlements SET trial_ends_at = '2020-01-01T00:00:00.000Z' WHERE account_id = ?", acc.account.id);
   assert.equal((await api('/api/v1/auth/me', { token })).data.entitlements.ambo.status, 'read_only');
   const again = await api('/api/v1/commercial/orders', { method: 'POST', token, body: { products: ['ambo'], billing: 'monthly', simulatedOutcome: 'approved', idempotencyKey: 'o2' } });

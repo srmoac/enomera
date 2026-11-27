@@ -1,6 +1,6 @@
 export const CATALOG_VERSION = '2026-11-22-aprovado';
 
-// Preços aprovados por Marcos: 39/49/59, combinações 69/79/89/99, anual = 10x o mensal, 30 dias grátis.
+// Preços aprovados por Marcos: 39/49/59, combinações 69/79/89/99, anual = 10x o mensal, 2 semanas grátis (27/11: era 30 dias).
 // ÚNICA fonte dos preços no servidor: a cobrança (asaas.mjs) lê daqui. As telas trazem os mesmos
 // valores para abrir sem esperar a API, e o teste "preços das telas iguais ao catálogo" impede divergência.
 export const MONTHLY_BY_COMBO = {
@@ -17,9 +17,9 @@ export const ANNUAL_MONTHS = 10;
 export const COMMERCIAL_CATALOG = {
   version: CATALOG_VERSION,
   isSimulationOnly: true,
-  disclaimer: 'No piloto por convite nada é cobrado. Fora do convite, os primeiros 30 dias são grátis e a cobrança só começa com a sua contratação.',
+  disclaimer: 'No piloto por convite nada é cobrado. Fora do convite, as primeiras 2 semanas são grátis e a cobrança só começa com a sua contratação.',
   currency: 'BRL',
-  trialDays: 30,
+  trialDays: 14,
   pilotWeeks: 4,
   annualMonths: ANNUAL_MONTHS,
   monthlyByCombo: MONTHLY_BY_COMBO,
@@ -238,6 +238,6 @@ export function buildContractSummary(input = {}) {
     trialDays: COMMERCIAL_CATALOG.trialDays,
     chargedTodayCents: 0,
     chargedToday: formatBrl(0),
-    chargedTodayNote: `${COMMERCIAL_CATALOG.trialDays} dias grátis · nenhum cartão solicitado`,
+    chargedTodayNote: '2 semanas grátis · nenhum cartão solicitado',
   };
 }

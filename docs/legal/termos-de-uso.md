@@ -1,6 +1,6 @@
 # Termos de Uso da Enomera
 
-Versão piloto · 26 de novembro de 2026 (antes: 25 de novembro de 2026)
+Versão piloto · 27 de novembro de 2026 (antes: 26 de novembro de 2026)
 
 > Este texto foi escrito pela própria equipe da Enomera para o piloto e **ainda não foi revisado por advogado**. Ele vale para o uso do piloto e será revisto antes da abertura comercial ampla. Dúvidas: contatoenomera@gmail.com.
 
@@ -27,7 +27,7 @@ Ao criar uma conta ou usar qualquer serviço, você declara que leu e aceita est
 ## 4. Piloto, teste e preços
 
 - Quem entra no piloto **por convite** usa todos os serviços, planos e a implantação do Site Sob medida **sem custo até 31 de janeiro de 2027**, sem cadastrar cartão. Nenhuma cobrança é feita nesse período e nada passa a ser cobrado sem um aviso por e-mail com antecedência e a sua confirmação.
-- Fora do convite, os primeiros **30 dias são gratuitos**. Nenhuma cobrança é feita nesse período.
+- Fora do convite, as primeiras **2 semanas (14 dias) são gratuitas**, sem cartão. Nenhuma cobrança é feita nesse período. Quem criou a conta antes de 27 de novembro de 2026 mantém os 30 dias que já tinha.
 - Ao fim do período gratuito, se você tiver escolhido continuar, a assinatura passa a ser cobrada pelo plano escolhido. Valores mensais do piloto: Agendamento R$ 39; Site R$ 49; Consultório R$ 59; Agendamento + Consultório R$ 79; Agendamento + Site R$ 69; Site + Consultório R$ 89; os três R$ 99. O plano anual custa o equivalente a 10 mensalidades.
 - Os pagamentos são processados pelo Asaas (Pix, boleto ou cartão). A Enomera não recebe nem guarda dados do seu cartão.
 - Podemos mudar preços com aviso de pelo menos 30 dias por e-mail. A mudança só vale a partir do ciclo seguinte ao aviso.

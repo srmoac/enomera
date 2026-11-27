@@ -32,7 +32,7 @@ const STATUS_LABELS = {
   published: 'Site publicado', confirmed: 'Confirmado',
 };
 const statusLabel = (status) => STATUS_LABELS[status] || 'Em andamento';
-const BILLING_LABELS = { monthly: 'Mensal', subscription: 'Mensal', permanent: 'Anual', annual: 'Anual', license: 'Anual', trial: '30 dias grátis', pilot: 'Grátis no piloto' };
+const BILLING_LABELS = { monthly: 'Mensal', subscription: 'Mensal', permanent: 'Anual', annual: 'Anual', license: 'Anual', trial: '2 semanas grátis', pilot: 'Grátis no piloto' };
 const SYNC_LABELS = {};
 const loadingSkeleton = (label, cards = 3) => `<div class="eno-skeleton" role="status" aria-busy="true"><span class="eno-sr-only">${label}</span>${Array.from({ length: cards }, () => '<div class="eno-skeleton-card" aria-hidden="true"><span class="eno-skeleton-line is-title"></span><span class="eno-skeleton-line"></span><span class="eno-skeleton-line is-short"></span></div>').join('')}</div>`;
 
@@ -528,7 +528,7 @@ export async function mountEnomeraPlatform(rootEl) {
         etha: `<button type="button" class="eno-btn eno-btn-etha" data-launch="etha" data-path="/?modo=ao-vivo">Abrir Site ↗</button>
                ${s.routine.ethaProject?.published_at ? `<a class="eno-btn eno-btn-sec" href="${esc(`${APP_ORIGINS.sites}/${encodeURIComponent(s.account.slug)}`)}" target="_blank" rel="noopener">Ver site publicado ↗</a>` : ''}`,
       }[prod];
-      const offer = isPilot() ? `Ativar ${name} grátis` : prod === 'etha' ? 'Adicionar Enomera Site' : 'Contratar ou testar 30 dias grátis';
+      const offer = isPilot() ? `Ativar ${name} grátis` : prod === 'etha' ? 'Adicionar Enomera Site' : 'Contratar ou testar 2 semanas grátis';
       return `
         <article class="eno-card ${ent?.canReadExport ? `eno-card-${prod}` : ''}">
           ${pill}
@@ -661,7 +661,7 @@ export async function mountEnomeraPlatform(rootEl) {
     return d.replace(/^(\d{2})(\d)/, '$1.$2').replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3').replace(/\.(\d{3})(\d)/, '.$1/$2').replace(/(\d{4})(\d{1,2})$/, '$1-$2');
   }
 
-  const SUB_STATUS = { trial: '30 dias grátis', active: 'Em dia', overdue: 'Pagamento pendente', cancelled: 'Cancelada' };
+  const SUB_STATUS = { trial: '2 semanas grátis', active: 'Em dia', overdue: 'Pagamento pendente', cancelled: 'Cancelada' };
 
   function renderSubscribeCard() {
     if (isPilot()) {
@@ -714,7 +714,7 @@ export async function mountEnomeraPlatform(rootEl) {
           ${state.sub.error ? `<span class="eno-field-err" id="eno-sub-err">${esc(state.sub.error)}</span>` : ''}
         </div>
         <button type="submit" class="eno-btn" ${state.sub.busy ? 'disabled' : ''}>${state.sub.busy ? 'Preparando…' : 'Assinar'}</button>
-        <p class="eno-muted">A primeira cobrança só acontece depois dos 30 dias grátis. Você paga por Pix, boleto ou cartão na página segura do Asaas.${st.mode === 'sandbox' ? ' Ambiente de teste: nada é cobrado de verdade.' : ''}</p>
+        <p class="eno-muted">A primeira cobrança só acontece depois das 2 semanas grátis. Você paga por Pix, boleto ou cartão na página segura do Asaas.${st.mode === 'sandbox' ? ' Ambiente de teste: nada é cobrado de verdade.' : ''}</p>
       </form>
     `;
   }
@@ -953,7 +953,7 @@ export async function mountEnomeraPlatform(rootEl) {
       at: new Date().toISOString(),
     };
     saveActivation(state.activation);
-    notify({ tone: 'ok', title: `${state.activation.names} ${state.activation.count > 1 ? 'ativos' : 'ativo'}`, text: isPilot() ? 'grátis no piloto' : '30 dias grátis, sem cartão' });
+    notify({ tone: 'ok', title: `${state.activation.names} ${state.activation.count > 1 ? 'ativos' : 'ativo'}`, text: isPilot() ? 'grátis no piloto' : '2 semanas grátis, sem cartão' });
     state.checkoutIdempotencyKey = `chk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     state.returnedFromReview = false;
     state.feedback = null;
@@ -1510,7 +1510,7 @@ export async function mountEnomeraPlatform(rootEl) {
       const res = await apiFetch('/api/v1/commercial/trial/start', { method: 'POST', body: { products: state.combo.products } });
       state.busyAction = null;
       if (!res.ok) { state.feedback = { tone: 'err', text: res.data.error || 'Não foi possível ativar agora. Tente de novo.' }; render(); return; }
-      state.feedback = { tone: 'ok', text: isPilot() ? `Ativado grátis no piloto até ${pilotUntil()} (sem cartão).` : `30 dias grátis ativados até ${new Date(res.data.trialEndsAt).toLocaleDateString('pt-BR')} (sem cartão).` };
+      state.feedback = { tone: 'ok', text: isPilot() ? `Ativado grátis no piloto até ${pilotUntil()} (sem cartão).` : `2 semanas grátis ativadas até ${new Date(res.data.trialEndsAt).toLocaleDateString('pt-BR')} (sem cartão).` };
       state.tab = 'portal';
       await refreshSessionAndData();
     });
@@ -1627,7 +1627,7 @@ export async function mountEnomeraPlatform(rootEl) {
         return;
       }
       state.billingStatus = { ...(state.billingStatus || {}), subscription: res.data.subscription };
-      state.feedback = { tone: 'ok', text: 'Assinatura criada. A primeira cobrança só acontece depois dos 30 dias grátis.' };
+      state.feedback = { tone: 'ok', text: 'Assinatura criada. A primeira cobrança só acontece depois das 2 semanas grátis.' };
       render();
     });
 

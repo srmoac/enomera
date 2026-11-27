@@ -1387,7 +1387,7 @@ export async function handleApiRequest(req, res, customDb = null) {
       const body = await readJsonBody(req);
       await requireTermsAccepted(db, req, auth, body);
       const products = (Array.isArray(body.products) ? body.products : ['ambo', 'minne']).filter((p) => ['ambo', 'minne', 'etha'].includes(p));
-      if (products.length === 0) throw Object.assign(new Error('Selecione ao menos um serviço para os 30 dias grátis.'), { status: 400, code: 'INVALID_TRIAL_PRODUCTS' });
+      if (products.length === 0) throw Object.assign(new Error('Selecione ao menos um serviço para as 2 semanas grátis.'), { status: 400, code: 'INVALID_TRIAL_PRODUCTS' });
       const now = nowIso();
       const trialEndsAt = (await getPilotAccess(db, auth.user.id)) ? PILOT_FREE_UNTIL : addDaysIso(COMMERCIAL_CATALOG.trialDays);
       if (!(await getPilotAccess(db, auth.user.id))) await assertTrialAvailable(db, auth.account.id, products);
@@ -1447,7 +1447,7 @@ export async function handleApiRequest(req, res, customDb = null) {
       // Três caminhos, decididos no servidor (nunca pelo que o navegador manda):
       // 1. Convidado do piloto (convite válido aceito): ativa grátis até o fim do piloto.
       // 2. Ativação simulada: só em ambiente de teste, com ENOMERA_ALLOW_SIMULATED_CHECKOUT=true.
-      // 3. Qualquer outra conta: começa os 30 dias grátis da oferta (uma vez por serviço);
+      // 3. Qualquer outra conta: começa as 2 semanas grátis da oferta (uma vez por serviço);
       //    depois disso, só com a contratação paga (/api/v1/billing/checkout).
       const pilotFree = await getPilotAccess(db, auth.user.id);
       const simulated = !pilotFree && allowSimulatedActivation();
@@ -1625,7 +1625,7 @@ export async function handleApiRequest(req, res, customDb = null) {
         : null;
       const pendingSyncs = (await db.all("SELECT * FROM sync_events WHERE account_id = ? AND status != 'synced' ORDER BY created_at DESC LIMIT 10", auth.account.id));
 
-      let nextAction = { label: 'Escolher serviços ou começar 30 dias grátis', product: 'enomera' };
+      let nextAction = { label: 'Escolher serviços ou começar 2 semanas grátis', product: 'enomera' };
       if (hasAmbo && !hasMinne) nextAction = { label: 'Configurar disponibilidade e link no Agendamento', product: 'ambo' };
       else if (hasMinne && pendingRequests > 0) nextAction = { label: `Responder ${pendingRequests} ${pendingRequests === 1 ? 'solicitação' : 'solicitações'} no Consultório`, product: 'minne' };
       else if (hasAmbo && hasMinne) nextAction = { label: 'Abrir Agendamento para compartilhar perfil ou Consultório para agenda', product: 'ambo' };
@@ -3244,7 +3244,7 @@ function formatDateBr(value) {
   return Number.isFinite(d.getTime()) ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' }).format(d) : String(value || '');
 }
 
-// Teste grátis da oferta (30 dias, sem cartão): uma vez por serviço. Quem já usou o teste
+// Teste grátis da oferta (2 semanas, sem cartão): uma vez por serviço. Quem já usou o teste
 // ou já teve o serviço ativo precisa da contratação paga.
 async function assertTrialAvailable(db, accountId, products) {
   const rows = await db.all('SELECT product, status, trial_ends_at, current_period_end FROM entitlements WHERE account_id = ?', accountId);
@@ -3276,7 +3276,7 @@ function safeContactUrl(value) {
 async function activateOrderEntitlementsTx(db, accountId, quote, { pilotFree = false, trial = false } = {}) {
   const now = nowIso();
   if (trial) {
-    // 30 dias grátis: situação "trial" com data de fim; quem já tem o serviço em dia fica como está.
+    // 2 semanas grátis: situação "trial" com data de fim; quem já tem o serviço em dia fica como está.
     const trialEndsAt = addDaysIso(COMMERCIAL_CATALOG.trialDays);
     for (const prod of quote.selectedProducts || []) {
       (await db.run(`

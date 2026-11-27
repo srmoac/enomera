@@ -288,7 +288,7 @@ const dayKey = (iso) => new Date(iso).toLocaleDateString('sv-SE', { timeZone: 'A
 // Funcionalidades do ecossistema reconhecidas por chamada à Core (robusto a mudança de layout) ou por tela.
 export const FEATURES = [
   { key: 'plano', product: 'enomera', label: 'Escolher plano', api: [/^PUT \/api\/v1\/commercial\/selection$/], screen: /checkout|etapa=planos/ },
-  { key: 'ativar', product: 'enomera', label: 'Ativar 30 dias grátis', api: [/^POST \/api\/v1\/commercial\/(trial\/start|orders)$/, /^POST \/api\/v1\/billing\/checkout$/] },
+  { key: 'ativar', product: 'enomera', label: 'Ativar 2 semanas grátis', api: [/^POST \/api\/v1\/commercial\/(trial\/start|orders)$/, /^POST \/api\/v1\/billing\/checkout$/] },
   { key: 'perfil', product: 'enomera', label: 'Editar perfil profissional', api: [/^PATCH \/api\/v1\/professional\/profile$/, /^POST \/api\/v1\/professional\/profile\/photo$/] },
   { key: 'agenda', product: 'enomera', label: 'Definir disponibilidade', api: [/^PUT \/api\/v1\/professional\/availability$/] },
   { key: 'ambo_abrir', product: 'ambo', label: 'Abrir o Agendamento', any: 'ambo' },

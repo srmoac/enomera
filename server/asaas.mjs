@@ -14,7 +14,7 @@ import { ANNUAL_MONTHS, MONTHLY_BY_COMBO } from './catalog.mjs';
  * - Nenhum dado de cartão passa pela Enomera: o cliente paga na página do Asaas (invoiceUrl).
  */
 
-export const PILOT_TRIAL_DAYS = 30;
+export const PILOT_TRIAL_DAYS = 14;
 
 /** Preços mensais em centavos: vêm do catálogo (fonte única). Anual = 10 mensalidades. */
 export const PILOT_PRICES_CENTS = MONTHLY_BY_COMBO;
@@ -242,7 +242,7 @@ function sameSelection(row, price) {
 }
 
 /**
- * Cria a assinatura no Asaas com 30 dias grátis, ou ajusta a que já existe.
+ * Cria a assinatura no Asaas com 2 semanas grátis, ou ajusta a que já existe.
  * - Uma conta tem no máximo uma assinatura viva: duplo clique ou reenvio não cria outra
  *   (a linha "pending:<conta>" funciona como trava, pela restrição UNIQUE).
  * - Se a escolha mudou (produtos ou ciclo), a assinatura existente é atualizada no Asaas.
