@@ -40,3 +40,11 @@
 .lgl-404 p { color: var(--muted); margin: 0; }
 .lgl-404 .lgl-actions { display: grid; gap: 8px; margin-top: 16px; }
 .lgl-404 .pl-btn { text-decoration: none; }
+/* Pílula deslizante do menu Termos/Privacidade (legal-nav.js) e rolagem suave das âncoras. */
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+.lgl-nav { position: relative; isolation: isolate; }
+.lgl-nav-ind { position: absolute; top: 4px; bottom: 4px; left: 0; width: 0; z-index: -1; border-radius: 999px; background: rgb(255 255 255 / .94); box-shadow: 0 2px 10px rgb(28 34 64 / .12); opacity: 0; pointer-events: none; will-change: transform, width; }
+.lgl-nav-ind.is-ready { opacity: 1; }
+.lgl-nav:has(.lgl-nav-ind.is-ready) a[aria-current="page"] { background: transparent; box-shadow: none; }
+.lgl-body > * { will-change: auto; }

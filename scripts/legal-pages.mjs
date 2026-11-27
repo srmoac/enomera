@@ -78,10 +78,12 @@ function page(title, body, slug) {
 <a class="lgl-skip" href="#conteudo">Pular para o texto</a>
 <header class="lgl-top lg" data-glass="regular" data-glass-tint="enomera">
   <a class="lgl-brand" href="/" translate="no"><img src="/assets/brand.svg" width="28" height="24" alt="">enomera</a>
-  <nav class="lgl-nav" aria-label="Documentos">${nav}</nav>
+  <nav class="lgl-nav" aria-label="Documentos"><span class="lgl-nav-ind" aria-hidden="true"></span>${nav}</nav>
 </header>
 <main id="conteudo" class="lgl-card lg pl-in" data-glass="reading" data-glass-tint="enomera" tabindex="-1">
+<div class="lgl-body" data-slug="${slug}">
 ${body}
+</div>
 </main>
 <footer class="lgl-foot">
   <span>Enomera · Atendimento remoto nacional</span>
@@ -89,6 +91,7 @@ ${body}
   <a class="pl-btn is-quiet" href="/">Voltar ao início</a>
 </footer>
 <script type="module" src="/glass/liquid-glass-auto.js"></script>
+<script src="/legal-nav.js" defer></script>
 <script src="/eno-consent.js" defer></script>
 <script src="/piloto/uso.js" data-produto="enomera" defer></script>
 </body>

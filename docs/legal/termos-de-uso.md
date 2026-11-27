@@ -1,6 +1,6 @@
 # Termos de Uso da Enomera
 
-Versão piloto · 27 de novembro de 2026 (antes: 26 de novembro de 2026)
+Versão · 27 de novembro de 2026 (antes: 26 de novembro de 2026)
 
 > Este texto foi escrito pela própria equipe da Enomera para o piloto e **ainda não foi revisado por advogado**. Ele vale para o uso do piloto e será revisto antes da abertura comercial ampla. Dúvidas: contatoenomera@gmail.com.
 
