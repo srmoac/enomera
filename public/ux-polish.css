@@ -336,3 +336,5 @@ html.is-app-route #portal[hidden] { display: block; }
 /* CORE-1 · rótulos novos (Agendamento, Consultório) cabem na coluna do resumo. */
 .billing-row { grid-template-columns: minmax(112px, max-content) 1fr; }
 .service-option strong { font-size: clamp(24px, 2.6vw, 36px); overflow-wrap: anywhere; }
+/* Link "Sob medida" no resumo de preços: dentro da frase, sem virar botão. */
+.billing-row .billing-link { display: inline; min-height: 0; padding: 0; font-size: inherit; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; color: var(--blue); font-weight: 600; }

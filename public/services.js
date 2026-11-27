@@ -80,12 +80,15 @@ export function comboPrice(ids, mode) {
   return { total: brl(monthly * mult) + (mult === 10 ? '/ano' : '/mês'), savings: list > monthly ? brl((list - monthly) * mult) : '' };
 }
 
+// O Sob medida é opcional: o link leva à explicação dos dois formatos na página do Enomera Site.
+const SOB_MEDIDA_LINK = '<a class="text-link billing-link" href="/site/#formatos">Sob medida</a>';
+
 export function billingFor(ids, mode) {
   const annual = mode === 'license';
   return services
     .filter(s => ids.includes(s.id))
     .map(s => ({
       id: s.id,
-      text: pilotFree() ? `Grátis no piloto · ${s.id === 'etha' ? 'site e hospedagem (Sob medida incluída)' : 'hospedagem, atualizações e suporte incluídos'}` : `${brl(MONTHLY[s.id] * (annual ? 10 : 1))}${annual ? '/ano' : '/mês'} · ${s.id === 'etha' ? 'site e hospedagem (Sob medida: + R$ 790 de implantação, até 3x)' : 'hospedagem, atualizações e suporte incluídos'}`
+      text: pilotFree() ? `Grátis no piloto · ${s.id === 'etha' ? `site e hospedagem, inclusive o ${SOB_MEDIDA_LINK}` : 'hospedagem, atualizações e suporte incluídos'}` : `${brl(MONTHLY[s.id] * (annual ? 10 : 1))}${annual ? '/ano' : '/mês'} · ${s.id === 'etha' ? `site e hospedagem, sem taxa de implantação. Opcional: ${SOB_MEDIDA_LINK}, em que a equipe faz o site por você (R$ 790 de implantação, até 3x)` : 'hospedagem, atualizações e suporte incluídos'}`
     }));
 }
