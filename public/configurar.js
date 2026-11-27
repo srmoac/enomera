@@ -130,9 +130,9 @@ const VIEWS = {
     const dayRows = DAYS.map(([d, n]) => `<div class="cf-day" data-dayrow="${d}" ${f.days.has(d) ? '' : 'hidden'}><button type="button" class="cf-dayall" data-dayall="${d}" aria-pressed="${full(d)}"><b>${n}</b><span>${full(d) ? 'Dia inteiro marcado' : 'Toque para marcar o dia inteiro'}</span></button><div class="cf-row">${HOURS.map((h) => chip(`data-hour="${h}" data-d="${d}"`, `${h}h`, Boolean(f.hours[d] && f.hours[d].has(h)), 'is-sm')).join('')}</div></div>`).join('');
     return { title: 'Seus horários', lead: `Toque nos dias e escolha a hora de início de cada sessão de ${f.duration} min. O paciente só vê o que você liberar.`, body: `
       <div class="cf-row" role="group" aria-label="Dias">${DAYS.map(([d, n]) => chip(`data-day="${d}"`, n, f.days.has(d))).join('')}</div>
-      ${dayRows}
       <button type="button" class="cf-skip" id="copy-hours" style="justify-self:start">Repetir os horários do primeiro dia nos outros</button>
       <span class="cf-hint" id="h-hours"></span>
+      ${dayRows}
       ${blocksHtml()}` };
   },
   link() {
@@ -302,7 +302,7 @@ function wire(root) {
   if (copy) copy.addEventListener('click', () => {
     const order = DAYS.map(([d]) => d).filter((d) => f.days.has(d)); if (order.length < 2) return;
     const src = f.hours[order[0]] || new Set();
-    order.slice(1).forEach((d) => { f.hours[d] = new Set(src); root.querySelectorAll(`[data-hour][data-d="${d}"]`).forEach((x) => toggle(x, src.has(Number(x.dataset.hour)))); });
+    order.slice(1).forEach((d) => { f.hours[d] = new Set(src); root.querySelectorAll(`[data-hour][data-d="${d}"]`).forEach((x) => toggle(x, src.has(Number(x.dataset.hour)))); syncDayAll(root, d); });
     toast({ title: 'Horários repetidos', text: `${order.length - 1} ${order.length - 1 === 1 ? 'dia' : 'dias'}` });
   });
   const photo = root.querySelector('#photo');
@@ -409,7 +409,8 @@ function blocksHtml() {
       <div class="cf-list" id="b-list">${(S.blocks || []).map(blockRow).join('')}</div>
       <div class="cf-bnew" id="b-panel" hidden>
         <div id="b-cal"></div>
-        <p class="cf-hint" id="b-range">Toque no primeiro dia. Para um período, toque também no último.</p>
+        <p class="cf-hint" id="b-range">Toque nos dias de folga. Para um período, segure o primeiro dia e arraste até o último.</p>
+        <div class="cf-bchips" id="b-chosen" aria-live="polite"></div>
         <div class="cf-row">${chip('id="b-all"', 'Dia inteiro', true)}</div>
         <div id="b-hours" hidden style="display:none;gap:10px">
           <span class="cf-label">Das</span><div class="cf-row">${hourChips('data-bfrom', 7, 20)}</div>
@@ -417,7 +418,7 @@ function blocksHtml() {
         </div>
         <span class="cf-label">Motivo</span>
         <div class="cf-row">${REASONS.map((r, i) => chip(`data-breason="${r}"`, r, i === 0)).join('')}</div>
-        <div class="cf-row"><button type="button" class="eg-btn is-sm" id="b-save">Salvar folga</button><button type="button" class="eg-btn is-glass is-sm" id="b-cancel">Cancelar</button></div>
+        <div class="cf-row"><button type="button" class="eg-btn is-sm" id="b-save">Salvar folgas</button><button type="button" class="eg-btn is-glass is-sm" id="b-cancel">Cancelar</button></div>
       </div>
     </section>`;
 }
@@ -428,17 +429,37 @@ async function putBlocks() {
 }
 function wireBlocks(root) {
   const panel = root.querySelector('#b-panel'); if (!panel) return;
-  const B = { start: '', end: '', all: true, from: null, to: null, reason: REASONS[0] };
+  const B = { ranges: [], all: true, from: null, to: null, reason: REASONS[0] };
+  const HINT0 = 'Toque nos dias de folga. Para um período, segure o primeiro dia e arraste até o último.';
+  const lbl = (v) => window.EnoCalendar.label(v);
+  const rangeText = (r) => r.start === r.end ? lbl(r.start) : `${lbl(r.start)} até ${lbl(r.end)}`;
+  // Dias que já são folga ganham um ponto no calendário.
+  const markedDays = () => {
+    const out = [];
+    (S.blocks || []).forEach((b) => { let d = String(b.startAt).slice(0, 10); const e = String(b.endAt).slice(0, 10); let n = 0; while (d <= e && n++ < 400) { out.push(d); const [y, m, dd] = d.split('-').map(Number); const t = new Date(y, m - 1, dd + 1, 12); d = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`; } });
+    return out;
+  };
+  // Lista do que está escolhido: cada período vira um chip, que entra e sai com motion.
+  const paintChosen = () => {
+    const box = root.querySelector('#b-chosen');
+    const keys = B.ranges.map((r) => `${r.start}_${r.end}`);
+    [...box.children].forEach((c) => { if (!keys.includes(c.dataset.k)) { const a = c.animate?.([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(.9)' }], { duration: 160, easing: 'cubic-bezier(.23,1,.32,1)' }); if (a) a.onfinish = () => c.remove(); else c.remove(); } });
+    B.ranges.forEach((r, i) => {
+      const k = keys[i];
+      if (box.querySelector(`[data-k="${k}"]`)) return;
+      box.insertAdjacentHTML('beforeend', `<span class="cf-bchip" data-k="${k}">${esc(rangeText(r))}</span>`);
+      box.lastElementChild.animate?.([{ opacity: 0, transform: 'translateY(6px) scale(.96)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: 'cubic-bezier(.23,1,.32,1)' });
+    });
+    const n = B.ranges.length;
+    rangeHint.className = n ? 'cf-hint ok' : 'cf-hint';
+    rangeHint.textContent = n ? (n === 1 ? '1 folga escolhida. Pode tocar em mais dias.' : `${n} folgas escolhidas. Pode tocar em mais dias.`) : HINT0;
+  };
   let cal = null;
   const rangeHint = root.querySelector('#b-range');
   const open = (on) => {
     if (on && !cal && window.EnoCalendar) {
-      cal = window.EnoCalendar.mount(root.querySelector('#b-cal'), { mode: 'range', onChange: (v) => {
-        B.start = v.start; B.end = v.end;
-        rangeHint.className = 'cf-hint ok';
-        rangeHint.textContent = v.start === v.end ? `${window.EnoCalendar.label(v.start)}. Toque em outro dia para virar um período.` : `De ${window.EnoCalendar.label(v.start)} até ${window.EnoCalendar.label(v.end)}.`;
-      } });
-    }
+      cal = window.EnoCalendar.mount(root.querySelector('#b-cal'), { mode: 'multi', marked: markedDays(), onChange: (v) => { B.ranges = v.ranges; paintChosen(); } });
+    } else if (on && cal) cal.mark(markedDays());
     revealRow(panel, on);
     root.querySelector('#b-new').hidden = on;
   };
@@ -455,20 +476,23 @@ function wireBlocks(root) {
   single('data-bfrom', 'from'); single('data-bto', 'to'); single('data-breason', 'reason');
   root.querySelector('#b-save').addEventListener('click', async (e) => {
     const btn = e.currentTarget;
-    if (!B.start) { rangeHint.className = 'cf-hint bad'; rangeHint.textContent = 'Escolha o dia da folga no calendário.'; window.EnoFeedback?.flash(root.querySelector('#b-cal')); return; }
+    if (!B.ranges.length) { rangeHint.className = 'cf-hint bad'; rangeHint.textContent = 'Toque em pelo menos um dia de folga no calendário.'; window.EnoFeedback?.flash(root.querySelector('#b-cal')); return; }
     if (!B.all && (B.from == null || B.to == null || B.to <= B.from)) { rangeHint.className = 'cf-hint bad'; rangeHint.textContent = 'Escolha o horário de início e um fim depois dele.'; return; }
     const hh = (h) => `${String(h).padStart(2, '0')}:00`;
-    const block = { startAt: `${B.start}T${B.all ? '00:00' : hh(B.from)}:00-03:00`, endAt: `${B.end || B.start}T${B.all ? '23:59' : hh(B.to)}:00-03:00`, reason: B.reason };
+    // Cada período escolhido vira uma folga própria, com o mesmo motivo e horário.
+    const added = B.ranges.map((r) => ({ startAt: `${r.start}T${B.all ? '00:00' : hh(B.from)}:00-03:00`, endAt: `${r.end}T${B.all ? '23:59' : hh(B.to)}:00-03:00`, reason: B.reason }));
     btn.setAttribute('aria-busy', 'true');
-    S.blocks.push(block);
+    S.blocks.push(...added);
     const ok = await putBlocks();
     btn.removeAttribute('aria-busy');
-    if (!ok) { S.blocks.pop(); return; }
+    if (!ok) { S.blocks.splice(S.blocks.length - added.length, added.length); return; }
     const list = root.querySelector('#b-list');
-    list.insertAdjacentHTML('beforeend', blockRow(block, S.blocks.length - 1));
-    list.lastElementChild.animate?.([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: 'cubic-bezier(.23,1,.32,1)' });
-    toast({ title: 'Folga salva', text: 'esses horários somem do Agendamento' });
-    B.start = ''; B.end = ''; cal?.set({ start: '' }); rangeHint.className = 'cf-hint'; rangeHint.textContent = 'Toque no primeiro dia. Para um período, toque também no último.';
+    added.forEach((block, k) => {
+      list.insertAdjacentHTML('beforeend', blockRow(block, S.blocks.length - added.length + k));
+      list.lastElementChild.animate?.([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 220, delay: Math.min(k, 5) * 40, easing: 'cubic-bezier(.23,1,.32,1)', fill: 'backwards' });
+    });
+    toast({ title: added.length > 1 ? `${added.length} folgas salvas` : 'Folga salva', text: 'esses horários somem do Agendamento' });
+    B.ranges = []; cal?.clear(); cal?.mark(markedDays());
     open(false);
   });
   // Remover com Desfazer, sem "tem certeza?".

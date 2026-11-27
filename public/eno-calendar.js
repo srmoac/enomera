@@ -1,7 +1,11 @@
 /* Enomera · Calendário próprio em vidro (23 nov 2026). Substitui o <input type="date|datetime-local">
    nativo em todos os produtos. Sem dependências. Cor do produto em --eg-c (eno-glass-ui.css).
 
-   const cal = EnoCalendar.mount(el, { mode: 'single' | 'range', value: { start: 'AAAA-MM-DD', end }, min: 'AAAA-MM-DD' | null, max: 'AAAA-MM-DD', onChange(v) {} });
+   Modo 'multi' (folgas): cada toque liga ou desliga um dia; segurar um dia e arrastar pinta (ou apaga)
+   um período inteiro. Dias seguidos viram uma faixa contínua. onChange recebe { days: [...], ranges: [{start,end}] }.
+   opts.marked = ['AAAA-MM-DD'] mostra um ponto nos dias que já têm algo (ex.: folgas salvas).
+
+   const cal = EnoCalendar.mount(el, { mode: 'single' | 'range' | 'multi', value: { start: 'AAAA-MM-DD', end }, min: 'AAAA-MM-DD' | null, max: 'AAAA-MM-DD', onChange(v) {} });
    min padrão = hoje (null libera o passado); max limita o futuro (ex.: data de atendimento).
    cal.get() → { start, end }   cal.set({ start, end })
 
@@ -27,7 +31,9 @@
 
   function mount(el, opts) {
     opts = opts || {};
-    var mode = opts.mode === 'range' ? 'range' : 'single';
+    var mode = opts.mode === 'range' || opts.mode === 'multi' ? opts.mode : 'single';
+    var multi = {}; // dias escolhidos no modo multi
+    var marked = {}; (opts.marked || []).forEach(function (d) { marked[d] = true; });
     var st = { start: (opts.value && opts.value.start) || '', end: (opts.value && opts.value.end) || '', min: opts.min === null ? '' : (opts.min || todayIso()), max: opts.max || '' };
     var base = parse(st.start) || parse(todayIso());
     var view = { y: base.y, m: base.m };
@@ -44,6 +50,30 @@
     var titleEl = el.querySelector('.ecal-title');
     var stage = el.querySelector('.ecal-stage');
 
+    function addDays(v, n) { var p = parse(v); var dt = new Date(p.y, p.m, p.d + n, 12); return iso(dt.getFullYear(), dt.getMonth(), dt.getDate()); }
+    // Classes de um dia: no modo multi, a faixa liga dias vizinhos escolhidos.
+    function dayState(v) {
+      if (mode === 'multi') {
+        var on = Boolean(multi[v]); var prev = on && multi[addDays(v, -1)]; var next = on && multi[addDays(v, 1)];
+        return { sel: on && !(prev && next), inRange: on && prev && next, from: on && next && !prev, to: on && prev && !next };
+      }
+      var sel = v === st.start || (mode === 'range' && v === st.end);
+      var inRange = mode === 'range' && st.start && st.end && v > st.start && v < st.end;
+      var span = mode === 'range' && st.end && st.end !== st.start;
+      return { sel: sel, inRange: Boolean(inRange), from: Boolean(span && v === st.start), to: Boolean(span && v === st.end) };
+    }
+    function ranges() {
+      var days = Object.keys(multi).filter(function (k) { return multi[k]; }).sort();
+      var out = [];
+      days.forEach(function (d) { var last = out[out.length - 1]; if (last && addDays(last.end, 1) === d) last.end = d; else out.push({ start: d, end: d }); });
+      return out;
+    }
+    function emit() {
+      if (!opts.onChange) return;
+      if (mode === 'multi') { var r = ranges(); opts.onChange({ days: Object.keys(multi).filter(function (k) { return multi[k]; }).sort(), ranges: r, start: r[0] ? r[0].start : '', end: r[0] ? r[0].end : '' }); }
+      else opts.onChange({ start: st.start, end: st.end || st.start });
+    }
+
     function gridHtml() {
       var first = new Date(view.y, view.m, 1).getDay();
       var days = new Date(view.y, view.m + 1, 0).getDate();
@@ -53,11 +83,9 @@
       for (var d = 1; d <= days; d++) {
         var v = iso(view.y, view.m, d);
         var dis = (st.min && v < st.min) || (st.max && v > st.max);
-        var sel = v === st.start || (mode === 'range' && v === st.end);
-        var inRange = mode === 'range' && st.start && st.end && v > st.start && v < st.end;
+        var ds = dayState(v); var sel = ds.sel || ds.from || ds.to; var inRange = ds.inRange;
         var cls = 'ecal-day' + (v === today ? ' is-today' : '') + (sel ? ' is-sel' : '') + (inRange ? ' is-in' : '') +
-          (mode === 'range' && st.end && st.end !== st.start && v === st.start ? ' is-from' : '') +
-          (mode === 'range' && st.end && st.end !== st.start && v === st.end ? ' is-to' : '');
+          (ds.from ? ' is-from' : '') + (ds.to ? ' is-to' : '') + (marked[v] ? ' is-marked' : '');
         out.push('<button type="button" role="gridcell" class="' + cls + '" data-d="' + v + '"' + (dis ? ' disabled' : '') +
           ' aria-selected="' + (sel || inRange) + '" aria-label="' + label(v) + '" tabindex="' + (v === focusIso ? '0' : '-1') + '"><span>' + d + '</span></button>');
       }
@@ -87,26 +115,27 @@
     function repaint() {
       stage.querySelectorAll('.ecal-grid:last-child .ecal-day').forEach(function (b) {
         var v = b.dataset.d;
-        var sel = v === st.start || (mode === 'range' && v === st.end);
-        var inRange = mode === 'range' && st.start && st.end && v > st.start && v < st.end;
-        var span = mode === 'range' && st.end && st.end !== st.start;
-        var was = b.classList.contains('is-sel');
+        var ds = dayState(v); var sel = ds.sel || ds.from || ds.to; var inRange = ds.inRange;
+        var was = b.classList.contains('is-sel') || b.classList.contains('is-in');
         b.classList.toggle('is-sel', sel);
         b.classList.toggle('is-in', Boolean(inRange));
-        b.classList.toggle('is-from', Boolean(span && v === st.start));
-        b.classList.toggle('is-to', Boolean(span && v === st.end));
+        b.classList.toggle('is-from', Boolean(ds.from));
+        b.classList.toggle('is-to', Boolean(ds.to));
+        b.classList.toggle('is-marked', Boolean(marked[v]));
+        if (!sel && !inRange && was && !reduce()) b.animate([{ transform: 'scale(1)' }, { transform: 'scale(.9)' }, { transform: 'scale(1)' }], { duration: 220, easing: 'cubic-bezier(.23,1,.32,1)' });
         b.setAttribute('aria-selected', String(sel || Boolean(inRange)));
         if (sel && !was && !reduce()) b.animate([{ transform: 'scale(.82)' }, { transform: 'scale(1.06)' }, { transform: 'scale(1)' }], { duration: 320, easing: 'cubic-bezier(.23,1,.32,1)' });
       });
     }
 
     function choose(v) {
+      if (mode === 'multi') { multi[v] = !multi[v]; focusIso = v; repaint(); emit(); return; }
       if (mode === 'single') { st.start = v; st.end = v; }
       else if (picking === 'start' || !st.start || v < st.start) { st.start = v; st.end = v; picking = 'end'; }
       else { st.end = v; picking = 'start'; }
       focusIso = v;
       repaint();
-      if (opts.onChange) opts.onChange({ start: st.start, end: st.end || st.start });
+      emit();
     }
 
     function go(dir) {
@@ -140,8 +169,42 @@
     });
     // Arrastar para o lado troca o mês, como virar a página.
     var sx = null, sy = null, swiped = false;
-    stage.addEventListener('pointerdown', function (e) { sx = e.clientX; sy = e.clientY; });
+    // Modo multi: segurar um dia (350 ms) e arrastar pinta o período de uma vez; soltar confirma.
+    var hold = null, paint = null;
+    function dayAt(x, y) { var t = document.elementFromPoint(x, y); t = t && t.closest ? t.closest('.ecal-day') : null; return t && !t.disabled && stage.contains(t) ? t : null; }
+    function paintTo(v) {
+      if (!paint) return;
+      var a = paint.from < v ? paint.from : v, b = paint.from < v ? v : paint.from;
+      multi = Object.assign({}, paint.base);
+      for (var d = a; d <= b; d = addDays(d, 1)) multi[d] = paint.value;
+      repaint();
+    }
+    stage.addEventListener('pointerdown', function (e) {
+      sx = e.clientX; sy = e.clientY;
+      if (mode !== 'multi') return;
+      var day = dayAt(e.clientX, e.clientY); if (!day) return;
+      clearTimeout(hold);
+      hold = setTimeout(function () {
+        var v = day.dataset.d;
+        paint = { from: v, value: !multi[v], base: Object.assign({}, multi), pid: e.pointerId };
+        try { stage.setPointerCapture(e.pointerId); } catch (err) {}
+        el.classList.add('is-painting');
+        if (navigator.vibrate) { try { navigator.vibrate(8); } catch (err) {} }
+        paintTo(v);
+      }, 350);
+    });
+    stage.addEventListener('pointermove', function (e) {
+      if (hold && !paint && sx != null && Math.hypot(e.clientX - sx, e.clientY - sy) > 10) { clearTimeout(hold); hold = null; }
+      if (!paint) return;
+      e.preventDefault();
+      var day = dayAt(e.clientX, e.clientY); if (day) paintTo(day.dataset.d);
+    });
+    // No celular, depois de segurar, o dedo arrastando pinta os dias em vez de rolar a página.
+    stage.addEventListener('touchmove', function (e) { if (paint && e.cancelable) e.preventDefault(); }, { passive: false });
+    stage.addEventListener('pointercancel', function () { clearTimeout(hold); hold = null; if (paint) { multi = paint.base; paint = null; el.classList.remove('is-painting'); repaint(); } });
     stage.addEventListener('pointerup', function (e) {
+      clearTimeout(hold); hold = null;
+      if (paint) { paint = null; el.classList.remove('is-painting'); swiped = true; sx = null; emit(); return; }
       if (sx == null) return;
       var dx = e.clientX - sx, dy = e.clientY - sy; sx = null;
       if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy) * 1.4) { swiped = true; go(dx < 0 ? 1 : -1); }
@@ -149,7 +212,9 @@
 
     renderGrid(0);
     return {
-      get: function () { return { start: st.start, end: st.end || st.start }; },
+      get: function () { return mode === 'multi' ? { ranges: ranges() } : { start: st.start, end: st.end || st.start }; },
+      clear: function () { multi = {}; st.start = ''; st.end = ''; picking = 'start'; repaint(); emit(); },
+      mark: function (days) { marked = {}; (days || []).forEach(function (d) { marked[d] = true; }); repaint(); },
       set: function (v) { st.start = (v && v.start) || ''; st.end = (v && v.end) || st.start; picking = 'start'; var p = parse(st.start); if (p && (p.y !== view.y || p.m !== view.m)) { view.y = p.y; view.m = p.m; renderGrid(0); } else repaint(); },
     };
   }
