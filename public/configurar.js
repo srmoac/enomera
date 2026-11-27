@@ -637,7 +637,8 @@ backBtn.addEventListener('click', () => go(-1));
     else { S.mode = 'hub'; show('hub', null); }
     return;
   }
-  // Ainda falta algo: o passo a passo começa no primeiro item que falta, não do zero.
-  const start = S.steps.includes(want) ? S.steps.indexOf(want) : Math.max(0, S.steps.indexOf(left[0]));
+  // Ainda falta algo: o passo a passo sempre começa na etapa 1 (o que já está preenchido aparece pronto
+  // para conferir). Só um ?etapa= explícito, como ao recarregar a página, abre direto numa etapa.
+  const start = S.steps.includes(want) ? S.steps.indexOf(want) : 0;
   show(start, null);
 })();
