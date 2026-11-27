@@ -222,7 +222,7 @@ export async function sendTransactionalEmail(db, { recipient, subject, textBody,
 
   // Never store plaintext OTPs/tokens in dev_outbox_messages when real external Resend delivery succeeded
   const storedPreview = sentExternally
-    ? '[Enviado externamente — conteúdo oculto da caixa local por segurança]'
+    ? '[Enviado externamente. Conteúdo oculto da caixa local por segurança]'
     : textBody;
 
   // Registro mínimo: quando o e-mail saiu de verdade, guardamos só o destinatário mascarado e a

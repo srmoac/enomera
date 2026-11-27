@@ -182,7 +182,7 @@ export async function seedDatabase(db) {
       `INSERT INTO clinical_note_versions (id, note_id, account_id, version_number, author_user_id, author_display_name, blocks_json, change_reason, created_at)
        VALUES ('ver_ana_demo_1', ?, ?, 1, ?, 'Helena Duarte', ?, 'Registro inicial de demonstração', ?)`,
       anaNoteId, helenaAccId, helenaUserId,
-      JSON.stringify([{ id: 'b1', type: 'paragraph', text: 'Registro clínico fictício exclusivo da profissional Helena Duarte — jamais acessível ao paciente ou à operação Site.' }]),
+      JSON.stringify([{ id: 'b1', type: 'paragraph', text: 'Registro clínico fictício exclusivo da profissional Helena Duarte, jamais acessível ao paciente ou à operação Site.' }]),
       now
     );
 

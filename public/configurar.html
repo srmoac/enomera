@@ -92,6 +92,8 @@
   .cf-hubtxt { display: grid; gap: 2px; min-width: 0; }
   .cf-hubtxt b { font-size: 15px; }
   .cf-hubtxt span { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* No celular o resumo quebra em até duas linhas em vez de cortar com reticências (AR-16). */
+  @media (max-width: 640px) { .cf-hubtxt span { white-space: normal; overflow: visible; text-overflow: clip; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; } .cf-hubtxt b { white-space: normal; overflow-wrap: anywhere; } }
   .cf-hubst { font: 700 12px/1 Manrope, sans-serif; padding: 6px 10px; border-radius: 999px; color: rgb(var(--eg-c)); background: rgb(var(--eg-c) / .12); }
   .cf-hubst.ok { color: #1F7A4D; background: rgb(31 122 77 / .12); }
   .cf-hubst.todo { color: #A86A00; background: rgb(168 106 0 / .12); }

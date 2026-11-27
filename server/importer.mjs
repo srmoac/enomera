@@ -53,7 +53,7 @@ export const SUPPORTED_IMPORT_FORMATS = {
   pdf: { supported: true, label: 'PDF com texto extraível (original preservado em área privada)' },
   pdf_scanned: { supported: true, label: 'PDF escaneado / sem texto (original preservado; OCR externo não habilitado)' },
   docx: { supported: true, label: 'DOCX (texto extraído com Mammoth + original preservado)' },
-  legacy_doc: { supported: false, label: 'DOC antigo (.doc) não suportado sem conversor validado — converta para .docx ou .pdf' },
+  legacy_doc: { supported: false, label: 'DOC antigo (.doc) não suportado sem conversor validado. Converta para .docx ou .pdf' },
   txt: { supported: true, label: 'TXT (UTF-8 ou Latin-1)' },
   csv: { supported: true, label: 'CSV (vírgula ou ponto-e-vírgula, UTF-8 ou Latin-1, mapeamento de colunas)' },
   xlsx: { supported: true, label: 'XLSX (ExcelJS, leitura somente de valores sem executar fórmulas/macros)' },
@@ -85,7 +85,7 @@ function parseFlexibleDate(raw) {
       return { iso: `${yyyy}-${mm}-${dd}T12:00:00-03:00`, warning: null };
     }
   }
-  return { iso: null, warning: `Data ambígua ou inválida ("${s.slice(0, 40)}") — mantida como desconhecida para revisão.` };
+  return { iso: null, warning: `Data ambígua ou inválida ("${s.slice(0, 40)}"): mantida como desconhecida para revisão.` };
 }
 
 function parseCsvRows(text) {
@@ -807,7 +807,7 @@ export async function commitImportBatch(db, { accountId, userId, userDisplayName
           throw new Error(item.error_message);
         }
         if (item.status === 'duplicate_review' && item.resolution_action === 'pending') {
-          throw new Error('Duplicata detectada — escolha ignorar ou confirmar importação antes de concluir.');
+          throw new Error('Duplicata detectada: escolha ignorar ou confirmar importação antes de concluir.');
         }
 
         let patientId = item.target_patient_id;
@@ -831,7 +831,7 @@ export async function commitImportBatch(db, { accountId, userId, userDisplayName
         }
 
         if (!patientId) {
-          throw new Error('Associação de paciente pendente — escolha um paciente existente ou crie um novo cadastro.');
+          throw new Error('Associação de paciente pendente: escolha um paciente existente ou crie um novo cadastro.');
         }
 
         const noteId = randomId('note');

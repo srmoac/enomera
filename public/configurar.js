@@ -185,7 +185,8 @@ function paint() {
   const hub = S.mode === 'hub'; const edit = S.mode === 'edit';
   document.body.setAttribute('data-produto', prod);
   document.body.setAttribute('data-mode', S.mode);
-  document.getElementById('pill').textContent = prod.toUpperCase();
+  // Rótulo público do produto (nunca o identificador interno).
+  document.getElementById('pill').textContent = ({ ambo: 'Agendamento', minne: 'Consultório', etha: 'Site', enomera: 'Enomera' }[prod] || 'Enomera').toUpperCase();
   document.getElementById('count').textContent = hub ? (missing().length ? 'Quase lá' : 'Tudo configurado') : edit ? `Configurações · ${STEP_DEFS[key].label}` : `Etapa ${S.i + 1} de ${S.steps.length} · ${STEP_DEFS[key].label}`;
   const later = document.getElementById('later'); if (later) later.textContent = hub || edit ? 'Voltar ao portal' : 'Terminar depois';
   const bar = document.getElementById('bar');

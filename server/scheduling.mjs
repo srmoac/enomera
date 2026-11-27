@@ -131,7 +131,7 @@ async function recordSyncEvent(db, { accountId, eventType, sourceProduct, target
   const id = randomId('sync');
   const now = nowIso();
   const status = simulateDelayedSync ? 'pending_retry' : 'synced';
-  const lastError = simulateDelayedSync ? 'Propagação em andamento — registro principal já gravado; tente sincronizar novamente se necessário.' : null;
+  const lastError = simulateDelayedSync ? 'Propagação em andamento. O registro principal já foi gravado; tente sincronizar novamente se necessário.' : null;
   await db.run(
     `INSERT INTO sync_events (id, account_id, event_type, source_product, target_product, entity_type, entity_id, payload_json, status, attempts, last_error, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
