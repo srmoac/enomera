@@ -43,6 +43,7 @@ export async function purgeAccount(db, accountId) {
   await runTransaction(db, async (tx) => {
     await tx.run('DELETE FROM sessions WHERE account_id = ?', accountId);
     await tx.run('DELETE FROM verification_tokens WHERE account_id = ?', accountId);
+    await tx.run('DELETE FROM account_slug_aliases WHERE account_id = ?', accountId);
     await tx.run('DELETE FROM professional_accounts WHERE id = ?', accountId);
     const others = await tx.get('SELECT COUNT(*) AS c FROM account_memberships WHERE user_id = ?', account.owner_user_id);
     if (!Number(others?.c || 0)) {

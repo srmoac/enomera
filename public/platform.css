@@ -1225,3 +1225,25 @@ body:has(.eno-flow-shell) .journey-petal { display: none !important; }
 }
 .eno-grid-3 > .eno-card > .eno-btn-row:last-child { flex-direction: column; align-items: stretch; }
 .eno-grid-3 > .eno-card > .eno-btn-row:last-child > .eno-btn { width: 100%; justify-content: center; }
+
+/* Aceite explícito dos Termos (auditoria 26/11) */
+.eno-terms-check { display: grid; grid-template-columns: 24px 1fr; gap: 12px; align-items: start; cursor: pointer; min-height: 44px; padding: 8px 0; font-size: 14px; line-height: 1.45; color: var(--eno-ink, #1C2240); position: relative; }
+.eno-terms-check input { position: absolute; opacity: 0; width: 24px; height: 24px; margin: 0; left: 0; top: 8px; cursor: pointer; }
+.eno-terms-box { width: 24px; height: 24px; border-radius: 8px; border: 2px solid #8A93B2; display: grid; place-items: center; background: rgb(255 255 255 / .7); transition: background-color var(--eno-t-fast, 160ms) var(--eno-ease-out, ease-out), border-color var(--eno-t-fast, 160ms) var(--eno-ease-out, ease-out), transform var(--eno-t-press, 120ms) var(--eno-ease-out, ease-out); }
+.eno-terms-box svg { width: 14px; height: 14px; stroke: #fff; stroke-width: 3; fill: none; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 20; stroke-dashoffset: 20; transition: stroke-dashoffset var(--eno-t-base, 240ms) var(--eno-ease-out, ease-out); }
+.eno-terms-check input:checked + .eno-terms-box { background: #3B4FB8; border-color: #3B4FB8; }
+.eno-terms-check input:checked + .eno-terms-box svg { stroke-dashoffset: 0; }
+.eno-terms-check input:active + .eno-terms-box { transform: scale(.92); }
+.eno-terms-check input:focus-visible + .eno-terms-box { outline: 2px solid #3B4FB8; outline-offset: 2px; }
+.eno-terms-check input[aria-invalid="true"] + .eno-terms-box { border-color: #C2384A; }
+.eno-terms-check a { text-decoration: underline; }
+/* Exclusão da conta */
+.eno-danger-zone { margin-top: 20px; padding: 16px 18px; border-radius: 18px; border: 1px solid rgb(194 56 74 / .22); background: rgb(194 56 74 / .05); display: grid; gap: 12px; }
+.eno-danger-zone summary { cursor: pointer; font-weight: 600; min-height: 44px; display: flex; align-items: center; color: #9E2B3B; }
+.eno-danger-zone[open] summary { margin-bottom: 4px; }
+@media (prefers-reduced-motion: reduce) { .eno-terms-box, .eno-terms-box svg { transition: none; } }
+
+/* Abas roláveis: sombra de continuação quando há mais abas para o lado (AR-13/AR-14). */
+.eno-topbar .eno-nav-tabs[data-more-end]:not([data-more-start]) { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent); }
+.eno-topbar .eno-nav-tabs[data-more-start]:not([data-more-end]) { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent); }
+.eno-topbar .eno-nav-tabs[data-more-start][data-more-end] { -webkit-mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent); }

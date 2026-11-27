@@ -9,6 +9,7 @@
      onCommit roda quando o tempo acaba sem desfazer.
    window.EnoFeedback.done(button, 'Salvo')  → o botão mostra ✓ Salvo por 1,6 s e volta.
    window.EnoFeedback.flash(element)         → realce curto no item que mudou.
+   window.EnoFeedback.confirm({ title, text, confirmLabel, cancelLabel, tone }) → Promise<boolean>, diálogo em vidro.
    window.EnoFeedback.password(input, { userInputs: () => [nome, email] }) → força + regras ao vivo.
 
    Regras de uso (resumo de padrao-ux-motion.md §14):
@@ -248,5 +249,40 @@
     return api;
   }
 
-  window.EnoFeedback = { toast: toast, undo: undo, done: done, flash: flash, password: password, assessPassword: assess };
+
+  // Confirmação em vidro: Promise<boolean>. Substitui o confirm() nativo.
+  // EnoFeedback.confirm({ title, text, html, confirmLabel, cancelLabel, tone: 'err' | 'ok' })
+  function confirmDialog(opts) {
+    opts = opts || {};
+    return new Promise(function (resolve) {
+      var dlg = document.createElement('dialog');
+      dlg.className = 'eno-confirm';
+      dlg.setAttribute('aria-labelledby', 'eno-confirm-title');
+      dlg.innerHTML =
+        '<div class="eno-confirm-card" data-tone="' + esc(opts.tone || 'ok') + '">' +
+          '<h2 id="eno-confirm-title">' + esc(opts.title || 'Confirmar') + '</h2>' +
+          (opts.html ? '<div class="eno-confirm-text">' + opts.html + '</div>' : opts.text ? '<p class="eno-confirm-text">' + esc(opts.text) + '</p>' : '') +
+          '<div class="eno-confirm-actions">' +
+            '<button type="button" class="eno-confirm-btn is-quiet" data-no>' + esc(opts.cancelLabel || 'Voltar') + '</button>' +
+            '<button type="button" class="eno-confirm-btn" data-yes>' + esc(opts.confirmLabel || 'Confirmar') + '</button>' +
+          '</div>' +
+        '</div>';
+      document.body.appendChild(dlg);
+      var settled = false;
+      function close(val) {
+        if (settled) return; settled = true;
+        var finish = function () { try { dlg.close(); } catch (e) {} dlg.remove(); resolve(val); };
+        if (reduce()) { finish(); return; }
+        dlg.setAttribute('data-leaving', ''); setTimeout(finish, 180);
+      }
+      dlg.querySelector('[data-yes]').onclick = function () { close(true); };
+      dlg.querySelector('[data-no]').onclick = function () { close(false); };
+      dlg.addEventListener('cancel', function (e) { e.preventDefault(); close(false); });
+      dlg.addEventListener('click', function (e) { if (e.target === dlg) close(false); });
+      if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
+      dlg.querySelector('[data-no]').focus();
+    });
+  }
+
+  window.EnoFeedback = { toast: toast, undo: undo, done: done, flash: flash, password: password, assessPassword: assess, confirm: confirmDialog };
 })();

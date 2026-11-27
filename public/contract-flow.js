@@ -6,7 +6,7 @@ import { otpFieldHTML } from './otp-field.js';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 export const PRODUCT_INFO = {
-  ambo: { name: 'Agendamento', description: 'Página para o paciente pedir consulta, com lembretes', monthly: 'R$ 39', annual: 'R$ 390' },
+  ambo: { name: 'Agendamento', description: 'Página para o paciente pedir e acompanhar consultas', monthly: 'R$ 39', annual: 'R$ 390' },
   minne: { name: 'Consultório', description: 'Pacientes, agenda do dia e prontuários', monthly: 'R$ 59', annual: 'R$ 590' },
   etha: { name: 'Site', description: 'Seu site profissional, com hospedagem', monthly: 'R$ 49', annual: 'R$ 490' },
 };
@@ -23,7 +23,7 @@ export function isPilotFree() { return PILOT_FREE; }
 // "Completo" é o recomendado: é o que mais economiza e cobre site, agenda e prontuário.
 export const PLANS = [
   { id: 'agenda', name: 'Agendamento', products: ['ambo'], monthly: 39, separate: 39, for: 'Para começar a receber pedidos de consulta.',
-    items: ['Página de agendamento com seus horários', 'Área do paciente com lembretes', 'Pedidos de primeira consulta'] },
+    items: ['Página de agendamento com seus horários', 'Área do paciente para acompanhar consultas', 'Pedidos de primeira consulta'] },
   { id: 'consultorio', name: 'Agendamento + Consultório', products: ['ambo', 'minne'], monthly: 79, separate: 98, for: 'Agenda e prontuário no mesmo lugar.',
     items: ['Tudo do Agendamento', 'Prontuários e evolução clínica (Enomera Consultório)', 'Agenda do dia ligada aos pedidos'] },
   { id: 'completo', name: 'Completo', products: ['ambo', 'minne', 'etha'], monthly: 99, separate: 147, recommended: true, for: 'Site, agenda e prontuário: a prática inteira.',
@@ -109,7 +109,7 @@ function flower() {
 }
 
 export function renderFlowStepper(step) {
-  const steps = [['choice', 'Escolha'], ['account', 'Conta'], ['review', 'Checkout'], ['portal', 'Portal']];
+  const steps = [['choice', 'Escolha'], ['account', 'Conta'], ['review', 'Revisão'], ['portal', 'Portal']];
   const idx = steps.findIndex(([k]) => k === step);
   return `
     <ol class="eno-flow-steps" aria-label="Etapas da contratação">
@@ -117,7 +117,7 @@ export function renderFlowStepper(step) {
         const done = i < idx;
         const current = i === idx;
         return `<li class="${done ? 'is-done' : ''} ${current ? 'is-current' : ''}" ${current ? 'aria-current="step"' : ''}>${done ? '✓ ' : `${i + 1} `}${label}</li>`;
-      }).join('<li class="eno-flow-sep" aria-hidden="true">—</li>')}
+      }).join('<li class="eno-flow-sep" aria-hidden="true">›</li>')}
     </ol>
   `;
 }
@@ -213,7 +213,7 @@ function footerNotes() {
   return `
     <footer class="eno-flow-foot">
       <p>Mensal ou anual (10 mensalidades). Os primeiros 30 dias são grátis.</p>
-      <small>Nenhuma cobrança real é feita agora.</small>
+      <small>Nenhum cartão é pedido agora. A cobrança só começa se você assinar depois dos 30 dias.</small>
     </footer>
   `;
 }
@@ -293,7 +293,7 @@ export function renderChoice({ combo, contract, signedIn, returnedFromReview, cu
   `;
 }
 
-export function renderAccount({ mode, email, contract, codeDigits, codeError, cooldown, busy, devCode, deliveryNote, fieldError, login = false, verified = false }) {
+export function renderAccount({ mode, email, contract, codeDigits, codeError, cooldown, busy, devCode, deliveryNote, fieldError, termsError = '', acceptTerms = false, login = false, verified = false }) {
   const isCode = mode === 'code';
   // Entrada simples ("Entrar" do site): sem etapas nem resumo de compra.
   const flowLogin = login;
@@ -316,7 +316,7 @@ export function renderAccount({ mode, email, contract, codeDigits, codeError, co
             ${codeError
               ? `<p class="eno-flow-note"><button type="button" class="eno-link" id="eno-resend-code" ${cooldown > 0 ? 'disabled' : ''}>${cooldown > 0 ? `Reenviar código em ${mm}:${ss}` : 'Reenviar código'}</button> · <button type="button" class="eno-link" id="eno-change-email">Trocar e-mail</button></p>`
               : ''}
-            ${devCode ? `<p class="eno-flow-dev">Homologação sem envio externo: código <b>${esc(devCode)}</b> <button type="button" class="eno-link" id="eno-fill-dev-code" data-dev-code="${esc(devCode)}">Preencher</button></p>` : ''}
+            ${devCode ? `<p class="eno-flow-dev">Ambiente de teste, sem envio de e-mail: código <b>${esc(devCode)}</b> <button type="button" class="eno-link" id="eno-fill-dev-code" data-dev-code="${esc(devCode)}">Preencher</button></p>` : ''}
             ${deliveryNote ? `<p class="eno-flow-dev">${esc(deliveryNote)}</p>` : ''}
           </form>
         ` : `
@@ -330,7 +330,7 @@ export function renderAccount({ mode, email, contract, codeDigits, codeError, co
             <input id="eno-email" name="email" type="email" autocomplete="email" class="eno-input" required value="${esc(email)}" placeholder="voce@consultorio.com.br" aria-invalid="${fieldError ? 'true' : 'false'}" aria-describedby="eno-email-hint${fieldError ? ' eno-email-err' : ''}">
             ${fieldError ? `<p class="eno-flow-err" id="eno-email-err" role="alert">${esc(fieldError)}</p>` : ''}
             <p class="eno-flow-note" id="eno-email-hint">${flowLogin ? 'Ainda não tem conta? <a class="eno-link" href="/checkout">Escolher serviços</a>' : 'Quem já tem conta recebe o código no mesmo e-mail. Sem senha.'}</p>
-            ${flowLogin ? '' : '<p class="eno-flow-note eno-legal-note">Ao continuar, você concorda com os <a class="eno-link" href="/termos" target="_blank" rel="noopener">Termos de Uso</a> e a <a class="eno-link" href="/privacidade" target="_blank" rel="noopener">Política de Privacidade</a>.</p>'}
+            ${flowLogin ? '' : `<label class="eno-terms-check" for="eno-accept-terms"><input type="checkbox" id="eno-accept-terms" name="acceptTerms" ${acceptTerms ? 'checked' : ''} aria-invalid="${termsError ? 'true' : 'false'}" ${termsError ? 'aria-describedby="eno-terms-err"' : ''}><span class="eno-terms-box" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3 8.5l3.2 3L13 4.5"/></svg></span><span>Li e aceito os <a class="eno-link" href="/termos" target="_blank" rel="noopener">Termos de Uso</a> e a <a class="eno-link" href="/privacidade" target="_blank" rel="noopener">Política de Privacidade</a>.</span></label>${termsError ? `<p class="eno-flow-err" id="eno-terms-err" role="alert">${esc(termsError)}</p>` : ''}`}
             <button type="submit" class="eno-btn eno-flow-cta" ${busy ? 'disabled' : ''}>${busy ? '<span class="eno-spinner" aria-hidden="true"></span> Enviando…' : 'Enviar código'}</button>
           </form>
         `}
@@ -376,7 +376,7 @@ export function renderReview({ combo, contract, me, activating }) {
       <aside class="eno-flow-side">
         ${flower()}
         ${renderSummary(contract, { billing, cta, busy: activating })}
-        <p class="eno-flow-note eno-show-sm">${PILOT_FREE ? 'Grátis no piloto.' : 'Ativação simulada do piloto.'} ${esc(names)} ${chosen.length > 1 ? 'aparecem' : 'aparece'} no portal na mesma hora.</p>
+        <p class="eno-flow-note eno-show-sm">${PILOT_FREE ? 'Grátis no piloto.' : '30 dias grátis, sem cartão.'} ${esc(names)} ${chosen.length > 1 ? 'aparecem' : 'aparece'} no portal na mesma hora.</p>
       </aside>
       
     </section>
@@ -385,5 +385,5 @@ export function renderReview({ combo, contract, me, activating }) {
 
 export function renderActivationBanner(activation) {
   if (!activation) return '';
-  return `<div class="eno-activation-banner eno-glass" role="status">✓ ${esc(activation.names)} ${activation.count > 1 ? 'ativos' : 'ativo'} · ${PILOT_FREE ? 'grátis no piloto' : `cobrado hoje ${esc(activation.chargedToday)}`}</div>`;
+  return `<div class="eno-activation-banner eno-glass" role="status">✓ ${esc(activation.names)} ${activation.count > 1 ? 'ativos' : 'ativo'} · ${PILOT_FREE ? 'grátis no piloto' : '30 dias grátis, sem cartão'}</div>`;
 }

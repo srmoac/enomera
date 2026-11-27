@@ -322,3 +322,8 @@
    ocupam a linha toda em vez de espremer o segmento. */
 .pn-tools .pl-seg button, .pn-tools .pl-btn { white-space: nowrap; }
 @media (max-width: 520px) { .pn-tools { width: 100%; flex-wrap: wrap; justify-content: space-between; } }
+
+/* Abas roláveis: sombra de continuação quando há mais abas para o lado (AR-13/AR-14). */
+.pn-nav[data-more-end]:not([data-more-start]) { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent); }
+.pn-nav[data-more-start]:not([data-more-end]) { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent); }
+.pn-nav[data-more-start][data-more-end] { -webkit-mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent); }

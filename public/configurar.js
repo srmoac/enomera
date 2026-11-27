@@ -1,3 +1,4 @@
+import { PRODUCT_ORIGINS } from './eno-origins.js';
 // Configuração em um fluxo só (Figma "09 · Configuração por plano e Vidro").
 // Cada plano vê só as etapas dos produtos que tem. Cada etapa salva no servidor ao avançar.
 const TOKEN_KEY = 'enomera_session_token_v1';
@@ -9,20 +10,8 @@ async function api(path, { method = 'GET', body } = {}) {
   const data = await r.json().catch(() => ({}));
   return { ok: r.ok, status: r.status, data };
 }
-// Produção e desenvolvimento: produtos no mesmo host, por caminho (links relativos, Marcos 24/11).
-const SAME_HOST = /^enomera(-desenvolvimento)?\.vercel\.app$/.test(location.hostname);
-function sibling(override, port, project, prod, seg) {
-  if (seg && SAME_HOST) return `${location.origin}/${seg}`;
-  if (override) return override;
-  if (location.hostname === '127.0.0.1' || location.hostname === 'localhost') return `http://127.0.0.1:${port}`;
-  const m = location.hostname.match(/^enomera(-git-.+\.vercel\.app)$/);
-  return m ? `https://${project}${m[1]}` : prod;
-}
-const ORIGIN = {
-  ambo: sibling(window.__ENOMERA_AMBO_URL, 3001, 'lotus-app', 'https://ambo-enomera.vercel.app', 'agendamento'),
-  minne: sibling(window.__ENOMERA_MINNE_URL, 3002, 'compasso-app', 'https://compasso-app-seven.vercel.app', 'consultorio'),
-  etha: sibling(window.__ENOMERA_ETHA_URL, 3003, 'etha-enomera', 'https://etha-enomera.vercel.app', 'site'),
-};
+// Endereços dos produtos: mesmo domínio, por caminho. Ver eno-origins.js.
+const ORIGIN = PRODUCT_ORIGINS;
 const COLOR = { enomera: '#5b70b2', ambo: '#235d94', minne: '#1e625e', etha: '#53459a' };
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const CHECK = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"/></svg>';

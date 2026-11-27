@@ -22,11 +22,7 @@ const state = {
   period: 'Tarde',
   mini: 'Meu dia',
   miniPatient: 'ana',
-  portal: 'Meu dia',
-  active: ['ambo', 'minne', 'etha'],
-  requests: ['Marina Alves', 'Pedro Santos', 'Luiza Rocha'],
-  recordDone: false,
-  note: ''
+  requests: ['Marina Alves', 'Pedro Santos', 'Luiza Rocha']
 };
 
 const escape = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -173,7 +169,7 @@ $$('[data-mini]').forEach(b => {
 function renderCombination() {
   const opts = $('#service-options');
   if (!opts.children.length) {
-    opts.innerHTML = services.map(s => `<button class="service-option lg" data-service="${s.id}" aria-pressed="${state.selected.includes(s.id)}"><span class="check">${state.selected.includes(s.id) ? '✓' : '○'}</span><strong>${s.name[0].toUpperCase() + s.name.slice(1)}</strong><span>${s.description}</span><small>${s.billing}</small></button>`).join('');
+    opts.innerHTML = services.map(s => `<button class="service-option lg" data-service="${s.id}" aria-pressed="${state.selected.includes(s.id)}"><span class="check">${state.selected.includes(s.id) ? '✓' : '○'}</span><strong>${s.name}</strong><span>${s.description}</span><small>${s.billing}</small></button>`).join('');
     opts.querySelectorAll('[data-service]').forEach(b => {
       b.onclick = () => {
         const id = b.dataset.service;
@@ -189,7 +185,7 @@ function renderCombination() {
     });
   }
   $('#billing-summary').innerHTML = state.selected.length
-    ? billingFor(state.selected, state.billing).map(row => `<div class="billing-row" data-service="${row.id}"><b>${row.id.charAt(0).toUpperCase() + row.id.slice(1)}</b><span>${row.text}</span></div>`).join('')
+    ? billingFor(state.selected, state.billing).map(row => `<div class="billing-row" data-service="${row.id}"><b>${serviceById(row.id)?.name || ''}</b><span>${row.text}</span></div>`).join('')
       + (() => { const c = comboPrice(state.selected, state.billing); return `<div class="billing-row billing-total"><b>Total</b><span>${c.total}${c.savings ? ` · economia de ${c.savings}` : ''}</span></div>`; })()
     : '<p>Selecione um serviço para conhecer a estrutura de contratação.</p>';
   $$('[data-billing]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.billing === state.billing)));
@@ -201,83 +197,6 @@ $$('[data-billing]').forEach(b => {
     renderCombination();
   };
 });
-
-const appointments = [['14h', 'Ana Oliveira', 'Online'], ['15h', 'Bruno Costa', 'Presencial'], ['16h', 'Clara Mendes', 'Online'], ['17h', 'Daniel Lima', 'Presencial']];
-const portalTabs = ['Meu dia', 'Agenda', 'Pacientes', 'Solicitações', 'Registros', 'Outros serviços'];
-
-function renderPortal() {
-  const portal = $('#portal');
-  const has = id => state.active.includes(id);
-  const nav = ['Meu dia', ...(has('ambo') || has('minne') ? ['Agenda'] : []), ...(has('minne') ? ['Pacientes'] : []), ...(has('ambo') ? ['Solicitações'] : []), ...(has('minne') ? ['Registros'] : []), 'Outros serviços'];
-  if (!nav.includes(state.portal)) state.portal = 'Meu dia';
-  if (!portal.querySelector('.portal-shell')) {
-    portal.innerHTML = `<div class="portal-shell"><img class="substrate" src="/assets/portal-substrate.svg" width="1440" height="1000" alt=""><aside class="portal-side lg"><a href="/" class="brand">enomera</a><nav aria-label="Portal profissional">${portalTabs.map(n => `<button data-portal="${n}" aria-current="false">${n}</button>`).join('')}</nav><div class="portal-account">Helena Duarte<br>Psicologia</div></aside><main class="portal-main"><div class="portal-banner"><span>Demonstração local · sem autenticação ou integração real</span><a href="/">Voltar ao site ↗</a></div><h1></h1><p class="date">Terça-feira, 24 de novembro de 2026 · dados fictícios</p><div id="portal-content" tabindex="-1"></div><img class="portal-flower" src="/assets/flower.svg" width="480" height="396" alt=""></main></div>`;
-  }
-  $$('[data-portal]').forEach(b => {
-    const n = b.dataset.portal;
-    b.hidden = !nav.includes(n);
-    b.textContent = n === 'Solicitações' ? `${n} · ${state.requests.length}` : n;
-    b.setAttribute('aria-current', state.portal === n ? 'page' : 'false');
-  });
-  $('.portal-main h1').textContent = state.portal;
-  const c = $('#portal-content');
-  const schedule = () => appointments.map(([time, name, mode]) => `<div class="schedule-row"><span>${time}　${name}</span><span>${mode} · 50 min</span></div>`).join('');
-  if (state.portal === 'Meu dia') {
-    c.innerHTML = `<div class="stats">${has('ambo') || has('minne') ? '<button class="stat lg" data-goto="Agenda"><strong>04</strong><span>Consultas hoje</span></button>' : ''}${has('ambo') ? `<button class="stat lg" data-goto="Solicitações"><strong>0${state.requests.length}</strong><span>Solicitações pendentes</span></button>` : ''}${has('minne') ? `<button class="stat lg" data-goto="Registros"><strong>0${state.recordDone ? 0 : 1}</strong><span>Registro a concluir</span></button>` : ''}</div>${has('ambo') || has('minne') ? '<div class="next-appointment lg"><p class="eyebrow">Próximo atendimento · 14h–14h50</p><h2>Ana Oliveira</h2><p>Online · confirmado</p><button class="back" data-appointment>Ver consulta ↗</button></div><h3>Depois, no seu dia</h3>' + schedule().replace(/<div class="schedule-row">.*?<\/div>/, '') : '<div class="portal-panel lg"><h3>Seu acesso aos serviços</h3><p>Ative Agendamento ou Consultório no cenário demonstrativo para explorar a visão geral da rotina.</p><button class="button" data-goto="Outros serviços">Explorar outros serviços</button></div>'}<p class="notice">O portal reúne acesso e visão geral. A rotina clínica detalhada está no Consultório.</p>`;
-  } else if (state.portal === 'Agenda') {
-    c.innerHTML = '<div class="portal-panel lg"><h3>Consultas do dia</h3>' + schedule() + '</div><p class="notice">Agenda fictícia. Não há calendário externo conectado.</p>';
-  } else if (state.portal === 'Pacientes') {
-    c.innerHTML = '<div class="portal-panel lg"><h3>Pacientes no cenário</h3>' + appointments.map(([, name]) => `<div class="schedule-row"><span>${name}</span><span>Cadastro fictício</span></div>`).join('') + '</div><p class="notice">Dados clínicos ficam na aplicação Consultório. O portal não exibe prontuários.</p>';
-  } else if (state.portal === 'Solicitações') {
-    c.innerHTML = '<p>Preferências recebidas no cenário fictício. As respostas alteram apenas esta sessão.</p>' + state.requests.map(name => `<div class="portal-panel lg"><h3>${name}</h3><p>Primeira consulta · Online<br>Terças e quintas · tarde</p><button class="button" data-respond="${name}">Responder na demonstração</button></div>`).join('') + (state.requests.length ? '' : '<div class="portal-panel lg"><p role="status">Todas as solicitações desta amostra foram respondidas.</p></div>');
-  } else if (state.portal === 'Registros') {
-    c.innerHTML = `<div class="portal-panel lg"><h3>${state.recordDone ? 'Registro concluído na amostra' : 'Um registro a concluir'}</h3><p>Ana Oliveira · consulta de 24 de novembro. Esta área demonstra o acesso ao Consultório.</p><label for="demo-note">Anotação fictícia</label><textarea id="demo-note" placeholder="Texto fictício para experimentar a edição">${escape(state.note)}</textarea><button class="button" id="save-note">${state.recordDone ? 'Atualizar amostra local' : 'Marcar como concluído na amostra'}</button><p class="notice" id="note-feedback">O conteúdo fica apenas na memória desta aba e desaparece ao recarregar.</p></div>`;
-  } else {
-    c.innerHTML = `<div class="portal-panel lg"><h3>Serviços ativos no cenário</h3><p>Altere a combinação para explorar como o resumo se adapta.</p><div class="active-products">${services.map(s => `<label><input type="checkbox" data-active="${s.id}" ${has(s.id) ? 'checked' : ''}>${s.name}</label>`).join('')}</div></div>${services.map(s => `<div class="portal-panel lg"><h3>${s.name}</h3><p>${s.description}</p><div class="product-links"><button class="back" data-offer="${s.id}">Conhecer ${s.name} ↗</button>${s.externalDestination ? `<a class="text-link" href="${s.externalDestination}" target="_blank" rel="noopener">${s.externalLabel}</a>` : ''}${s.exampleDestination ? `<a class="text-link" href="${s.exampleDestination}" target="_blank" rel="noopener">${s.exampleLabel}</a>` : ''}</div></div>`).join('')}`;
-  }
-  $$('[data-portal],[data-goto]').forEach(b => {
-    b.onclick = () => {
-      state.portal = b.dataset.portal || b.dataset.goto;
-      renderPortal();
-      $('.portal-main h1').tabIndex = -1;
-      $('.portal-main h1').focus({ preventScroll: true });
-    };
-  });
-  $$('[data-active]').forEach(i => {
-    i.onchange = () => {
-      const id = i.dataset.active;
-      state.active = i.checked ? [...state.active, id] : state.active.filter(x => x !== id);
-      renderPortal();
-      $(`[data-active="${id}"]`)?.focus({ preventScroll: true });
-    };
-  });
-  $$('[data-offer]').forEach(b => {
-    b.onclick = () => {
-      const s = services.find(x => x.id === b.dataset.offer);
-      const primary = s.externalDestination ? `<a href="${s.externalDestination}" target="_blank" rel="noopener" class="button">${s.externalLabel}</a>` : `<a href="/${s.section}" target="_blank" rel="noopener" class="button">Explorar no site ↗</a>`;
-      const secondary = [s.exampleDestination ? `<a href="${s.exampleDestination}" target="_blank" rel="noopener" class="text-link">${s.exampleLabel}</a>` : '', s.externalDestination ? `<a href="/${s.section}" target="_blank" rel="noopener" class="text-link">Explorar na Enomera ↗</a>` : ''].filter(Boolean).join('');
-      showDetail(s.name, `<p>${s.description}.</p><p>${s.billing}. Valores em definição.</p><p>Esta apresentação preserva o contexto do portal. Não há contratação nesta amostra.</p><div class="product-links">${primary}${secondary}</div><p class="notice">Abre em outra aba.</p>`);
-    };
-  });
-  $$('[data-respond]').forEach(b => {
-    b.onclick = () => {
-      state.requests = state.requests.filter(n => n !== b.dataset.respond);
-      renderPortal();
-      const next = $('#portal-content [data-respond]') || $('#portal-content [role="status"]');
-      if (next) {
-        if (!next.matches('button')) next.tabIndex = -1;
-        next.focus({ preventScroll: true });
-      }
-    };
-  });
-  $('[data-appointment]')?.addEventListener('click', () => showDetail('Consulta de Ana Oliveira', '<p>24 de novembro de 2026 · 14h–14h50</p><p>Online · confirmado · dados fictícios.</p><p>A rotina clínica detalhada pertence ao Consultório. Esta amostra não inicia uma chamada real.</p>'));
-  if ($('#demo-note')) $('#demo-note').oninput = e => { state.note = e.target.value; };
-  if ($('#save-note')) $('#save-note').onclick = () => {
-    state.recordDone = true;
-    $('#note-feedback').textContent = 'Amostra atualizada nesta aba. Nenhum registro clínico foi enviado.';
-    $('#save-note').textContent = 'Atualizar amostra local';
-  };
-}
 
 function syncServiceLinks() {
   for (const s of services) {

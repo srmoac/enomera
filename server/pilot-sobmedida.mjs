@@ -9,14 +9,37 @@ const SAFE_SCOPES = ['etha_briefing', 'etha_photo', 'professional_photo'];
 
 function parse(j, fb = {}) { try { return JSON.parse(j || '') ?? fb; } catch { return fb; } }
 
-/** Soma dias úteis (seg–sex) em horário de Brasília; o prazo vence no fim do dia útil. */
+/** Domingo de Páscoa (algoritmo de Meeus), como [mês, dia]. */
+function easter(year) {
+  const a = year % 19; const b = Math.floor(year / 100); const c = year % 100;
+  const d = Math.floor(b / 4); const e = b % 4; const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3); const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4); const k = c % 4; const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  return [Math.floor((h + l - 7 * m + 114) / 31), ((h + l - 7 * m + 114) % 31) + 1];
+}
+const holidayCache = new Map();
+/** Feriados nacionais do ano (fixos e móveis: Carnaval, Sexta-feira Santa, Corpus Christi), em AAAA-MM-DD. */
+export function nationalHolidays(year) {
+  if (holidayCache.has(year)) return holidayCache.get(year);
+  const pad = (n) => String(n).padStart(2, '0');
+  const set = new Set(['01-01', '04-21', '05-01', '09-07', '10-12', '11-02', '11-15', '11-20', '12-25'].map((d) => `${year}-${d}`));
+  const [em, ed] = easter(year);
+  const base = Date.UTC(year, em - 1, ed);
+  for (const off of [-48, -47, -2, 60]) { const d = new Date(base + off * DAY); set.add(`${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`); }
+  holidayCache.set(year, set);
+  return set;
+}
+
+/** Soma dias úteis (seg–sex, sem feriados nacionais) em horário de Brasília; o prazo vence no fim do dia útil. */
 export function addBusinessDays(iso, n) {
   let t = Date.parse(iso) - 3 * 3600e3; // para "hora de Brasília"
   let left = n;
   while (left > 0) {
     t += DAY;
-    const wd = new Date(t).getUTCDay();
-    if (wd !== 0 && wd !== 6) left--;
+    const day = new Date(t);
+    const wd = day.getUTCDay();
+    if (wd !== 0 && wd !== 6 && !nationalHolidays(day.getUTCFullYear()).has(day.toISOString().slice(0, 10))) left--;
   }
   const d = new Date(t).toISOString().slice(0, 10);
   return new Date(Date.parse(`${d}T23:59:59.000Z`) + 3 * 3600e3).toISOString();

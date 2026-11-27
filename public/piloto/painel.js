@@ -43,6 +43,7 @@
       '<div class="pl-stagger" style="display:grid;gap:8px"><p class="small" style="color:var(--accent);font-weight:700;letter-spacing:.06em;text-transform:uppercase">Administrador</p><h1>Painel do piloto</h1><p class="muted">Entre com o acesso criado no seu convite de administrador.</p></div>' +
       '<div class="pl-field"><label for="l-email">E-mail</label><input id="l-email" type="email" autocomplete="username" inputmode="email" autocapitalize="off" aria-describedby="l-err"></div>' +
       '<div class="pl-field"><label for="l-pass">Senha</label><input id="l-pass" type="password" autocomplete="current-password" aria-describedby="l-err"></div>' +
+      '<div class="pl-field pl-in" id="l-code-box" hidden><label for="l-code">Código de 6 dígitos</label><input id="l-code" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" maxlength="6" aria-describedby="l-code-hint l-err"><p class="hint" id="l-code-hint"></p></div>' +
       '<p class="pl-err" id="l-err" role="alert">' + esc(errText || '') + '</p>' +
       '<button class="pl-btn" type="submit">Entrar</button></form>', function () {
       var f = document.getElementById('pn-login'); setTimeout(function () { document.getElementById('l-email').focus(); }, 60);
@@ -51,9 +52,22 @@
         var email = f.querySelector('#l-email').value.trim(); var pass = f.querySelector('#l-pass').value;
         if (!email || !pass) { document.getElementById('l-err').textContent = 'Preencha e-mail e senha.'; return; }
         btn.setAttribute('aria-busy', 'true'); btn.innerHTML = '<span class="pl-spin" aria-hidden="true"></span>Entrando';
-        api('/api/v1/auth/login', { method: 'POST', body: { email: email, password: pass } }).then(function (r) {
+        var codeEl = f.querySelector('#l-code'); var body = { email: email, password: pass };
+        if (codeEl && !codeEl.closest('[hidden]')) {
+          body.code = codeEl.value.replace(/\D/g, '');
+          if (body.code.length !== 6) { btn.removeAttribute('aria-busy'); btn.textContent = 'Entrar'; document.getElementById('l-err').textContent = 'Digite os 6 dígitos do código enviado ao seu e-mail.'; codeEl.focus(); return; }
+        }
+        api('/api/v1/auth/login', { method: 'POST', body: body }).then(function (r) {
           btn.removeAttribute('aria-busy'); btn.textContent = 'Entrar';
-          if (!r.ok) { document.getElementById('l-err').textContent = r.d.error || 'Não foi possível entrar.'; return; }
+          if (!r.ok && r.d && r.d.code === 'ADMIN_CODE_REQUIRED') {
+            // Segundo fator do administrador: o servidor enviou um código ao e-mail.
+            var box = document.getElementById('l-code-box'); box.hidden = false;
+            if (r.d.devCode) codeEl.value = r.d.devCode;
+            document.getElementById('l-err').textContent = '';
+            document.getElementById('l-code-hint').textContent = 'Enviamos um código de 6 dígitos para o seu e-mail. Digite para concluir a entrada.';
+            codeEl.focus(); return;
+          }
+          if (!r.ok) { document.getElementById('l-err').textContent = (r.d && r.d.error) || 'Não foi possível entrar.'; return; }
           if (r.d.user && r.d.user.role !== 'pilot_admin') { document.getElementById('l-err').textContent = 'Esta conta não é a de administrador do piloto.'; return; }
           try { sessionStorage.setItem(TOKEN_KEY, r.d.sessionToken); } catch (err) {}
           load(true);
@@ -78,7 +92,7 @@
         api('/api/v1/pilot/admin/etha-sob-medida').then(function (s2) { state.sob = s2.ok ? (s2.d.orders || []) : []; }).catch(function () { state.sob = []; }),
         api('/api/v1/pilot/admin/digests').then(function (s3) { state.digests = s3.ok ? (s3.d.digests || []) : []; }).catch(function () { state.digests = []; }),
       ]).then(function () {
-      document.getElementById('pn-nav').hidden = false; document.getElementById('pn-tools').hidden = false; placeLens();
+      document.getElementById('pn-nav').hidden = false; document.getElementById('pn-tools').hidden = false; placeLens(); navFade();
       if (!state.heat.screen && r.d.screens.length) { state.heat.product = r.d.screens[0].product; state.heat.screen = r.d.screens[0].screen; }
       render(Boolean(prev));
       });
@@ -165,7 +179,7 @@
       return '<th class="' + (c[2] ? 'n' : '') + '"><button type="button" data-sort="' + c[0] + '"' + (sorted ? ' aria-sort="' + (dir > 0 ? 'ascending' : 'descending') + '"' : '') + '>' + c[1] + (sorted ? (dir > 0 ? ' ↑' : ' ↓') : '') + '</button></th>';
     }).join('') + '</tr></thead><tbody>' + rows.slice(0, 60).map(function (s) {
       return '<tr><td>' + esc(prod(s.product)) + '</td><td class="scr">' + esc(screenLabel(s.screen)) + '</td><td class="n">' + s.users + '</td><td class="n">' + dur(s.activeMs) + '</td><td class="n">' + dur(s.avg) + '</td>' +
-        '<td class="n' + (s.exitRate >= 50 && s.views >= 2 ? ' pn-hot' : '') + '">' + s.exitRate + '%</td><td class="n">' + (s.avgScroll == null ? '—' : s.avgScroll + '%') + '</td><td class="n">' + s.clicks + '</td>' +
+        '<td class="n' + (s.exitRate >= 50 && s.views >= 2 ? ' pn-hot' : '') + '">' + s.exitRate + '%</td><td class="n">' + (s.avgScroll == null ? 'sem dado' : s.avgScroll + '%') + '</td><td class="n">' + s.clicks + '</td>' +
         '<td class="n' + (s.rage ? ' pn-hot' : '') + '">' + s.rage + '</td><td class="n">' + s.dead + '</td><td class="n' + (s.errors ? ' pn-hot' : '') + '">' + s.errors + '</td></tr>';
     }).join('') + '</tbody></table></div>';
   }
@@ -627,7 +641,14 @@
   if (window.ResizeObserver) { var pnRO = new ResizeObserver(function () { placeLens(); }); ['pn-period', 'pn-tools'].forEach(function (id) { var el = document.getElementById(id); if (el) pnRO.observe(el); }); }
   addEventListener('resize', function () { placeLens(); placeTab(); clearTimeout(window.__pnR); window.__pnR = setTimeout(drawHeat, 200); });
 
-  document.getElementById('pn-nav').addEventListener('scroll', function () { placeTab(); }, { passive: true });
+  // Abas que passam da largura: sombra de continuação nas bordas e aba ativa sempre à vista.
+  function navFade() {
+    var nav = document.getElementById('pn-nav'); if (!nav || nav.hidden) return;
+    nav.toggleAttribute('data-more-start', nav.scrollLeft > 4);
+    nav.toggleAttribute('data-more-end', nav.scrollLeft + nav.clientWidth < nav.scrollWidth - 4);
+  }
+  document.getElementById('pn-nav').addEventListener('scroll', function () { placeTab(); navFade(); }, { passive: true });
+  addEventListener('resize', navFade);
 
   // ── dicas ──
   var tip = document.getElementById('pn-tip');

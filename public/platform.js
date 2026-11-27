@@ -10,6 +10,7 @@ import {
   setPilotFree,
 } from './contract-flow.js';
 import { bindOtpField } from './otp-field.js';
+import { PRODUCT_ORIGINS } from './eno-origins.js';
 const TOKEN_KEY = 'enomera_session_token_v1';
 // Guarda o último código enviado automaticamente (sobrevive a re-render).
 const otpAuto = { code: '' };
@@ -19,33 +20,8 @@ const ACTIVATION_KEY = 'enomera_last_activation_v1';
 const FLOW_EMAIL_KEY = 'enomera_flow_email_v1';
 
 
-// Preview: o projeto Vercel real de cada produto (nomes de projeto != nomes de marca).
-// Produção: domínio público oficial. Sempre sobrescrevível por window.__ENOMERA_*_URL.
-// Nos domínios oficiais (produção e desenvolvimento) os produtos moram no mesmo endereço, por caminho:
-// /agendamento, /consultorio, /site. Links relativos ao host em que a pessoa está (Marcos, 24/11).
-const SAME_HOST = /^enomera(-desenvolvimento)?\.vercel\.app$/.test(location.hostname);
-function resolveSiblingOrigin(override, localPort, previewProject, prodOrigin, seg) {
-  if (seg && SAME_HOST) return `${location.origin}/${seg}`;
-  if (override) return override;
-  if (location.hostname === '127.0.0.1' || location.hostname === 'localhost') {
-    return `http://127.0.0.1:${localPort}`;
-  }
-  const m = location.hostname.match(/^enomera(-git-.+\.vercel\.app)$/);
-  if (m) {
-    if (previewProject === 'clara-azevedo-site' && m[1].startsWith('-git-feat-enomera-platform-v1-')) {
-      return 'https://clara-azevedo-site-git-feat-enomera-99e58e-marcosvmgs-projects.vercel.app';
-    }
-    return `https://${previewProject}${m[1]}`;
-  }
-  return prodOrigin;
-}
-
-const APP_ORIGINS = {
-  ambo: resolveSiblingOrigin(window.__ENOMERA_AMBO_URL, 3001, 'lotus-app', 'https://ambo-enomera.vercel.app', 'agendamento'),
-  minne: resolveSiblingOrigin(window.__ENOMERA_MINNE_URL, 3002, 'compasso-app', 'https://compasso-app-seven.vercel.app', 'consultorio'),
-  etha: resolveSiblingOrigin(window.__ENOMERA_ETHA_URL, 3003, 'etha-enomera', 'https://etha-enomera.vercel.app', 'site'),
-  helena: resolveSiblingOrigin(window.__ENOMERA_HELENA_URL, 3004, 'clara-azevedo-site', 'https://helenaduartepsi.vercel.app'),
-};
+// Endereços dos produtos: mesmo domínio, por caminho (/agendamento, /consultorio, /site). Ver eno-origins.js.
+const APP_ORIGINS = PRODUCT_ORIGINS;
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const PRODUCT_NAMES = { ambo: 'Agendamento', minne: 'Consultório', etha: 'Site' };
@@ -91,7 +67,18 @@ function isRemoteInfraError(status, data) {
   );
 }
 
-async function apiFetch(path, { method = 'GET', body = null, headers = {} } = {}) {
+// Aceite de Termos e Privacidade: quando o servidor pede (403 TERMS_ACCEPTANCE_REQUIRED), a pessoa
+// confirma em um diálogo de vidro e a mesma chamada é refeita com acceptTerms: true.
+const TERMS_HTML = 'Para continuar, você precisa aceitar os <a href="/termos" target="_blank" rel="noopener">Termos de Uso</a> e a <a href="/privacidade" target="_blank" rel="noopener">Política de Privacidade</a> da Enomera.';
+async function apiFetch(path, opts = {}) {
+  const first = await apiFetchRaw(path, opts);
+  if (first.status !== 403 || first.data?.code !== 'TERMS_ACCEPTANCE_REQUIRED' || opts.body == null || !window.EnoFeedback?.confirm) return first;
+  const ok = await window.EnoFeedback.confirm({ title: 'Termos de Uso e Privacidade', html: TERMS_HTML, confirmLabel: 'Li e aceito', cancelLabel: 'Agora não' });
+  if (!ok) return { ...first, data: { ...first.data, error: 'Sem aceitar os Termos de Uso e a Política de Privacidade não dá para continuar.' } };
+  return apiFetchRaw(path, { ...opts, body: { ...opts.body, acceptTerms: true } });
+}
+
+async function apiFetchRaw(path, { method = 'GET', body = null, headers = {} } = {}) {
   const h = { ...headers };
   if (body !== null) h['Content-Type'] = 'application/json';
   const tok = getToken();
@@ -394,7 +381,7 @@ export async function mountEnomeraPlatform(rootEl) {
       const sep = returnPath.includes('?') ? '&' : '?';
       window.open(`${targetOrigin}${returnPath}${sep}handoff=${encodeURIComponent(res.data.handoffCode)}`, '_blank', 'noopener');
     } else {
-      state.feedback = { tone: 'err', text: res.data.error || 'Não foi possível gerar passagem autenticada.' };
+      state.feedback = { tone: 'err', text: res.data.error || 'Não foi possível abrir o serviço agora. Tente de novo.' };
       render();
     }
   }
@@ -492,11 +479,11 @@ export async function mountEnomeraPlatform(rootEl) {
     return `
       <div class="eno-outbox">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
-          <strong>Caixa local de homologação (alternativa sem Resend/SMTP configurado):</strong>
+          <strong>Ambiente de teste: nenhum e-mail foi enviado.</strong>
           ${latestCode ? `<button type="button" class="eno-btn eno-btn-sec eno-btn-sm" id="eno-fill-dev-code" data-dev-code="${esc(latestCode)}">Preencher código agora (${esc(latestCode)})</button>` : ''}
         </div>
-        <span>Nenhuma mensagem externa foi disparada. Copie ou cole o código de 6 dígitos abaixo:</span>
-        ${state.outboxMessages.slice(0, 2).map((m) => `<div>• <b>${esc(m.subject)}</b> — ${esc(m.body_preview)}</div>`).join('')}
+        <span>Use o código de 6 dígitos abaixo:</span>
+        ${state.outboxMessages.slice(0, 2).map((m) => `<div>• <b>${esc(m.subject)}</b>: ${esc(m.body_preview)}</div>`).join('')}
       </div>
     `;
   }
@@ -591,7 +578,7 @@ export async function mountEnomeraPlatform(rootEl) {
       <section class="eno-grid-2 eno-panel-enter">
         <div class="eno-card">
           <span class="eno-pill">SERVIÇOS E ACESSO</span>
-          <h1 class="eno-h1">Serviços, cancelamento parcial e exportação</h1>
+          <h1 class="eno-h1">Seus serviços e seus dados</h1>
           <div class="eno-list">
             ${['ambo', 'minne', 'etha'].map((prod) => {
               const ent = ents[prod];
@@ -600,7 +587,7 @@ export async function mountEnomeraPlatform(rootEl) {
                 <div class="eno-row">
                   <div>
                     <b>${PRODUCT_NAMES[prod]}</b> · <span class="eno-pill ${ent.canWrite ? 'eno-pill-ok' : 'eno-pill-warn'}">${esc(statusLabel(ent.status))}</span>
-                    <div class="eno-muted">${isPilot() ? `Grátis no piloto até ${esc(pilotUntil())}` : ent.trialEndsAt ? `Teste até ${esc(ent.trialEndsAt.slice(0, 10))}` : `Ciclo: ${esc(BILLING_LABELS[ent.billingMode] || 'Mensal')}`}</div>
+                    <div class="eno-muted">${isPilot() ? `Grátis no piloto até ${esc(pilotUntil())}` : ent.trialEndsAt ? `Teste grátis até ${esc(new Date(ent.trialEndsAt).toLocaleDateString('pt-BR'))}` : `Ciclo: ${esc(BILLING_LABELS[ent.billingMode] || 'Mensal')}`}</div>
                   </div>
                   ${ent.canWrite
                     ? `<button type="button" class="eno-btn eno-btn-sec" data-ent-action="cancel" data-ent-prod="${prod}">Cancelar só ${PRODUCT_NAMES[prod]}</button>`
@@ -611,8 +598,22 @@ export async function mountEnomeraPlatform(rootEl) {
           </div>
           <div class="eno-btn-row">
             <button type="button" class="eno-btn eno-btn-sec" id="eno-export-account">Exportar meus dados</button>
-            <button type="button" class="eno-btn eno-btn-danger" id="eno-logout-all">Encerrar todas as sessões</button>
+            <button type="button" class="eno-btn eno-btn-sec" id="eno-logout-all">Sair de todos os aparelhos</button>
           </div>
+          ${state.me?.account?.deletionScheduledFor ? `
+            <div class="eno-danger-zone" role="status">
+              <h2 class="eno-h2">Exclusão agendada</h2>
+              <p class="eno-muted">Sua conta e seus dados serão apagados em ${esc(new Date(state.me.account.deletionScheduledFor).toLocaleDateString('pt-BR'))}. Até lá você pode exportar tudo ou desistir.</p>
+              <div class="eno-btn-row"><button type="button" class="eno-btn" id="eno-delete-cancel">Desistir da exclusão</button></div>
+            </div>` : `
+            <details class="eno-danger-zone">
+              <summary>Excluir minha conta e meus dados</summary>
+              <p class="eno-muted">Os serviços param na hora. Os dados ficam guardados por 30 dias, para você exportar ou desistir, e depois são apagados de vez. Prontuários que você precisa guardar por obrigação profissional devem ser exportados antes.</p>
+              <form id="eno-delete-form" class="eno-list" novalidate>
+                <div class="eno-field"><label for="eno-delete-email">Para confirmar, digite o e-mail desta conta</label><input id="eno-delete-email" class="eno-input" type="email" autocomplete="off" aria-describedby="eno-delete-err"><span class="eno-field-err" id="eno-delete-err" role="alert"></span></div>
+                <div class="eno-btn-row"><button type="submit" class="eno-btn eno-btn-danger">Excluir minha conta</button></div>
+              </form>
+            </details>`}
         </div>
 
         <aside class="eno-card">
@@ -682,6 +683,7 @@ export async function mountEnomeraPlatform(rootEl) {
           ${sub.nextDueDate ? `<div class="eno-row"><span>${sub.status === 'trial' ? 'Primeira cobrança' : 'Próximo vencimento'}</span><b>${esc(fmtDate(sub.nextDueDate))}</b></div>` : ''}
         </div>
         ${sub.invoiceUrl ? `<div class="eno-btn-row"><a class="eno-btn" href="${esc(sub.invoiceUrl)}" target="_blank" rel="noopener">${sub.status === 'overdue' ? 'Pagar agora' : 'Ver fatura'} ↗</a></div>` : ''}
+        ${sub.status === 'active' ? '<p class="eno-muted">Desistiu nos primeiros 7 dias depois do primeiro pagamento? Você recebe tudo de volta.</p><div class="eno-btn-row"><button type="button" class="eno-btn eno-btn-sec" id="eno-refund">Desistir e pedir devolução</button></div>' : ''}
         ${sub.sandbox ? '<p class="eno-muted">Ambiente de teste: nenhum valor é cobrado de verdade.</p>' : ''}
       `;
     }
@@ -703,7 +705,7 @@ export async function mountEnomeraPlatform(rootEl) {
           <button type="button" role="radio" data-sub-cycle="monthly" aria-checked="${cycle === 'monthly'}">Mensal</button>
           <button type="button" role="radio" data-sub-cycle="annual" aria-checked="${cycle === 'annual'}">Anual</button>
         </div>
-        <p class="eno-sub-price"><b>${cents != null ? brl(cents) : '—'}</b> ${cycle === 'annual' ? 'por ano (10 meses)' : 'por mês'}</p>
+        <p class="eno-sub-price"><b>${cents != null ? brl(cents) : 'Valor indisponível'}</b> ${cycle === 'annual' ? 'por ano (10 meses)' : 'por mês'}</p>
         <div class="eno-field">
           <label for="eno-sub-doc">CPF ou CNPJ para a fatura</label>
           <input id="eno-sub-doc" class="eno-input" inputmode="numeric" autocomplete="off" placeholder="000.000.000-00" value="${esc(formatDoc(state.sub.doc))}" aria-invalid="${state.sub.error ? 'true' : 'false'}" ${state.sub.error ? 'aria-describedby="eno-sub-err"' : ''}>
@@ -724,17 +726,20 @@ export async function mountEnomeraPlatform(rootEl) {
         <p class="eno-muted">Todos os serviços estão liberados sem custo até ${esc(pilotUntil())}. Use Agendamento, Consultório e Site como usaria no dia a dia; o que te prende e o que te atrapalha é exatamente o que queremos aprender.</p>
         <p class="eno-muted">Registramos só como você usa as telas (cliques, tempo e erros), nunca conteúdo clínico. Detalhes em <a class="eno-link" href="/privacidade#piloto">Privacidade</a>.</p>
         <div class="eno-btn-row"><a class="eno-btn eno-btn-sec" href="/piloto/como-funciona?next=%2Fportal">Ver como os serviços funcionam</a></div>
+        <h2 class="eno-h2">Sair do piloto</h2>
+        <p class="eno-muted">Você pode sair quando quiser. Paramos de registrar o uso e apagamos o que já foi registrado. Sua conta e seus dados continuam com você.</p>
+        <div class="eno-btn-row"><button type="button" class="eno-btn eno-btn-danger" id="eno-pilot-withdraw">Sair do piloto</button></div>
       </section>`;
     }
     return `
       <section class="eno-card eno-panel-enter" style="max-width:760px">
-        <span class="eno-pill eno-pill-etha">PILOTO ACOMPANHADO · 2 SEMANAS</span>
+        <span class="eno-pill eno-pill-etha">PILOTO ACOMPANHADO · POR CONVITE</span>
         <h1 class="eno-h1">Solicitar participação no piloto acompanhado</h1>
-        <p class="eno-muted">30 dias grátis com acompanhamento próximo, sem cartão e sem cobrança.</p>
+        <p class="eno-muted">No piloto, todos os serviços são gratuitos até 31 de janeiro de 2027, com acompanhamento próximo, sem cartão e sem cobrança. A entrada é por convite.</p>
         <form id="eno-pilot-form" class="eno-list">
           <div class="eno-field"><label for="pl-name">Nome completo</label><input id="pl-name" name="fullName" class="eno-input" required value="${esc(state.me?.user?.fullName || '')}"></div>
           <div class="eno-field"><label for="pl-email">E-mail</label><input id="pl-email" name="email" type="email" class="eno-input" required value="${esc(state.me?.user?.email || '')}"></div>
-          <div class="eno-field"><div class="eno-label-row"><label for="pl-notes">O que deseja avaliar?</label><span class="eno-opt-tag">(opcional)</span></div><input id="pl-notes" name="notes" class="eno-input" placeholder="Ex.: agendamento no Agendamento e prontuário no Consultório"></div>
+          <div class="eno-field"><div class="eno-label-row"><label for="pl-notes">O que deseja avaliar?</label><span class="eno-opt-tag">(opcional)</span></div><input id="pl-notes" name="notes" class="eno-input" placeholder="Ex.: receber pedidos de consulta e organizar prontuários"></div>
           <button type="submit" class="eno-btn">Registrar interesse no piloto (sem cobrança)</button>
         </form>
       </section>
@@ -856,6 +861,8 @@ export async function mountEnomeraPlatform(rootEl) {
           devCode: state.devCode,
           deliveryNote: '',
           fieldError: state.fieldError?.field === 'email' ? state.fieldError.text : '',
+          termsError: state.fieldError?.field === 'terms' ? state.fieldError.text : '',
+          acceptTerms: Boolean(state.acceptTerms),
           // "Entrar" é só login: nem etapas nem preço, inclusive depois de enviar o código (a URL vira /conta).
           login: !['review', 'plans'].includes(state.returnAfterAuth),
         })
@@ -870,8 +877,10 @@ export async function mountEnomeraPlatform(rootEl) {
       const stepChanged = motionTracker.prevFlowStep && motionTracker.prevFlowStep !== stepKey;
       motionTracker.prevFlowStep = stepKey;
       if (stepChanged) {
-        const [num, label] = state.tab === 'plans' ? [1, 'Escolha'] : state.tab === 'auth' ? [2, 'Conta'] : [3, 'Checkout'];
-        announceStep(`Etapa ${num} de 4: ${label}`);
+        const [num, label] = state.tab === 'plans' ? [1, 'Escolha'] : state.tab === 'auth' ? [2, 'Conta'] : [3, 'Revisão'];
+        // Entrar na conta não é etapa de contratação: anuncia só o nome da tela.
+        const onlyLogin = state.tab === 'auth' && !['review', 'plans'].includes(state.returnAfterAuth);
+        announceStep(onlyLogin ? (state.authMode === 'code' ? 'Digite o código enviado ao seu e-mail' : 'Entrar na Enomera') : `Etapa ${num} de 4: ${label}`);
         const title = rootEl.querySelector('.eno-flow-title');
         if (title) {
           title.setAttribute('tabindex', '-1');
@@ -922,14 +931,14 @@ export async function mountEnomeraPlatform(rootEl) {
     const res = await apiFetch('/api/v1/commercial/orders', {
       method: 'POST',
       headers: { 'X-Idempotency-Key': state.checkoutIdempotencyKey },
-      body: { ...sel, simulatedOutcome: 'approved', method: 'simulated_pix' },
+      body: { ...sel, ...(state.acceptTerms ? { acceptTerms: true } : {}) },
     });
     const wait = prefersReducedMotion() ? 0 : Math.max(0, 1400 - (Date.now() - started));
     if (wait) await new Promise((r) => setTimeout(r, wait));
     state.activating = false;
     state.processingCheckout = false;
     if (!res.ok) {
-      state.feedback = { tone: 'err', text: res.data.error || 'Não foi possível ativar agora. Sua combinação continua guardada.' };
+      state.feedback = { tone: 'err', text: `${res.data.error || 'Não foi possível ativar agora.'} Sua combinação continua guardada.` };
       render();
       return;
     }
@@ -942,7 +951,7 @@ export async function mountEnomeraPlatform(rootEl) {
       at: new Date().toISOString(),
     };
     saveActivation(state.activation);
-    notify({ tone: 'ok', title: `${state.activation.names} ${state.activation.count > 1 ? 'ativos' : 'ativo'}`, text: isPilot() ? 'grátis no piloto' : `cobrado hoje ${state.activation.chargedToday}` });
+    notify({ tone: 'ok', title: `${state.activation.names} ${state.activation.count > 1 ? 'ativos' : 'ativo'}`, text: isPilot() ? 'grátis no piloto' : '30 dias grátis, sem cartão' });
     state.checkoutIdempotencyKey = `chk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     state.returnedFromReview = false;
     state.feedback = null;
@@ -999,7 +1008,22 @@ export async function mountEnomeraPlatform(rootEl) {
     }
   }
 
+  // Abas do portal no celular: sombra de continuação e aba ativa à vista.
+  function bindTabsFade() {
+    const nav = rootEl.querySelector('.eno-topbar .eno-nav-tabs');
+    if (!nav) return;
+    const up = () => {
+      nav.toggleAttribute('data-more-start', nav.scrollLeft > 4);
+      nav.toggleAttribute('data-more-end', nav.scrollLeft + nav.clientWidth < nav.scrollWidth - 4);
+    };
+    nav.addEventListener('scroll', up, { passive: true });
+    const cur = nav.querySelector('[aria-current="page"]');
+    if (cur && nav.scrollWidth > nav.clientWidth) nav.scrollLeft = Math.max(0, cur.offsetLeft - nav.offsetLeft - 24);
+    up();
+  }
+
   function bindEvents() {
+    bindTabsFade();
     bindOtpInputs();
 
     // Live clear of inline errors + keep password/form values across error re-renders
@@ -1390,6 +1414,17 @@ export async function mountEnomeraPlatform(rootEl) {
         rootEl.querySelector('#eno-email')?.focus();
         return;
       }
+      // Contratação: o aceite dos Termos e da Privacidade é explícito (caixa marcada) e segue com o código.
+      const terms = ev.currentTarget.querySelector('#eno-accept-terms');
+      if (terms) {
+        state.acceptTerms = terms.checked;
+        if (!terms.checked) {
+          state.fieldError = { field: 'terms', text: 'Marque a caixa para aceitar os Termos de Uso e a Política de Privacidade.' };
+          render();
+          rootEl.querySelector('#eno-accept-terms')?.focus();
+          return;
+        }
+      }
       await requestEmailCode(email);
     });
 
@@ -1422,14 +1457,16 @@ export async function mountEnomeraPlatform(rootEl) {
       render();
       const res = await apiFetch('/api/v1/auth/email-code/verify', {
         method: 'POST',
-        body: { email: state.flowEmail, code, selection: state.combo.products.length ? selectionPayload() : null },
+        body: { email: state.flowEmail, code, selection: state.combo.products.length ? selectionPayload() : null, ...(state.acceptTerms ? { acceptTerms: true } : {}) },
       });
       state.busyAction = null;
       if (res.infraError) state.infraError = res.infraError;
       if (!res.ok) {
+        // Quem só está entrando não tem combinação em jogo: a frase sobre ela só aparece na contratação.
+        const keep = ['review', 'plans'].includes(state.returnAfterAuth) && state.combo.products.length ? ' Sua combinação continua guardada.' : '';
         state.codeError = res.data.code === 'CODE_INVALID'
-          ? 'Código incorreto. Confira os 6 dígitos ou peça um novo código. Sua combinação continua guardada.'
-          : `${res.data.error || 'Não foi possível verificar o código.'} Sua combinação continua guardada.`;
+          ? `Código incorreto. Confira os 6 dígitos ou peça um novo código.${keep}`
+          : `${res.data.error || 'Não foi possível verificar o código.'}${keep}`;
         render();
         const otpEl = rootEl.querySelector('#otp-0');
         otpEl?.focus();
@@ -1470,8 +1507,8 @@ export async function mountEnomeraPlatform(rootEl) {
       render();
       const res = await apiFetch('/api/v1/commercial/trial/start', { method: 'POST', body: { products: state.combo.products } });
       state.busyAction = null;
-      if (!res.ok) { state.feedback = { tone: 'err', text: res.data.error }; render(); return; }
-      state.feedback = { tone: 'ok', text: isPilot() ? `Ativado grátis no piloto até ${pilotUntil()} (sem cartão).` : `30 dias grátis ativados até ${res.data.trialEndsAt.slice(0, 10)} (sem cartão).` };
+      if (!res.ok) { state.feedback = { tone: 'err', text: res.data.error || 'Não foi possível ativar agora. Tente de novo.' }; render(); return; }
+      state.feedback = { tone: 'ok', text: isPilot() ? `Ativado grátis no piloto até ${pilotUntil()} (sem cartão).` : `30 dias grátis ativados até ${new Date(res.data.trialEndsAt).toLocaleDateString('pt-BR')} (sem cartão).` };
       state.tab = 'portal';
       await refreshSessionAndData();
     });
@@ -1505,13 +1542,13 @@ export async function mountEnomeraPlatform(rootEl) {
       state.busyAction = 'retryOrder';
       render();
       const res = await apiFetch(`/api/v1/commercial/orders/${btn.dataset.retryOrder}/retry`, {
-        method: 'POST', body: { simulatedOutcome: 'approved', method: 'simulated_pix' },
+        method: 'POST', body: {},
       });
       state.busyAction = null;
       if (res.ok) {
         state.lastOrder = res.data;
         saveLastOrder(res.data);
-        state.feedback = { tone: 'ok', text: 'Tentativa retomada e aprovada na simulação. Serviços liberados!' };
+        state.feedback = { tone: 'ok', text: 'Pedido retomado. Seus serviços estão liberados.' };
         await refreshSessionAndData();
       } else {
         state.feedback = { tone: 'err', text: res.data.error || 'Não foi possível retomar o pedido.' };
@@ -1523,42 +1560,39 @@ export async function mountEnomeraPlatform(rootEl) {
     rootEl.querySelectorAll('[data-retry-sync]').forEach((b) => b.addEventListener('click', async () => {
       if (state.busyAction) return;
       state.busyAction = 'sync';
-      b.disabled = true;
-      const res = await apiFetch(`/api/v1/sync/events/${b.dataset.retrySync}/retry`, { method: 'POST', body: {} });
+      const label = b.textContent;
+      b.disabled = true; b.setAttribute('aria-busy', 'true');
+      b.innerHTML = '<span class="eno-spinner" aria-hidden="true"></span> Atualizando…';
+      const res = await apiFetch(`/api/v1/sync/events/${b.dataset.retrySync}/retry`, { method: 'POST', body: {} }).catch(() => ({ ok: false, data: {} }));
       state.busyAction = null;
-      if (res.ok) { state.feedback = { tone: 'ok', text: 'Sincronização concluída sem duplicar a ação.' }; await refreshSessionAndData(); }
+      if (res.ok) { notify({ tone: 'ok', title: 'Serviços atualizados', text: 'Nada foi duplicado.' }); state.feedback = null; await refreshSessionAndData(); return; }
+      b.disabled = false; b.removeAttribute('aria-busy'); b.textContent = label;
+      state.feedback = { tone: 'err', text: `${res.data?.error || 'Não foi possível atualizar agora.'} Nada foi alterado; tente de novo em instantes.` };
+      render();
     }));
 
-    rootEl.querySelector('#eno-profile-form')?.addEventListener('submit', async (ev) => {
-      ev.preventDefault();
-      const fd = new FormData(ev.currentTarget);
-      const res = await apiFetch('/api/v1/professional/profile', {
-        method: 'PATCH',
-        body: {
-          displayName: fd.get('displayName'),
-          crpOrCrm: fd.get('crpOrCrm'),
-          sessionPriceCents: Math.round(Number(fd.get('priceReais') || 0) * 100),
-          city: fd.get('city'),
-          onlineMeetingUrl: fd.get('onlineMeetingUrl'),
-        },
-      });
-      if (res.ok) { state.feedback = { tone: 'ok', text: 'Perfil salvo no backend (refletido no Agendamento e Consultório).' }; await refreshSessionAndData(); }
-    });
-
-    rootEl.querySelector('#eno-block-form')?.addEventListener('submit', async (ev) => {
-      ev.preventDefault();
-      const fd = new FormData(ev.currentTarget);
-      const currentBlocks = (state.profileData?.availabilityBlocks || []).map((b) => ({ startAt: b.start_at, endAt: b.end_at, reason: b.reason }));
-      // Campo datetime-local vem sem fuso; a agenda do profissional é em Brasília (-03:00).
-      const withZone = (v) => (/[+-]\d\d:\d\d$|Z$/.test(v) ? v : `${v.length === 16 ? `${v}:00` : v}-03:00`);
-      currentBlocks.push({ startAt: withZone(String(fd.get('startAt'))), endAt: withZone(String(fd.get('endAt'))), reason: fd.get('reason') });
-      const res = await apiFetch('/api/v1/professional/availability', { method: 'PUT', body: { blocks: currentBlocks } });
-      if (res.ok) { state.feedback = { tone: 'ok', text: 'Bloqueio salvo na agenda real.' }; await refreshSessionAndData(); }
-    });
-
+    // Cancelar ou reativar um serviço: confirmação em vidro, carregamento no botão e erro visível.
     rootEl.querySelectorAll('[data-ent-action]').forEach((b) => b.addEventListener('click', async () => {
-      const res = await apiFetch(`/api/v1/commercial/entitlements/${b.dataset.entProd}/${b.dataset.entAction}`, { method: 'POST', body: {} });
-      if (res.ok) { state.feedback = { tone: 'warn', text: res.data.note }; await refreshSessionAndData(); }
+      if (state.busyAction) return;
+      const prod = b.dataset.entProd; const action = b.dataset.entAction; const name = PRODUCT_NAMES[prod] || 'serviço';
+      if (action === 'cancel') {
+        const ok = window.EnoFeedback?.confirm ? await window.EnoFeedback.confirm({
+          tone: 'err', title: `Cancelar ${name}?`,
+          text: `Você continua usando ${name} até o fim do período já pago ou do teste. Depois disso ele fica só para leitura e exportação, e nada novo é cobrado. Dá para reativar quando quiser.`,
+          confirmLabel: `Cancelar ${name}`, cancelLabel: 'Manter',
+        }) : true;
+        if (!ok) return;
+      }
+      state.busyAction = 'ent';
+      const label = b.textContent;
+      b.disabled = true; b.setAttribute('aria-busy', 'true');
+      b.innerHTML = `<span class="eno-spinner" aria-hidden="true"></span> ${action === 'cancel' ? 'Cancelando…' : 'Reativando…'}`;
+      const res = await apiFetch(`/api/v1/commercial/entitlements/${prod}/${action}`, { method: 'POST', body: {} }).catch(() => ({ ok: false, data: {} }));
+      state.busyAction = null;
+      if (res.ok) { state.feedback = { tone: action === 'cancel' ? 'warn' : 'ok', text: res.data.note || (action === 'cancel' ? `${name} cancelado.` : `${name} reativado.`) }; await refreshSessionAndData(); return; }
+      b.disabled = false; b.removeAttribute('aria-busy'); b.textContent = label;
+      state.feedback = { tone: 'err', text: `${res.data?.error || (action === 'cancel' ? 'Não foi possível cancelar agora.' : 'Não foi possível reativar agora.')} Nada mudou na sua conta.` };
+      render();
     }));
 
     rootEl.querySelectorAll('[data-sub-cycle]').forEach((b) => b.addEventListener('click', () => {
@@ -1583,7 +1617,7 @@ export async function mountEnomeraPlatform(rootEl) {
       state.sub.error = '';
       state.sub.busy = true;
       render();
-      const res = await apiFetch('/api/v1/billing/checkout', { method: 'POST', body: { products: subscribeProducts(), cycle: state.sub.cycle, cpfCnpj: digits } });
+      const res = await apiFetch('/api/v1/billing/checkout', { method: 'POST', body: { products: subscribeProducts(), cycle: state.sub.cycle, cpfCnpj: digits, ethaService: state.combo?.ethaService === 'sob_medida' ? 'sob_medida' : 'essencial' } });
       state.sub.busy = false;
       if (!res.ok) {
         state.sub.error = res.data.error || 'Não foi possível preparar a assinatura. Tente de novo.';
@@ -1595,26 +1629,105 @@ export async function mountEnomeraPlatform(rootEl) {
       render();
     });
 
-    rootEl.querySelector('#eno-export-account')?.addEventListener('click', async () => {
-      const res = await apiFetch('/api/v1/account/export');
-      if (!res.ok) { state.feedback = { tone: 'err', text: res.data.error }; render(); return; }
+    rootEl.querySelector('#eno-export-account')?.addEventListener('click', async (ev) => {
+      const btn = ev.currentTarget;
+      if (btn.disabled) return;
+      const label = btn.textContent;
+      btn.disabled = true; btn.setAttribute('aria-busy', 'true');
+      btn.innerHTML = '<span class="eno-spinner" aria-hidden="true"></span> Preparando o arquivo…';
+      const res = await apiFetch('/api/v1/account/export').catch(() => ({ ok: false, data: {} }));
+      btn.disabled = false; btn.removeAttribute('aria-busy'); btn.textContent = label;
+      if (!res.ok) { state.feedback = { tone: 'err', text: `${res.data?.error || 'Não foi possível gerar a exportação agora.'} Tente de novo em instantes.` }; render(); return; }
       const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `enomera-export-${state.me.account.slug}.json`;
+      a.download = `enomera-meus-dados-${state.me.account.slug}.json`;
       a.click();
-      state.feedback = { tone: 'ok', text: 'Exportação JSON autorizada gerada (schema enomera-export-v1).' };
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      notify({ tone: 'ok', title: 'Arquivo baixado', text: 'Seus dados estão no arquivo que acabou de ser salvo.' });
+    });
+
+    // Desistência em 7 dias (devolução integral do primeiro pagamento).
+    rootEl.querySelector('#eno-refund')?.addEventListener('click', async (ev) => {
+      const btn = ev.currentTarget; if (btn.disabled) return;
+      const ok = window.EnoFeedback?.confirm ? await window.EnoFeedback.confirm({
+        tone: 'err', title: 'Desistir e receber o valor de volta?',
+        text: 'Nos 7 dias depois do primeiro pagamento você pode desistir e receber tudo de volta, pelo mesmo meio de pagamento. A assinatura é encerrada e os serviços ficam só para leitura e exportação.',
+        confirmLabel: 'Desistir e pedir devolução', cancelLabel: 'Manter assinatura',
+      }) : true;
+      if (!ok) return;
+      const label = btn.textContent; btn.disabled = true; btn.setAttribute('aria-busy', 'true');
+      btn.innerHTML = '<span class="eno-spinner" aria-hidden="true"></span> Pedindo a devolução…';
+      const res = await apiFetch('/api/v1/billing/refund', { method: 'POST', body: {} }).catch(() => ({ ok: false, data: {} }));
+      if (res.ok) { state.feedback = { tone: 'warn', text: res.data.message }; await refreshSessionAndData(); return; }
+      btn.disabled = false; btn.removeAttribute('aria-busy'); btn.textContent = label;
+      state.feedback = { tone: 'err', text: res.data?.error || 'Não foi possível pedir a devolução agora. Tente de novo.' };
+      render();
+    });
+
+    // Sair do piloto: encerra o registro de uso e apaga o que já foi registrado.
+    rootEl.querySelector('#eno-pilot-withdraw')?.addEventListener('click', async (ev) => {
+      const btn = ev.currentTarget; if (btn.disabled) return;
+      const ok = window.EnoFeedback?.confirm ? await window.EnoFeedback.confirm({
+        tone: 'err', title: 'Sair do piloto?',
+        text: 'Paramos de registrar como você usa as telas e apagamos o que já foi registrado. Sua conta e seus dados continuam, e você pode exportá-los quando quiser.',
+        confirmLabel: 'Sair do piloto', cancelLabel: 'Continuar no piloto',
+      }) : true;
+      if (!ok) return;
+      const label = btn.textContent; btn.disabled = true; btn.setAttribute('aria-busy', 'true');
+      btn.innerHTML = '<span class="eno-spinner" aria-hidden="true"></span> Saindo…';
+      const res = await apiFetch('/api/v1/pilot/withdraw', { method: 'POST', body: {} }).catch(() => ({ ok: false, data: {} }));
+      if (res.ok) {
+        try { localStorage.setItem('eno_uso_off', '1'); localStorage.removeItem('eno_piloto_gratis'); } catch {}
+        state.feedback = { tone: 'ok', text: 'Você saiu do piloto. O registro de uso foi encerrado e o que havia sido registrado foi apagado.' };
+        await refreshSessionAndData(); return;
+      }
+      btn.disabled = false; btn.removeAttribute('aria-busy'); btn.textContent = label;
+      state.feedback = { tone: 'err', text: res.data?.error || 'Não foi possível sair do piloto agora. Tente de novo.' };
+      render();
+    });
+
+    // Exclusão da conta (LGPD): pede o e-mail para confirmar; há prazo para desistir.
+    rootEl.querySelector('#eno-delete-form')?.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const form = ev.currentTarget; const input = form.querySelector('#eno-delete-email'); const err = form.querySelector('#eno-delete-err');
+      const btn = form.querySelector('button[type=submit]'); if (btn.disabled) return;
+      err.textContent = '';
+      if (String(input.value).trim().toLowerCase() !== String(state.me?.user?.email || '').toLowerCase()) { err.textContent = 'Digite o e-mail desta conta para confirmar.'; input.setAttribute('aria-invalid', 'true'); input.focus(); return; }
+      const ok = window.EnoFeedback?.confirm ? await window.EnoFeedback.confirm({
+        tone: 'err', title: 'Excluir a conta e todos os dados?',
+        text: 'Os serviços param agora. Os dados ficam guardados por 30 dias para você exportar ou desistir da exclusão; depois são apagados de vez.',
+        confirmLabel: 'Excluir minha conta', cancelLabel: 'Voltar',
+      }) : true;
+      if (!ok) return;
+      const label = btn.textContent; btn.disabled = true; btn.setAttribute('aria-busy', 'true');
+      btn.innerHTML = '<span class="eno-spinner" aria-hidden="true"></span> Registrando…';
+      const res = await apiFetch('/api/v1/account/deletion', { method: 'POST', body: { confirmEmail: input.value.trim() } }).catch(() => ({ ok: false, data: {} }));
+      if (res.ok) { state.feedback = { tone: 'warn', text: res.data.message || 'Exclusão agendada.' }; await refreshSessionAndData(); return; }
+      btn.disabled = false; btn.removeAttribute('aria-busy'); btn.textContent = label;
+      err.textContent = res.data?.error || 'Não foi possível registrar o pedido agora. Tente de novo.';
+    });
+    rootEl.querySelector('#eno-delete-cancel')?.addEventListener('click', async (ev) => {
+      const btn = ev.currentTarget; if (btn.disabled) return;
+      const label = btn.textContent; btn.disabled = true; btn.innerHTML = '<span class="eno-spinner" aria-hidden="true"></span> Cancelando…';
+      const res = await apiFetch('/api/v1/account/deletion', { method: 'DELETE' }).catch(() => ({ ok: false, data: {} }));
+      if (res.ok) { state.feedback = { tone: 'ok', text: res.data.message }; await refreshSessionAndData(); return; }
+      btn.disabled = false; btn.textContent = label;
+      state.feedback = { tone: 'err', text: res.data?.error || 'Não foi possível cancelar a exclusão agora.' };
       render();
     });
 
     rootEl.querySelector('#eno-pilot-form')?.addEventListener('submit', async (ev) => {
       ev.preventDefault();
       const fd = new FormData(ev.currentTarget);
+      const btn = ev.currentTarget.querySelector('button[type=submit]');
+      if (btn?.disabled) return;
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span class="eno-spinner" aria-hidden="true"></span> Enviando…'; }
       const res = await apiFetch('/api/v1/commercial/pilot/apply', {
         method: 'POST',
         body: { fullName: fd.get('fullName'), email: fd.get('email'), notes: fd.get('notes') },
-      });
-      state.feedback = res.ok ? { tone: 'ok', text: res.data.message } : { tone: 'err', text: res.data.error };
+      }).catch(() => ({ ok: false, data: {} }));
+      state.feedback = res.ok ? { tone: 'ok', text: res.data.message } : { tone: 'err', text: res.data?.error || 'Não foi possível registrar seu interesse agora. Tente de novo.' };
       render();
     });
 
@@ -1623,7 +1736,7 @@ export async function mountEnomeraPlatform(rootEl) {
       setToken(''); saveLastOrder(null);
       state.me = null; state.summary = null; state.lastOrder = null; state.tab = 'auth'; state.authMode = 'email'; state.returnAfterAuth = null; state.activation = null; saveActivation(null);
       state.formCache.loginPwd = ''; state.formCache.signupPwd = ''; state.formCache.recoveryCode = ''; state.formCache.recoveryPwd = '';
-      state.feedback = { tone: 'ok', text: revokeAll ? 'Todas as sessões foram revogadas no servidor.' : 'Você saiu da conta.' };
+      state.feedback = { tone: 'ok', text: revokeAll ? 'Você saiu da conta em todos os aparelhos.' : 'Você saiu da conta.' };
       syncHistory(state.tab, state.authMode);
       render();
     };

@@ -1,25 +1,24 @@
-// Destinos do ecossistema. O build injeta os endereços do conjunto de previews
-// (window.__ENOMERA_*_URL); sem injeção, valem os endereços públicos.
-const injected = typeof window === 'undefined' ? {} : window;
+// Destinos do ecossistema: sempre no mesmo domínio, por caminho (ver eno-origins.js).
+import { PRODUCT_ORIGINS } from './eno-origins.js';
 const withSlash = url => (url.endsWith('/') ? url : `${url}/`);
-const pick = (key, fallback) => withSlash(String(injected[key] || fallback).trim());
-const helenaBase = pick('__ENOMERA_HELENA_URL', 'https://helenaduartepsi.vercel.app/');
+const injected = typeof window === 'undefined' ? {} : window;
+const helenaBase = withSlash(PRODUCT_ORIGINS.helena);
 const enomeraBase = typeof location === 'undefined' ? 'https://enomera.vercel.app/' : `${location.origin}/`;
 
 export const ecosystem = {
   enomera: enomeraBase,
   portal: `${enomeraBase}portal`,
-  etha: pick('__ENOMERA_ETHA_URL', 'https://etha-enomera.vercel.app/'),
+  etha: withSlash(PRODUCT_ORIGINS.etha),
   // O site integrado atende vários profissionais; o exemplo abre o da Helena.
   helena: injected.__ENOMERA_HELENA_URL ? `${helenaBase}?site=helena-duarte` : helenaBase,
-  minne: pick('__ENOMERA_MINNE_URL', 'https://minne-enomera.vercel.app/'),
-  ambo: pick('__ENOMERA_AMBO_URL', 'https://ambo-enomera.vercel.app/')
+  minne: withSlash(PRODUCT_ORIGINS.minne),
+  ambo: withSlash(PRODUCT_ORIGINS.ambo)
 };
 
 export const services = [
   {
     id: 'ambo',
-    name: 'ambo',
+    name: 'Agendamento',
     description: 'Agendamento e área do paciente',
     billing: 'Mensal ou anual',
     section: '#ambo',
@@ -27,12 +26,11 @@ export const services = [
     externalDestination: ecosystem.ambo,
     externalLabel: 'Abrir o Agendamento ↗',
     availability: ecosystem.ambo ? 'published-product' : 'embedded-demo',
-    embeddedDemo: true,
-    legacy: 'https://lotus-app-phi.vercel.app/'
+    embeddedDemo: true
   },
   {
     id: 'minne',
-    name: 'minne',
+    name: 'Consultório',
     description: 'Gestão clínica e continuidade',
     billing: 'Mensal ou anual',
     section: '#minne',
@@ -44,7 +42,7 @@ export const services = [
   },
   {
     id: 'etha',
-    name: 'etha',
+    name: 'Site',
     description: 'Site exclusivo para o profissional',
     billing: 'Mensal ou anual · site e hospedagem',
     section: '#etha',
@@ -62,9 +60,10 @@ export function serviceById(id) {
   return services.find(s => s.id === id);
 }
 
-// Preços aprovados em 22/11/2026. Anual = 10 mensalidades. Espelha server/catalog.mjs.
+// Preços aprovados em 22/11/2026. Anual = 10 mensalidades. A fonte é server/catalog.mjs;
+// tests/auditoria-2611.test.mjs falha se estes números divergirem do catálogo.
 export const MONTHLY = { ambo: 39, etha: 49, minne: 59 };
-const COMBO = { 'ambo+minne': 79, 'ambo+etha': 69, 'etha+minne': 89, 'ambo+etha+minne': 99 };
+export const COMBO = { 'ambo+minne': 79, 'ambo+etha': 69, 'etha+minne': 89, 'ambo+etha+minne': 99 };
 const brl = n => `R$ ${n.toLocaleString('pt-BR')}`;
 
 // Convidado do piloto (marcado pelo convite ou pelo portal): tudo grátis, sem preço a pagar.

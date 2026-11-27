@@ -196,3 +196,77 @@ test('P2: validações de entrada, saúde pública sem detalhe em produção e f
   assert.equal(tzOffsetMinutes('America/Rio_Branco'), -300);
   assert.equal(tzOffsetMinutes('Fuso/Inexistente'), -180);
 });
+
+test('CORE-17: preços mostrados nas telas são os mesmos do catálogo do servidor', async () => {
+  const { MONTHLY_BY_COMBO, ANNUAL_MONTHS } = await import('../server/catalog.mjs');
+  const front = await import('../public/services.js');
+  const flow = await import('../public/contract-flow.js');
+  for (const [id, reais] of Object.entries(front.MONTHLY)) assert.equal(reais * 100, MONTHLY_BY_COMBO[id], `services.js ${id}`);
+  for (const [key, reais] of Object.entries(front.COMBO)) assert.equal(reais * 100, MONTHLY_BY_COMBO[key], `services.js ${key}`);
+  const reais = (cents) => `R$ ${cents / 100}`;
+  for (const [id, info] of Object.entries(flow.PRODUCT_INFO)) {
+    assert.equal(info.monthly, reais(MONTHLY_BY_COMBO[id]), `contract-flow ${id} mensal`);
+    assert.equal(info.annual, reais(MONTHLY_BY_COMBO[id] * ANNUAL_MONTHS), `contract-flow ${id} anual`);
+  }
+  for (const plan of flow.PLANS) {
+    const key = ['ambo', 'etha', 'minne'].filter((p) => plan.products.includes(p)).join('+');
+    assert.equal(plan.monthly * 100, MONTHLY_BY_COMBO[key], `plano ${plan.id}`);
+  }
+});
+
+test('CORE-1/VC-9: nomes antigos e endereços internos não aparecem nas telas', async () => {
+  const { productOrigin } = await import('../public/eno-origins.js');
+  const prod = { hostname: 'enomera.vercel.app', origin: 'https://enomera.vercel.app' };
+  // Mesmo com a variável antiga apontando para o projeto interno, o link fica no domínio público.
+  assert.equal(productOrigin('ambo', prod, { __ENOMERA_AMBO_URL: 'https://ambo-enomera.vercel.app' }), 'https://enomera.vercel.app/agendamento');
+  assert.equal(productOrigin('minne', prod, {}), 'https://enomera.vercel.app/consultorio');
+  assert.equal(productOrigin('etha', { hostname: 'meudominio.com.br', origin: 'https://meudominio.com.br' }, {}), 'https://meudominio.com.br/site');
+  const { services } = await import('../public/services.js');
+  assert.deepEqual(services.map((s) => s.name), ['Agendamento', 'Consultório', 'Site']);
+  const visible = ['public/index.html', 'public/configurar.html', 'public/404.html', 'public/piloto/convite.html', 'public/piloto/como-funciona.html', 'public/piloto/painel.html']
+    .map((f) => fs.readFileSync(f, 'utf8').replace(/<script[\s\S]*?<\/script>/g, '').replace(/\b(id|class|for|href|data-[a-z-]+|aria-controls)="[^"]*"/g, ''));
+  for (const html of visible) {
+    assert.doesNotMatch(html, /\b(Ambo|Minne|Etha|Lotus|Compasso)\b/);
+    assert.doesNotMatch(html, /(ambo|minne|etha)-enomera/);
+  }
+});
+
+test('Pedidos do Enomera Site: respostas públicas sem campo oculto, troca de endereço e prazo com feriado', async () => {
+  const { addBusinessDays } = await import('../server/pilot-sobmedida.mjs');
+  // 30/04/2026 (quinta) + 2 dias úteis: pula 1º de maio (feriado) e o fim de semana, vence na terça 05/05.
+  assert.equal(addBusinessDays('2026-04-30T15:00:00.000Z', 2).slice(0, 10), '2026-05-06'); // 23:59 de 05/05 em Brasília = 02:59Z de 06/05
+  // Sexta-feira Santa (03/04/2026) também é pulada.
+  assert.equal(addBusinessDays('2026-04-02T15:00:00.000Z', 1).slice(0, 10), '2026-04-07');
+
+  const acc = await newAccount('endereco-site@exemplo.invalid');
+  const token = acc.sessionToken;
+  const order = await api('/api/v1/commercial/orders', { method: 'POST', token, body: { products: ['etha'], billing: 'monthly', idempotencyKey: 'site1' } });
+  assert.equal(order.status, 201, JSON.stringify(order.data));
+  const draft = await api('/api/v1/etha/project/editor', { method: 'POST', token, body: { stage: 'preview', content: { displayName: 'Ana Site', answers: { city: 'Santos', address: 'Rua Secreta, 10', showAddress: false, whatsapp: '13999990000' } } } });
+  assert.ok(draft.data.versionId, JSON.stringify(draft.data));
+  assert.equal((await api('/api/v1/etha/project/publish-staging', { method: 'POST', token, body: { versionId: draft.data.versionId } })).status, 200);
+  const oldSlug = acc.account.slug;
+  const pub = await api(`/api/v1/public/sites/${oldSlug}`);
+  assert.equal(pub.status, 200);
+  assert.equal(pub.data.answers.address, '');
+  assert.equal(pub.data.answers.city, 'Santos');
+  assert.doesNotMatch(JSON.stringify(pub.data), /Rua Secreta/);
+
+  // Troca de endereço: validação, reserva, unicidade e redirecionamento do anterior.
+  const patch = (slug, t = token) => api('/api/v1/etha/site-address', { method: 'PATCH', token: t, body: { slug } });
+  assert.equal((await patch('Ab')).data.code, 'SLUG_INVALID');
+  assert.equal((await patch('com espaço')).data.code, 'SLUG_INVALID');
+  assert.equal((await patch('agendamento')).data.code, 'SLUG_RESERVED');
+  assert.equal((await api('/api/v1/etha/site-address', { method: 'PATCH', body: { slug: 'ana-site-psi' } })).status, 401);
+  const other = await newAccount('outro-endereco@exemplo.invalid');
+  assert.equal((await patch(other.account.slug)).data.code, 'SLUG_TAKEN');
+  const ok = await patch('ana-site-psi');
+  assert.equal(ok.status, 200, JSON.stringify(ok.data));
+  assert.equal(ok.data.previousSlug, oldSlug);
+  assert.equal((await api('/api/v1/public/sites/ana-site-psi')).data.slug, 'ana-site-psi');
+  assert.equal((await api(`/api/v1/public/sites/${oldSlug}`)).data.slug, 'ana-site-psi');
+  // O endereço antigo fica reservado para a mesma conta; ninguém mais pode tomá-lo.
+  await api('/api/v1/commercial/orders', { method: 'POST', token: other.sessionToken, body: { products: ['etha'], billing: 'monthly', idempotencyKey: 'site2' } });
+  assert.equal((await patch(oldSlug, other.sessionToken)).data.code, 'SLUG_TAKEN');
+  assert.equal((await patch('ana-outra-vez')).data.code, 'SLUG_CHANGE_TOO_SOON');
+});

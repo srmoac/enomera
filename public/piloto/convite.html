@@ -38,6 +38,9 @@
   @keyframes cvDraw { to { stroke-dashoffset: 0; } }
   @media (prefers-reduced-motion: reduce) { .cv-done circle, .cv-done path { animation: none; stroke-dashoffset: 0; } }
   .cv-skel { height: 220px; border-radius: 28px; }
+  .cv-code { font-size: 24px !important; letter-spacing: .32em; text-align: center; font-weight: 600 !important; }
+  .cv-row { display: flex; flex-wrap: wrap; gap: 10px; }
+  .cv-row .pl-btn[disabled] { opacity: .6; cursor: default; }
 </style>
 <link rel="stylesheet" href="/eno-perf.css"></head>
 <body>
@@ -83,9 +86,9 @@
           '<li>Erros que aparecerem e chamadas que falharem, para corrigirmos.</li>' +
           '<li class="no">Nunca o que você escreve: prontuário, nomes de pacientes, mensagens e valores de campos ficam fora.</li>' +
         '</ul><p class="small muted">Serve só para melhorar os produtos durante o piloto. Só o Marcos vê. Você pode sair quando quiser. Detalhes nos <a href="/termos#piloto" target="_blank" rel="noopener">Termos</a> e na <a href="/privacidade#piloto" target="_blank" rel="noopener">Privacidade</a>.</p>' +
-        '<p class="cv-agree"><b>Ao deslizar abaixo, você concorda em participar do piloto</b> e com o registro de uso descrito acima.</p></div>') +
+        '<p class="cv-agree"><b>Ao deslizar abaixo, você aceita os <a href="/termos" target="_blank" rel="noopener">Termos de Uso</a> e a <a href="/privacidade" target="_blank" rel="noopener">Política de Privacidade</a>, e concorda em participar do piloto</b> com o registro de uso descrito acima. Em seguida enviamos um código ao seu e-mail para confirmar.</p></div>') +
         '<p class="pl-err" id="e-form" role="alert"></p>' +
-        (admin ? '<button class="pl-btn" type="submit" data-submit>Criar acesso e abrir o painel</button>' : '<div class="cv-slide" data-slide></div>') +
+        (admin ? '<p class="small muted">Ao continuar, você aceita os <a href="/termos" target="_blank" rel="noopener">Termos de Uso</a> e a <a href="/privacidade" target="_blank" rel="noopener">Política de Privacidade</a>.</p><button class="pl-btn" type="submit" data-submit>Receber o código no e-mail</button>' : '<div class="cv-slide" data-slide></div>') +
       '</form>');
   }
   function placeLens() {
@@ -94,6 +97,7 @@
     lens.style.width = on.offsetWidth + 'px'; lens.style.transform = 'translateX(' + on.offsetLeft + 'px)';
   }
   function wire() {
+    if (root.querySelector('[data-code-form]')) { wireCode(); return; }
     var f = root.querySelector('form'); if (!f) return;
     placeLens(); addEventListener('resize', placeLens);
     root.querySelectorAll('[data-spec]').forEach(function (b) { b.onclick = function () { root.querySelectorAll('[data-spec]').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); }); placeLens(); }; });
@@ -104,8 +108,8 @@
     if (window.EnoFeedback) EnoFeedback.password(pi, { userInputs: function () { return [f.fullName.value, f.email.value]; }, after: pi.parentElement });
     f.addEventListener('submit', submit);
     var slot = root.querySelector('[data-slide]');
-    if (slot && window.EnoSlide) EnoSlide.mount(slot, { label: 'Deslize para concordar', busyLabel: 'Criando sua conta…', doneLabel: 'Conta criada', onConfirm: function () { return send(f); } });
-    else if (slot) slot.outerHTML = '<button class="pl-btn" type="submit" data-submit>Concordar e criar conta</button>';
+    if (slot && window.EnoSlide) EnoSlide.mount(slot, { label: 'Deslize para concordar', busyLabel: 'Enviando o código…', doneLabel: 'Código enviado', onConfirm: function () { return send(f); } });
+    else if (slot) slot.outerHTML = '<button class="pl-btn" type="submit" data-submit>Concordar e receber o código</button>';
   }
   function fail(id, input, text) { document.getElementById(id).textContent = text; if (input) input.setAttribute('aria-invalid', 'true'); return input; }
   function validate(f) {
@@ -119,30 +123,88 @@
     if (first) { first.focus(); return false; }
     return true;
   }
-  // Envia o cadastro. Promessa com true quando a conta foi criada (o deslizar mostra o ✓), false quando não.
+  // Dois passos: 1) pede o código de confirmação no e-mail informado; 2) cria a conta com o código.
+  var PENDING = null; var resendAt = 0; var resendTimer = null;
+  function post(path, body) {
+    return fetch('/api/v1/pilot/invites/' + encodeURIComponent(TOKEN) + path, {
+      method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    }).then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return { ok: r.ok, status: r.status, d: d }; }); });
+  }
+  function requestCode(email) {
+    return post('/code', { email: email }).then(function (res) {
+      if (res.ok) resendAt = Date.now() + (Number(res.d.resendAfterSec) || 30) * 1000;
+      return res;
+    });
+  }
+  // Promessa com true quando o código saiu (o deslizar mostra o ✓), false quando não.
   function send(f) {
     if (!validate(f)) return Promise.resolve(false);
     var name = f.fullName.value.trim();
     var spec = root.querySelector('[data-spec][aria-pressed="true"]');
-    return fetch('/api/v1/pilot/invites/' + encodeURIComponent(TOKEN) + '/accept', {
-      method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fullName: name, email: f.email.value.trim(), password: f.password.value, crpOrCrm: f.crpOrCrm ? f.crpOrCrm.value.trim() : '', specialty: spec ? spec.getAttribute('data-spec') : 'Psicologia', consent: true })
-    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, d: d }; }); }).then(function (res) {
+    var data = { fullName: name, email: f.email.value.trim(), password: f.password.value, crpOrCrm: f.crpOrCrm ? f.crpOrCrm.value.trim() : '', specialty: spec ? spec.getAttribute('data-spec') : 'Psicologia', consent: true, acceptTerms: true };
+    return requestCode(data.email).then(function (res) {
       if (!res.ok) {
-        if (res.d.code === 'EMAIL_EXISTS') { fail('e-email', f.email, res.d.error).focus(); return false; }
-        if (res.d.code === 'INVITE_USED') { swap(msg('Convite já usado', 'Esta conta já foi criada. Entre com o e-mail e a senha que você cadastrou.', '<a class="pl-btn" href="/conta">Entrar</a>')); return false; }
+        if (res.d.code === 'INVALID_EMAIL') { fail('e-email', f.email, res.d.error).focus(); return false; }
+        if (res.d.code === 'INVITE_INVALID' || res.d.code === 'INVITE_USED') { swap(msg('Convite indisponível', 'Este link não vale mais. Peça um novo ao Marcos.')); return false; }
         document.getElementById('e-form').textContent = (res.d.error || 'Não deu certo agora.') + ' Nada foi criado; tente de novo.';
         return false;
       }
-      try { sessionStorage.setItem('enomera_session_token_v1', res.d.sessionToken); if (KIND === 'admin') localStorage.setItem('eno_uso_off', '1'); else localStorage.setItem('eno_piloto_gratis', '1'); } catch (err) {}
-      setTimeout(function () {
-        swap(card('<div class="cv-done"><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="29"/><path d="M20 33l8 8 16-17"/></svg><h1>' + (KIND === 'admin' ? 'Acesso criado' : 'Conta criada') + '</h1><p class="muted">' + (KIND === 'admin' ? 'Abrindo o painel do piloto.' : 'Antes de começar, um passeio rápido de como os serviços funcionam.') + '</p></div>'));
-        setTimeout(function () { var nx = res.d.next || '/checkout'; location.href = KIND === 'admin' ? nx : '/piloto/como-funciona?nome=' + encodeURIComponent(name.split(' ')[0]) + '&next=' + encodeURIComponent(nx); }, 1300);
-      }, KIND === 'admin' ? 0 : 650);
+      PENDING = data;
+      setTimeout(function () { swap(codeHtml(res.d.devCode)); }, KIND === 'admin' ? 0 : 650);
       return true;
     }).catch(function () {
       document.getElementById('e-form').textContent = 'Sem conexão com a Enomera agora. Nada foi enviado; confira a internet e tente de novo.';
       return false;
+    });
+  }
+  function codeHtml(devCode) {
+    return card(
+      '<div class="pl-stagger" style="display:grid;gap:10px">' +
+        '<p class="cv-eyebrow">Confirme seu e-mail</p><h1>Digite o código</h1>' +
+        '<p class="muted">Enviamos um código de 6 dígitos para <b>' + esc(PENDING.email) + '</b>. Ele vale por 10 minutos. Se não chegar, olhe a caixa de spam.</p>' +
+      '</div>' +
+      '<form class="cv-form pl-stagger" novalidate data-code-form>' +
+        '<div class="pl-field"><label for="f-code">Código de 6 dígitos</label><input id="f-code" name="code" class="cv-code num" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" maxlength="6" spellcheck="false" data-autofocus aria-describedby="e-code" value="' + esc(devCode || '') + '"><p class="pl-err" id="e-code" role="alert"></p></div>' +
+        '<button class="pl-btn" type="submit" data-submit>' + (KIND === 'admin' ? 'Criar acesso e abrir o painel' : 'Criar minha conta') + '</button>' +
+        '<div class="cv-row"><button class="pl-btn is-quiet" type="button" data-resend>Reenviar código</button><button class="pl-btn is-ghost" type="button" data-back>Corrigir e-mail</button></div>' +
+      '</form>');
+  }
+  function wireCode() {
+    var f = root.querySelector('[data-code-form]'); if (!f) return;
+    var input = f.querySelector('#f-code'); var err = f.querySelector('#e-code'); var btn = f.querySelector('[data-submit]'); var rs = f.querySelector('[data-resend]');
+    input.addEventListener('input', function () { input.value = input.value.replace(/\D/g, '').slice(0, 6); input.removeAttribute('aria-invalid'); err.textContent = ''; });
+    function tick() {
+      var left = Math.ceil((resendAt - Date.now()) / 1000);
+      if (!rs.isConnected) { clearInterval(resendTimer); return; }
+      if (left > 0) { rs.disabled = true; rs.textContent = 'Reenviar em ' + left + ' s'; } else { rs.disabled = false; rs.textContent = 'Reenviar código'; clearInterval(resendTimer); }
+    }
+    clearInterval(resendTimer); resendTimer = setInterval(tick, 500); tick();
+    rs.onclick = function () {
+      if (rs.disabled) return; rs.disabled = true; rs.innerHTML = '<span class="pl-spin" aria-hidden="true"></span>Enviando';
+      requestCode(PENDING.email).then(function (res) {
+        if (!res.ok) { err.textContent = res.d.error || 'Não foi possível reenviar agora.'; resendAt = Date.now() + 5000; }
+        else if (res.d.devCode) input.value = res.d.devCode;
+        clearInterval(resendTimer); resendTimer = setInterval(tick, 500); tick();
+      }).catch(function () { err.textContent = 'Sem conexão agora. Confira a internet e tente de novo.'; rs.disabled = false; rs.textContent = 'Reenviar código'; });
+    };
+    f.querySelector('[data-back]').onclick = function () { var keep = PENDING; swap(formHtml()); setTimeout(function () { var nf = root.querySelector('form'); if (nf && keep) { nf.fullName.value = keep.fullName; nf.email.value = keep.email; if (nf.crpOrCrm) nf.crpOrCrm.value = keep.crpOrCrm; } }, 280); };
+    f.addEventListener('submit', function (e) {
+      e.preventDefault(); if (btn.getAttribute('aria-busy') === 'true') return;
+      var code = input.value.trim();
+      if (!/^\d{6}$/.test(code)) { err.textContent = 'Digite os 6 dígitos do código.'; input.setAttribute('aria-invalid', 'true'); input.focus(); return; }
+      var label = btn.textContent; btn.setAttribute('aria-busy', 'true'); btn.innerHTML = '<span class="pl-spin" aria-hidden="true"></span>Criando';
+      var back = function (text) { btn.removeAttribute('aria-busy'); btn.textContent = label; if (text) { err.textContent = text; input.setAttribute('aria-invalid', 'true'); input.focus(); } };
+      var body = {}; for (var k in PENDING) body[k] = PENDING[k]; body.code = code;
+      post('/accept', body).then(function (res) {
+        if (!res.ok) {
+          if (res.d.code === 'INVITE_USED') { swap(msg('Convite já usado', 'Esta conta já foi criada. Entre com o e-mail e a senha que você cadastrou.', '<a class="pl-btn" href="/conta">Entrar</a>')); return; }
+          back((res.d.error || 'Não deu certo agora.') + (res.d.code === 'EMAIL_EXISTS' ? '' : ' Nada foi criado.')); return;
+        }
+        var name = PENDING.fullName; PENDING = null;
+        try { sessionStorage.setItem('enomera_session_token_v1', res.d.sessionToken); if (KIND === 'admin') localStorage.setItem('eno_uso_off', '1'); else localStorage.setItem('eno_piloto_gratis', '1'); } catch (e2) {}
+        swap(card('<div class="cv-done"><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="29"/><path d="M20 33l8 8 16-17"/></svg><h1>' + (KIND === 'admin' ? 'Acesso criado' : 'Conta criada') + '</h1><p class="muted">' + (KIND === 'admin' ? 'Abrindo o painel do piloto.' : 'Antes de começar, um passeio rápido de como os serviços funcionam.') + '</p></div>'));
+        setTimeout(function () { var nx = res.d.next || '/checkout'; location.href = KIND === 'admin' ? nx : '/piloto/como-funciona?nome=' + encodeURIComponent(name.split(' ')[0]) + '&next=' + encodeURIComponent(nx); }, 1500);
+      }).catch(function () { back('Sem conexão com a Enomera agora. Nada foi enviado; tente de novo.'); });
     });
   }
   function submit(e) {
@@ -150,7 +212,7 @@
     var btn = f.querySelector('[data-submit]');
     if (!btn) { if (validate(f)) { var k = f.querySelector('.es-knob'); if (k) k.focus(); } return; }
     if (btn.getAttribute('aria-busy') === 'true') return;
-    btn.setAttribute('aria-busy', 'true'); var label = btn.textContent; var slow = setTimeout(function () { btn.innerHTML = '<span class="pl-spin" aria-hidden="true"></span>Criando'; }, 300);
+    btn.setAttribute('aria-busy', 'true'); var label = btn.textContent; var slow = setTimeout(function () { btn.innerHTML = '<span class="pl-spin" aria-hidden="true"></span>Enviando'; }, 300);
     send(f).then(function (ok) { clearTimeout(slow); if (!ok) { btn.removeAttribute('aria-busy'); btn.textContent = label; } });
   }
   if (!TOKEN) { swap(msg('Link incompleto', 'Abra o link exatamente como você recebeu. Se não funcionar, peça outro ao Marcos.')); return; }

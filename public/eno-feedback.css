@@ -134,3 +134,30 @@
   .eno-toast-ic path, .eno-done-label path { animation: none; stroke-dashoffset: 0; }
   @keyframes enoFade { from { opacity: 0; } }
 }
+
+/* ---------- Confirmação em vidro ---------- */
+.eno-confirm { border: 0; padding: 16px; background: transparent; max-width: min(460px, 100vw); width: 100%; color: var(--eno-fb-ink); overflow: visible; }
+.eno-confirm::backdrop { background: rgb(28 34 64 / .28); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); animation: enoConfirmFade var(--eno-t-base, 240ms) var(--eno-ease-out, cubic-bezier(.23,1,.32,1)) both; }
+.eno-confirm-card { display: grid; gap: 14px; padding: 24px 22px 20px; border-radius: 28px; font: 400 16px/1.5 Manrope, system-ui, sans-serif;
+  background: linear-gradient(135deg, rgb(var(--eno-fb-glass) / .9), rgb(var(--eno-fb-glass) / .76));
+  -webkit-backdrop-filter: blur(26px) saturate(1.8); backdrop-filter: blur(26px) saturate(1.8);
+  border: 1px solid rgb(255 255 255 / .6);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .75), 0 24px 60px -18px rgb(var(--eno-fb-shadow) / .42), 0 3px 10px rgb(var(--eno-fb-shadow) / .1);
+  animation: enoConfirmIn var(--eno-t-step, 320ms) var(--eno-ease-out, cubic-bezier(.23,1,.32,1)) both; }
+.eno-confirm-card h2 { margin: 0; font: 600 20px/1.3 Manrope, system-ui, sans-serif; letter-spacing: -.02em; }
+.eno-confirm-text { margin: 0; color: var(--eno-fb-muted); font-size: 15px; }
+.eno-confirm-text a { color: var(--eno-fb-accent); text-decoration: underline; }
+.eno-confirm-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; margin-top: 4px; }
+.eno-confirm-btn { appearance: none; border: 0; cursor: pointer; min-height: 48px; padding: 0 20px; border-radius: 999px; font: 600 15px/1 Manrope, system-ui, sans-serif;
+  background: var(--eno-fb-accent); color: #fff; transition: transform var(--eno-t-press, 120ms) var(--eno-ease-out, ease-out), opacity var(--eno-t-fast, 160ms) var(--eno-ease-out, ease-out); }
+.eno-confirm-card[data-tone="err"] .eno-confirm-btn:not(.is-quiet) { background: var(--eno-fb-bad); }
+.eno-confirm-btn.is-quiet { background: rgb(59 79 184 / .1); color: var(--eno-fb-ink); }
+.eno-confirm-btn:active { transform: scale(.97); }
+.eno-confirm-btn:focus-visible { outline: 2px solid var(--eno-fb-accent); outline-offset: 2px; }
+.eno-confirm[data-leaving] .eno-confirm-card { animation: enoConfirmOut 180ms var(--eno-ease-out, ease-out) both; }
+.eno-confirm[data-leaving]::backdrop { opacity: 0; transition: opacity 180ms; }
+@keyframes enoConfirmIn { from { opacity: 0; transform: translateY(10px) scale(.96); filter: blur(8px); } }
+@keyframes enoConfirmOut { to { opacity: 0; transform: scale(.97); } }
+@keyframes enoConfirmFade { from { opacity: 0; } }
+@media (max-width: 480px) { .eno-confirm-actions { flex-direction: column-reverse; } .eno-confirm-btn { width: 100%; } }
+@media (prefers-reduced-motion: reduce) { .eno-confirm-card, .eno-confirm::backdrop { animation-duration: 1ms; } }

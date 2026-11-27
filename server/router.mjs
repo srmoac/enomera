@@ -71,6 +71,9 @@ function isAllowedOrigin(origin) {
       process.env.ENOMERA_ETHA_URL, process.env.ENOMERA_HELENA_URL, process.env.ENOMERA_PUBLIC_URL]
       .filter(Boolean).flatMap((s) => s.split(',')).map((s) => s.trim().replace(/\/+$/, '')).filter(Boolean);
     if (extra.includes(origin)) return true;
+    // Produtos no mesmo domínio público, por caminho (/agendamento, /consultorio, /site).
+    const pub = String(process.env.ENOMERA_PUBLIC_URL || '').trim().replace(/\/+$/, '');
+    if (pub && ['agendamento', 'consultorio', 'site'].some((seg) => origin === `${pub}/${seg}`)) return true;
   } catch {}
   return false;
 }
@@ -515,6 +518,35 @@ function slugify(name) {
     .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'profissional';
 }
 
+// Endereço (slug) da conta: o atual ou um anterior, que continua valendo depois de uma troca.
+async function findAccountBySlug(db, slug) {
+  const key = String(slug || '').trim();
+  if (!key) return undefined;
+  const direct = await db.get('SELECT * FROM professional_accounts WHERE slug = ?', key);
+  if (direct) return direct;
+  const alias = await db.get('SELECT account_id FROM account_slug_aliases WHERE slug = ?', key);
+  return alias ? db.get('SELECT * FROM professional_accounts WHERE id = ?', alias.account_id) : undefined;
+}
+async function slugTaken(db, slug, exceptAccountId = null) {
+  const acc = await db.get('SELECT id FROM professional_accounts WHERE slug = ?', slug);
+  if (acc && acc.id !== exceptAccountId) return true;
+  const alias = await db.get('SELECT account_id FROM account_slug_aliases WHERE slug = ?', slug);
+  return Boolean(alias && alias.account_id !== exceptAccountId);
+}
+const RESERVED_SLUGS = new Set(['admin', 'api', 'app', 'agendamento', 'consultorio', 'site', 'sites', 'portal', 'conta', 'checkout', 'configurar', 'piloto', 'convite',
+  'termos', 'privacidade', 'enomera', 'suporte', 'ajuda', 'contato', 'login', 'entrar', 'sair', 'www', 'assets', 'static', 'glass', 'demo', 'teste', 'null', 'undefined']);
+
+// Respostas do site: só o que é público. O que o profissional marcou como oculto não sai do servidor.
+function publicSiteAnswers(answers) {
+  if (!answers || typeof answers !== 'object' || Array.isArray(answers)) return null;
+  const out = { ...answers };
+  if (out.showAddress !== true) {
+    if ('address' in out) out.address = typeof out.address === 'string' ? '' : null;
+    for (const k of ['cep', 'street', 'number', 'complement']) if (k in out) out[k] = '';
+  }
+  return out;
+}
+
 async function buildPublicSiteDto(db, account) {
   const ents = await getAccountEntitlements(db, account.id);
   const amboActive = Boolean(ents.ambo?.canWrite);
@@ -552,7 +584,7 @@ async function buildPublicSiteDto(db, account) {
     versionNumber: published?.versionNumber || null,
     publishedAt: published?.publishedAt || null,
     domainStatus: proj?.domain_status || 'staging_only',
-    answers: published?.content?.answers || null,
+    answers: publicSiteAnswers(published?.content?.answers),
     ethaService,
     brand: customDelivered ? 'own' : 'etha',
   };
@@ -636,7 +668,7 @@ async function createProfessionalUser(db, { fullName, email, password, crpOrCrm 
   const pwd = hashPassword(password);
   const cleanName = String(fullName || '').trim();
   let slug = slugify(cleanName);
-  if ((await db.get('SELECT id FROM professional_accounts WHERE slug = ?', slug))) {
+  if (await slugTaken(db, slug)) {
     slug = `${slug}-${randomDigits(4)}`;
   }
   await runTransaction(db, async (db) => {
@@ -1681,7 +1713,7 @@ export async function handleApiRequest(req, res, customDb = null) {
 
     const publicPhoto = pathname.match(/^\/api\/v1\/(ambo\/public|public-sites)\/([^/]+)\/photo\/([^/]+)$/);
     if (method === 'GET' && publicPhoto) {
-      const account = await db.get('SELECT * FROM professional_accounts WHERE slug = ?', publicPhoto[2]);
+      const account = await findAccountBySlug(db, publicPhoto[2]);
       if (!account) throw Object.assign(new Error('Foto não encontrada.'), { status: 404 });
       let allowed = publicPhoto[1] === 'ambo/public' && account.photo_file_id === publicPhoto[3];
       if (publicPhoto[1] === 'public-sites') {
@@ -1745,7 +1777,7 @@ export async function handleApiRequest(req, res, customDb = null) {
     const amboPubMatch = pathname.match(/^\/api\/v1\/ambo\/public\/([^/]+)$/);
     if (method === 'GET' && amboPubMatch) {
       const slug = amboPubMatch[1];
-      const acc = (await db.get('SELECT * FROM professional_accounts WHERE slug = ?', slug));
+      const acc = await findAccountBySlug(db, slug);
       if (!acc) throw Object.assign(new Error('Profissional não encontrado.'), { status: 404, code: 'PROFESSIONAL_NOT_FOUND' });
       const ents = await getAccountEntitlements(db, acc.id);
       if (!ents.ambo?.canWrite) {
@@ -1777,7 +1809,7 @@ export async function handleApiRequest(req, res, customDb = null) {
     const amboReqMatch = pathname.match(/^\/api\/v1\/ambo\/public\/([^/]+)\/requests$/);
     if (method === 'POST' && amboReqMatch) {
       const slug = amboReqMatch[1];
-      const acc = (await db.get('SELECT * FROM professional_accounts WHERE slug = ?', slug));
+      const acc = await findAccountBySlug(db, slug);
       if (!acc) throw Object.assign(new Error('Profissional não encontrado.'), { status: 404, code: 'PROFESSIONAL_NOT_FOUND' });
       const ents = await getAccountEntitlements(db, acc.id);
       if (!ents.ambo?.canWrite) throw Object.assign(new Error('Agendamento indisponível para este perfil.'), { status: 403, code: 'AMBO_INACTIVE' });
@@ -1854,7 +1886,7 @@ export async function handleApiRequest(req, res, customDb = null) {
       // Sem profissional (entrada direta do Agendamento): usa a conta com a atividade mais recente deste contato.
       // A resposta é a mesma com ou sem cadastro, então não revela com quem a pessoa se consulta.
       const acc = slug
-        ? (await db.get('SELECT * FROM professional_accounts WHERE slug = ?', slug))
+        ? await findAccountBySlug(db, slug)
         : (await amboAccountForContact(db, contact));
       if (!acc && slug) throw Object.assign(new Error('Profissional não encontrado.'), { status: 404, code: 'PROFESSIONAL_NOT_FOUND' });
 
@@ -1913,7 +1945,7 @@ export async function handleApiRequest(req, res, customDb = null) {
       const body = await readJsonBody(req);
       const slug = String(body.professionalSlug || '').trim();
       const contact = String(body.contact || '').trim().toLowerCase();
-      let acc = slug ? (await db.get('SELECT * FROM professional_accounts WHERE slug = ?', slug)) : null;
+      let acc = slug ? await findAccountBySlug(db, slug) : null;
       if (slug && !acc) throw Object.assign(new Error('Profissional não encontrado.'), { status: 404, code: 'PROFESSIONAL_NOT_FOUND' });
 
       let verRow;
@@ -2944,10 +2976,43 @@ export async function handleApiRequest(req, res, customDb = null) {
       return json(res, 200, { createdVersionId, project: await buildEthaProjectDetail(db, (await db.get('SELECT * FROM etha_projects WHERE id = ?', proj.id))) });
     }
 
+    // Troca do endereço (slug) do site (SITE-53). Só o dono da conta; endereço único e validado;
+    // o endereço anterior continua levando ao mesmo site; uma troca a cada 30 dias.
+    if (method === 'PATCH' && pathname === '/api/v1/etha/site-address') {
+      await requireProfessional(db, auth, { product: 'etha', write: true });
+      if (auth.membership.role !== 'owner') throw Object.assign(new Error('Só quem criou a conta pode trocar o endereço do site.'), { status: 403, code: 'OWNER_REQUIRED' });
+      const body = await readJsonBody(req);
+      const slug = String(body.slug || '').trim().toLowerCase();
+      if (!/^[a-z0-9](?:[a-z0-9-]{1,38})[a-z0-9]$/.test(slug) || slug.includes('--')) {
+        throw Object.assign(new Error('Use de 3 a 40 letras minúsculas, números ou hífen, sem acento e sem espaço. Ex.: ana-souza-psi.'), { status: 400, code: 'SLUG_INVALID' });
+      }
+      if (RESERVED_SLUGS.has(slug)) throw Object.assign(new Error('Este endereço é reservado. Escolha outro.'), { status: 400, code: 'SLUG_RESERVED' });
+      const current = auth.account.slug;
+      if (slug === current) return json(res, 200, { ok: true, slug, previousSlug: null, unchanged: true });
+      const out = await runTransaction(db, async (tx) => {
+        if (await slugTaken(tx, slug, auth.account.id)) throw Object.assign(new Error('Este endereço já está em uso. Escolha outro.'), { status: 409, code: 'SLUG_TAKEN' });
+        const mine = await tx.get('SELECT slug FROM account_slug_aliases WHERE slug = ? AND account_id = ?', slug, auth.account.id);
+        if (!mine) {
+          const last = await tx.get('SELECT created_at FROM account_slug_aliases WHERE account_id = ? ORDER BY created_at DESC LIMIT 1', auth.account.id);
+          if (last && Date.now() - Date.parse(last.created_at) < 30 * 86_400_000) {
+            throw Object.assign(new Error('O endereço do site só pode ser trocado uma vez a cada 30 dias.'), { status: 429, code: 'SLUG_CHANGE_TOO_SOON' });
+          }
+        } else {
+          await tx.run('DELETE FROM account_slug_aliases WHERE slug = ?', slug); // voltando a um endereço que já foi desta conta
+        }
+        const now = nowIso();
+        await tx.run('INSERT INTO account_slug_aliases (slug, account_id, created_at) VALUES (?, ?, ?)', current, auth.account.id, now);
+        await tx.run('UPDATE professional_accounts SET slug = ?, updated_at = ? WHERE id = ?', slug, now, auth.account.id);
+        return { slug, previousSlug: current };
+      }, `slug:${slug}`);
+      await writeAudit(db, { actorUserId: auth.user.id, actorType: 'professional', accountId: auth.account.id, action: 'etha.site_address_change', resourceType: 'professional_account', resourceId: auth.account.id, meta: out });
+      return json(res, 200, { ok: true, ...out, message: 'Endereço trocado. O endereço anterior continua levando ao seu site.' });
+    }
+
     // Public Staging Site (Consumed by Helena Duarte site!)
     const pubSiteMatch = pathname.match(/^\/api\/v1\/public\/sites\/([^/]+)$/);
     if (method === 'GET' && pubSiteMatch) {
-      const acc = (await db.get('SELECT * FROM professional_accounts WHERE slug = ?', pubSiteMatch[1]));
+      const acc = await findAccountBySlug(db, pubSiteMatch[1]);
       if (!acc) throw Object.assign(new Error('Site não encontrado.'), { status: 404, code: 'SITE_NOT_FOUND' });
       const site = await buildPublicSiteDto(db, acc);
       if (!site.publishedAt || !site.versionNumber) throw Object.assign(new Error('Este site ainda não foi publicado.'), { status: 404, code: 'SITE_NOT_PUBLISHED' });
