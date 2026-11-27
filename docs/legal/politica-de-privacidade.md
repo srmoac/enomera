@@ -1,6 +1,6 @@
 # Política de Privacidade da Enomera
 
-Versão piloto · 25 de novembro de 2026 (antes: 22 de novembro de 2026)
+Versão piloto · 26 de novembro de 2026 (antes: 25 de novembro de 2026)
 
 > Este texto foi escrito pela própria equipe da Enomera para o piloto e **ainda não foi revisado por advogado**. Ele descreve com honestidade como tratamos dados hoje e será revisto antes da abertura comercial ampla.
 
@@ -52,7 +52,7 @@ Usamos um cookie e o armazenamento local do navegador (localStorage e sessionSto
 
 | Grupo | O que é | Precisa de permissão? |
 | --- | --- | --- |
-| Necessários | Cookie `enomera_sid` (sessão de login, só acessível pelo servidor) e chaves de sessão de cada serviço; rascunhos que você ainda não enviou (pedido de consulta, perguntas do Site, contratação); preferências de tela, como modo leve, tema e avisos já vistos; a sua escolha neste aviso (`eno_consent_v1`). | Não. Sem eles o serviço não funciona ou perde o que você digitou. |
+| Necessários | Cookies `enomera_sid` (sessão de login do profissional) e `enomera_psid` (sessão do paciente), só acessíveis pelo servidor, e chaves de sessão de cada serviço; rascunhos que você ainda não enviou (pedido de consulta, perguntas do Site, contratação); preferências de tela, como modo leve, tema e avisos já vistos; a sua escolha neste aviso (`eno_consent_v1`). | Não. Sem eles o serviço não funciona ou perde o que você digitou. |
 | Medição de uso | Identificadores aleatórios do aparelho e da visita (`eno_uso_d`, `eno_uso_s`, `eno_uso_sa`, `eno_uso_sh`, `eno_uso_pu`) usados pelo registro de uso descrito abaixo. | Sim. Só são gravados se você clicar em Permitir, ou se você entrou no piloto por convite e aceitou no cadastro. |
 
 Se você recusar, nada da medição é gravado no seu aparelho e nenhum evento é enviado. Você pode mudar a escolha quando quiser pelo link "Preferências de privacidade" no rodapé, e apagar tudo limpando os dados do site no seu navegador. Os dados de cookies e do armazenamento ficam no seu aparelho e não são compartilhados com terceiros.
@@ -92,7 +92,7 @@ Parte dos fornecedores guarda dados fora do Brasil. Fazemos essa transferência 
 
 ## 6. Por quanto tempo guardamos
 
-- Conta do profissional: enquanto estiver ativa. Após o cancelamento, 90 dias em modo somente leitura para exportação; depois, apagamos.
+- Conta do profissional: enquanto estiver ativa. Após o cancelamento, 90 dias em modo somente leitura para exportação; depois, apagamos. Se você pedir a exclusão da conta no portal, o prazo é de 30 dias.
 - Prontuário e registros clínicos: pelo tempo que o profissional determinar. As normas do Conselho Federal de Psicologia pedem guarda mínima de 5 anos (Resolução CFP nº 1/2009) e as do CFM, de 20 anos para prontuário médico. Antes de apagar a conta, o profissional recebe a exportação completa para cumprir esse dever.
 - Dados de cobrança: 5 anos, por exigência fiscal.
 - Registros de acesso: 6 meses.
@@ -101,7 +101,7 @@ Parte dos fornecedores guarda dados fora do Brasil. Fazemos essa transferência 
 ## 7. Como protegemos
 
 - Conexões sempre criptografadas (HTTPS).
-- Acesso por código de uso único, com tempo de expiração e limite de tentativas.
+- Acesso por código de uso único, com tempo de expiração e limite de tentativas. Contas criadas por convite do piloto também podem usar e-mail e senha.
 - Separação entre contas: um profissional nunca vê dados de outro.
 - Acesso ao conteúdo clínico apenas por quem o profissional autorizou.
 - Registro de ações importantes (auditoria) e cópias de segurança do banco de dados.
@@ -112,7 +112,7 @@ Nenhum sistema é totalmente imune a falhas. Se houver um incidente que possa ca
 
 Você pode pedir, a qualquer momento: confirmação de que tratamos seus dados; acesso; correção; anonimização, bloqueio ou eliminação de dados desnecessários; portabilidade; informação sobre compartilhamento; e revogação de consentimento, quando ele for a base (art. 18 da LGPD).
 
-Peça pelo e-mail mrsaocwork@gmail.com. Respondemos em até 15 dias. Pacientes devem fazer pedidos sobre dados clínicos ao profissional que os atende; nós o ajudamos a responder. Você também pode reclamar à ANPD (www.gov.br/anpd).
+Exportar seus dados, sair do registro de uso do piloto e excluir a conta são feitos direto no portal. Para os demais pedidos, escreva para mrsaocwork@gmail.com. Respondemos em até 15 dias. Pacientes devem fazer pedidos sobre dados clínicos ao profissional que os atende; nós o ajudamos a responder. Você também pode reclamar à ANPD (www.gov.br/anpd).
 
 ## 9. Crianças e adolescentes
 

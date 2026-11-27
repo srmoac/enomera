@@ -82,7 +82,7 @@
   .tr-foot { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 6px; }
   .tr-foot .tr-back { padding: 0 10px; }
   .tr-dots { display: flex; gap: 2px; justify-content: center; }
-  .tr-dots button { appearance: none; border: 0; background: transparent; width: 20px; height: 44px; display: grid; place-items: center; cursor: pointer; padding: 0; }
+  .tr-dots button { appearance: none; border: 0; background: transparent; min-width: 28px; height: 44px; display: grid; place-items: center; cursor: pointer; padding: 0; }
   .tr-dots button i { width: 8px; height: 8px; border-radius: 8px; background: rgb(28 34 64 / .2); transition: width 220ms var(--eno-ease-move), background-color 220ms linear; }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tr-dots button i { background: rgb(238 241 252 / .25); } }
   .tr-dots button[aria-current="step"] i { width: 22px; background: rgb(var(--c)); }

@@ -323,24 +323,11 @@ $$('a[href*="#"]').forEach(a => a.addEventListener('click', () => {
   navHoldUntil = performance.now() + 1200;
   $('.nav').classList.remove('is-hidden');
 }));
-function animate(time) {
-  const dt = Math.min(time - lastTime || 16, 32);
-  lastTime = time;
-  current += (target - current) * (1 - Math.exp(-dt / 90));
-  if (Math.abs(target - current) < .0001) current = target;
-  $('.connection-track').style.transform = `translate3d(${-current * 66.6667}%,0,0)`;
-  if (current !== target) raf = requestAnimationFrame(animate);
-  else { raf = 0; lastTime = 0; }
-}
 function onScroll() {
   if (isPortal) return;
   const y = scrollY;
   $('.nav').classList.toggle('is-hidden', y > 150 && y > previousY && performance.now() > navHoldUntil);
   previousY = y;
-  const connection = $('.connection');
-  const rect = connection.getBoundingClientRect();
-  target = Math.max(0, Math.min(1, -rect.top / Math.max(1, connection.offsetHeight - innerHeight)));
-  if (!reduced.matches && !raf) raf = requestAnimationFrame(animate);
   // Lê todas as posições antes de escrever: intercalar leitura e escrita forçava um
   // layout por produto a cada evento de rolagem (pesado em celular fraco).
   const products = [...$$('.product')].map(product => [product, product.getBoundingClientRect()]);

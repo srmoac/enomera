@@ -1,6 +1,6 @@
 # Enomera — implementação demonstrativa
 
-Referências consultadas em 17/11/2026: arquivo Figma `R4FYsZmgvfyA1ESAlTuOCY`, abertura `3:3`, narrativa `8:2`, combinação `8:71`, fechamento `8:96`, mobile `6:16`, portal `3:242`, identidade `3:282` e roteiro interno `3:300`. Foram consultados também Ambo `Cm4lNuhjY9N4Mg0P4WExXK` (`14:51`, `14:74`), Minne `EGOOS30HQxPd7FoAFuEWbl` (`13:62`) e Etha `fTjG4Bsq3zSgYdCV2JZ0fw` (`2:11`). A direção B não foi utilizada.
+Referências consultadas em 17/11/2026: arquivo Figma `R4FYsZmgvfyA1ESAlTuOCY`, abertura `3:3`, narrativa `8:2`, combinação `8:71`, fechamento `8:96`, mobile `6:16`, portal `3:242`, identidade `3:282` e roteiro interno `3:300`. Foram consultados também Agendamento `Cm4lNuhjY9N4Mg0P4WExXK` (`14:51`, `14:74`), Consultório `EGOOS30HQxPd7FoAFuEWbl` (`13:62`) e Site `fTjG4Bsq3zSgYdCV2JZ0fw` (`2:11`). A direção B não foi utilizada.
 
 ## Arquitetura
 
@@ -10,13 +10,13 @@ Referências consultadas em 17/11/2026: arquivo Figma `R4FYsZmgvfyA1ESAlTuOCY`, 
 - `public/services.js`: destinos, disponibilidade e estrutura comercial centralizados.
 - `public/style.css`: tokens semânticos, materiais, layout e adaptação móvel.
 - Assets SVG exportados pelo Figma salvos localmente. Símbolo floral exclusivo da Enomera.
-- Aplicações independentes não foram copiadas. Destinos legados de Lotus e Compasso permanecem na configuração apenas como referências, sem serem apresentados como novas versões finais.
+- Aplicações independentes não foram copiadas. Destinos legados de Agendamento (projeto antigo) e Consultório (projeto antigo) permanecem na configuração apenas como referências, sem serem apresentados como novas versões finais.
 
 ## Fluxos
 
-Ambo: apresentação → modalidade/dias/período → revisão → conclusão local, com retorno para editar. Não coleta dados pessoais. O preço de consulta exibido é um dado fictício do frame, não preço dos serviços Enomera.
+Agendamento: apresentação → modalidade/dias/período → revisão → conclusão local, com retorno para editar. Não coleta dados pessoais. O preço de consulta exibido é um dado fictício do frame, não preço dos serviços Enomera.
 
-Minne: prévia navegável entre Meu dia, Agenda, Pacientes e Solicitações. Consulta abre detalhe fictício. Não há prontuário no resumo geral.
+Consultório: prévia navegável entre Meu dia, Agenda, Pacientes e Solicitações. Consulta abre detalhe fictício. Não há prontuário no resumo geral.
 
 Combinação: todas as sete combinações possíveis, além de nenhuma seleção. Alternância entre mensalidade e licença permanente. Pagamentos únicos e recorrência descritos separadamente. Nenhum preço, checkout ou desconto numérico.
 
@@ -38,7 +38,7 @@ Skills lidas: figma-design-to-code, Sites, apple-design, animate, find-animation
 - `npm run build`: exportação estática aprovada.
 - Verificação de sintaxe de JavaScript aprovada.
 - Script `scripts/verify.mjs` preparado para Chromium/WebKit em 1440, 1024, 768 e 390px, fluxos, overflow, erros e movimento reduzido. **Não executado**: o controle de navegador recusou a URL local por política de segurança. Não há comparação visual implementado/Figma nem validação de Safari real, touch físico, reversão e continuidade de motion. Não declarar fidelidade visual final aprovada.
-- Os sites externos Helena/Lotus/Compasso não puderam ser inspecionados pela ferramenta web nesta sessão. As referências Figma atuais foram usadas.
+- Os sites externos Helena/Agendamento (projeto antigo)/Consultório (projeto antigo) não puderam ser inspecionados pela ferramenta web nesta sessão. As referências Figma atuais foram usadas.
 - A montagem usa deslocamentos independentes, ainda sem coreografia curva detalhada ou refração dinâmica. O trecho horizontal é uma extensão da narrativa para cumprir o percurso solicitado; precisa de revisão visual junto da direção A.
 - Mobile mantém as prévias funcionais abaixo dos textos; o Figma mobile compacto foi adaptado para comportar as interações. Essa adaptação precisa ser revisada visualmente.
 - Não existem autenticação, SSO, sincronização, banco, envio, calendário conectado, pagamento ou contratação real.

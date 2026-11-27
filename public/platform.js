@@ -696,7 +696,7 @@ export async function mountEnomeraPlatform(rootEl) {
     const label = products.map((p) => PRODUCT_NAMES[p] || p).join(' + ');
     const head = `<span class="eno-pill">ASSINATURA</span><h2 class="eno-h2">${esc(label)}</h2>`;
     if (!st?.configured) {
-      return `${head}<p class="eno-muted">Durante o piloto, nada é cobrado. O pagamento por Pix, boleto ou cartão abre no lançamento.</p>`;
+      return `${head}<p class="eno-muted">O pagamento por Pix, boleto ou cartão ainda não está aberto. Nada é cobrado por enquanto, e avisamos por e-mail antes de abrir.</p>`;
     }
     return `
       ${head}

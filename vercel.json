@@ -247,7 +247,7 @@
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://viacep.com.br https://brasilapi.com.br https://*.vercel.app; worker-src 'self' blob:; frame-src 'self' https://etha-enomera-sites-desenvolvimento.vercel.app https://etha-enomera-sites.vercel.app; frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests"
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://viacep.com.br https://brasilapi.com.br; worker-src 'self' blob:; frame-src 'self' https://enomera-sites.vercel.app https://enomera-sites-desenvolvimento.vercel.app https://etha-enomera-sites-desenvolvimento.vercel.app https://etha-enomera-sites.vercel.app; frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests"
         },
         {
           "key": "X-Frame-Options",
@@ -301,6 +301,12 @@
       "source": "/site",
       "destination": "/site/",
       "permanent": false
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/v1/internal/retention",
+      "schedule": "0 6 * * *"
     }
   ]
 }

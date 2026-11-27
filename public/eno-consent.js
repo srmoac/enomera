@@ -52,8 +52,8 @@
 
   var CSS = '' +
     '.eno-consent{position:fixed;z-index:2147483001;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px) + var(--eno-toast-offset,0px));' +
-    'width:min(400px,calc(100vw - 32px));transform:translateX(-50%);box-sizing:border-box;padding:16px 16px 14px;border-radius:22px;' +
-    'font:500 14px/1.45 Manrope,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--eno-fb-ink,#1C2240);' +
+    'width:min(440px,calc(100vw - 24px));transform:translateX(-50%);box-sizing:border-box;padding:10px 10px 10px 14px;border-radius:20px;display:flex;align-items:center;gap:10px;' +
+    'font:500 13px/1.35 Manrope,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--eno-fb-ink,#1C2240);' +
     'background:linear-gradient(135deg,rgb(var(--eno-fb-glass,247 249 255)/.86),rgb(var(--eno-fb-glass,247 249 255)/.72));' +
     '-webkit-backdrop-filter:blur(22px) saturate(1.8);backdrop-filter:blur(22px) saturate(1.8);border:1px solid rgb(255 255 255/.6);' +
     'box-shadow:inset 0 1px 0 rgb(255 255 255/.7),0 14px 40px -12px rgb(var(--eno-fb-shadow,54 76 140)/.32),0 2px 6px rgb(var(--eno-fb-shadow,54 76 140)/.08);' +
@@ -62,11 +62,12 @@
     '.eno-consent[data-leaving]{animation:enoConsentOut var(--eno-t-step-out,200ms) var(--eno-ease-out,cubic-bezier(.23,1,.32,1)) both;pointer-events:none}' +
     '@media (min-width:760px){.eno-consent[data-leaving]{animation-name:enoConsentOutDesk}}' +
     '.eno-consent h2{margin:0 0 4px;font-family:inherit;font-size:15px;font-weight:700;line-height:1.3;letter-spacing:-.005em;color:inherit}' +
-    '.eno-consent p{margin:0;color:var(--eno-fb-muted,#56607F)}' +
+    '.eno-consent p{margin:0;flex:1 1 auto;min-width:0;color:var(--eno-fb-ink,#1C2240)}.eno-consent-actions{display:flex;gap:6px;flex:none}' +
+    '@media (min-width:760px){.eno-consent{width:min(560px,calc(100vw - 48px));font-size:14px}}' +
     '.eno-consent a{color:var(--eno-fb-accent,#3B4FB8);font-weight:600;text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px;' +
     'display:inline-flex;align-items:center;min-height:24px;padding:10px 2px;margin:-10px -2px;border-radius:6px}' +
     '.eno-consent .eno-consent-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}' +
-    '.eno-consent button{appearance:none;-webkit-appearance:none;min-height:var(--eno-btn-md,44px);border-radius:14px;padding:0 14px;cursor:pointer;' +
+    '.eno-consent button{appearance:none;-webkit-appearance:none;min-height:var(--eno-btn-md,44px);border-radius:14px;padding:0 12px;cursor:pointer;' +
     'font-family:inherit;font-size:14px;font-weight:600;line-height:1;color:var(--eno-fb-ink,#1C2240);background:rgb(255 255 255/.55);border:1px solid rgb(var(--eno-fb-shadow,54 76 140)/.18);' +
     'transition:transform var(--eno-t-press,120ms) var(--eno-ease-out,cubic-bezier(.23,1,.32,1)),background-color var(--eno-t-fast,160ms) var(--eno-ease-out,cubic-bezier(.23,1,.32,1)),box-shadow var(--eno-t-fast,160ms) var(--eno-ease-out,cubic-bezier(.23,1,.32,1));' +
     'touch-action:manipulation;-webkit-tap-highlight-color:transparent}' +
@@ -112,8 +113,7 @@
     el.setAttribute('aria-label', 'Aviso de privacidade');
     el.setAttribute('data-uso-privado', '');
     el.innerHTML =
-      '<h2>Sua privacidade</h2>' +
-      '<p>Usamos só o necessário para o site funcionar. Se você permitir, também medimos como ele é usado, sem guardar o que você escreve, para melhorar a Enomera. ' +
+      '<p>Podemos medir o uso do site, sem guardar o que você escreve? ' +
       '<a href="' + MORE.replace(/"/g, '&quot;') + '" target="_blank" rel="noopener">Saiba mais</a></p>' +
       '<div class="eno-consent-actions"><button type="button" data-eno-no>Recusar</button><button type="button" data-eno-ok>Permitir</button></div>';
     el.querySelector('[data-eno-no]').addEventListener('click', function () { close(false); });

@@ -9,9 +9,9 @@ O progresso usa scroll nativo e âncoras medidas da composição existente. Nenh
 | Gatilho | Elemento | Transformação | Repouso |
 | --- | --- | --- | --- |
 | Entrada | Cinco pétalas | Abertura individual curta, com fases diferentes | Símbolo aprovado na abertura |
-| Scroll para Etha | Mesmo conjunto | Expansão em arcos laterais | Enquadramento da apresentação |
-| Scroll para Ambo | Mesmo conjunto | Aproximação com amplitudes distintas | Relação entre as superfícies |
-| Scroll para Minne | Mesmo conjunto | Distribuição ordenada | Continuidade ao redor da interface |
+| Scroll para Site | Mesmo conjunto | Expansão em arcos laterais | Enquadramento da apresentação |
+| Scroll para Agendamento | Mesmo conjunto | Aproximação com amplitudes distintas | Relação entre as superfícies |
+| Scroll para Consultório | Mesmo conjunto | Distribuição ordenada | Continuidade ao redor da interface |
 | Percurso horizontal | Mesmo conjunto | Aberto → encontro → organização | Poses ligadas ao progresso existente |
 | Seleção de serviços | Pétalas associadas abstratamente aos serviços | Aproximação/afastamento, rotação e escala menores | Combinação atual, sem novos logotipos |
 | Scroll para piloto | Mesmo conjunto | Convergência progressiva | Reconstrução da flor |
@@ -28,10 +28,10 @@ Mobile mantém os cinco vetores, com escala e opacidade menores. Movimento reduz
 - Quatro testes de lógica aprovados: sete combinações comerciais, seleção vazia, continuidade matemática nos limites da coreografia e estados das oito combinações florais.
 - Build estático e sintaxe aprovados.
 - Preview Vercel acessado no navegador incorporado (Chromium): `/` e `/portal`.
-- Desktop 1440×900: abertura, passagem vertical por Etha/Ambo, narrativa horizontal, seleção rápida, expansão do piloto, acesso ao portal, troca Agenda/Registros, preenchimento fictício com foco visível.
+- Desktop 1440×900: abertura, passagem vertical por Site/Agendamento, narrativa horizontal, seleção rápida, expansão do piloto, acesso ao portal, troca Agenda/Registros, preenchimento fictício com foco visível.
 - Mobile 390×844: abertura, presença floral, menu. A inspeção revelou um conflito de especificidade que fazia o menu usar posição relativa. Corrigido para posição absoluta no breakpoint mobile.
 - Nenhum overflow horizontal nas medições feitas em desktop/mobile. Cinco vetores presentes, transformações independentes e nenhum erro de JavaScript capturado durante esses fluxos.
-- Ajuste posterior à inspeção: pétalas de Etha/Minne/Conhecer deslocadas para espaços à direita; opacidade reduzida para preservar os textos.
+- Ajuste posterior à inspeção: pétalas de Site/Consultório/Conhecer deslocadas para espaços à direita; opacidade reduzida para preservar os textos.
 
 ## Limites
 

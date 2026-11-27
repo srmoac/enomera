@@ -43,7 +43,9 @@ export function createEnomeraServer(customDb = null) {
       else if (/^\/piloto\/painel\/?$/.test(url.pathname)) file = path.join(root, 'piloto', 'painel.html');
       else if (/^\/piloto\/como-funciona\/?$/.test(url.pathname)) file = path.join(root, 'piloto', 'como-funciona.html');
       else if (/^\/configurar\/?$/.test(url.pathname)) file = path.join(root, 'configurar.html');
-      if (!path.extname(file)) file = path.join(root, 'index.html');
+      // Como na Vercel: só a home e as rotas do portal caem no index; o resto que não existe é 404.
+      else if (/^\/(portal|conta|checkout)?\/?$/.test(url.pathname)) file = path.join(root, 'index.html');
+      else if (!path.extname(file)) throw new Error('Not found');
       const data = await readFile(file);
       res.writeHead(200, { 'Content-Type': mime[path.extname(file)] || 'application/octet-stream' });
       res.end(data);

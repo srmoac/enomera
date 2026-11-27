@@ -1247,3 +1247,4 @@ body:has(.eno-flow-shell) .journey-petal { display: none !important; }
 .eno-topbar .eno-nav-tabs[data-more-end]:not([data-more-start]) { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent); }
 .eno-topbar .eno-nav-tabs[data-more-start]:not([data-more-end]) { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent); }
 .eno-topbar .eno-nav-tabs[data-more-start][data-more-end] { -webkit-mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent); }
+.eno-terms-check a, .eno-terms-check .eno-link { display: inline; min-height: 0; padding: 0; margin: 0; }

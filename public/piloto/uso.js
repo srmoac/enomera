@@ -10,6 +10,8 @@
  * Quem não é convidado só é medido depois de permitir no aviso de privacidade (/eno-consent.js).
  */
 (function () {
+  // Endereços da Enomera que podem receber a chave do participante (nunca um *.vercel.app qualquer).
+  var ENO_HOSTS = /^(?:localhost|127\.0\.0\.1|(?:enomera(?:-painel|-desenvolvimento)?|enomera-sites(?:-desenvolvimento)?|(?:ambo|minne|etha)-enomera(?:-desenvolvimento)?|etha-enomera-sites(?:-desenvolvimento)?|(?:agendamento|consultorio)-enomera-desenvolvimento|helenaduartepsi)\.vercel\.app)$/;
   'use strict';
   if (window.__enomeraUso) return;
   var script = document.currentScript || document.querySelector('script[src*="/piloto/uso.js"]');
@@ -204,9 +206,9 @@
       var docH = Math.max(document.documentElement.scrollHeight, innerHeight);
       var m = { vw: innerWidth, dh: Math.round(docH), sy: Math.round(scrollY) };
       if (rage) m.rage = true; if (dead) m.dead = true;
-      // Link para outro produto do ecossistema: leva a chave do participante.
+      // Link para outro produto do ecossistema: leva a chave do participante. Só para endereços da Enomera (lista fixa).
       var a = target.closest && target.closest('a[href]');
-      if (a && PU) { try { var h = new URL(a.href, location.href); if (h.origin !== location.origin && /\.vercel\.app$|^localhost$|^127\.0\.0\.1$/.test(h.hostname)) { h.searchParams.set('eno_pu', PU); a.href = h.toString(); m.ir = scrub(h.host, 60); } } catch (err) {} }
+      if (a && PU) { try { var h = new URL(a.href, location.href); if (h.origin !== location.origin && ENO_HOSTS.test(h.hostname)) { h.searchParams.set('eno_pu', PU); a.href = h.toString(); m.ir = scrub(h.host, 60); } } catch (err) {} }
       var ev = { tg: describe(target), x: Math.round((x / innerWidth) * 1000), y: Math.round(((y + scrollY) / docH) * 1000), m: m };
       // Toque sem efeito: fora de qualquer controle e a página não reagiu em 700 ms.
       if (dead) { var sc0 = currentScreen; setTimeout(function () { if (lastMut >= now || currentScreen !== sc0) delete m.dead; push('click', ev); }, 700); }

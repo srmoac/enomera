@@ -1,6 +1,6 @@
 # Termos de Uso da Enomera
 
-Versão piloto · 25 de novembro de 2026 (antes: 22 de novembro de 2026)
+Versão piloto · 26 de novembro de 2026 (antes: 25 de novembro de 2026)
 
 > Este texto foi escrito pela própria equipe da Enomera para o piloto e **ainda não foi revisado por advogado**. Ele vale para o uso do piloto e será revisto antes da abertura comercial ampla. Dúvidas: mrsaocwork@gmail.com.
 
@@ -21,7 +21,7 @@ Ao criar uma conta ou usar qualquer serviço, você declara que leu e aceita est
 ## 3. Conta e acesso
 
 - Para criar uma conta, você precisa ter 18 anos ou mais e informar dados verdadeiros.
-- O acesso é feito por código enviado ao seu e-mail. Você é responsável por manter seu e-mail seguro e por tudo o que for feito na sua conta.
+- O acesso é feito por código enviado ao seu e-mail. Quem criou a conta por convite do piloto também pode entrar com e-mail e senha. Você é responsável por manter seu e-mail e sua senha seguros e por tudo o que for feito na sua conta.
 - Avise-nos imediatamente se perceber acesso indevido.
 
 ## 4. Piloto, teste e preços
@@ -38,11 +38,12 @@ Ao criar uma conta ou usar qualquer serviço, você declara que leu e aceita est
 
 - Parte do piloto acontece com profissionais convidados por um link pessoal, que cria a conta uma única vez. Quem entra por convite concorda, no próprio cadastro, com o registro de uso descrito na [Política de Privacidade](/privacidade#piloto).
 - O registro serve só para entender o que funciona e o que atrapalha nos produtos e corrigir erros. Ele não é vendido, não é usado para publicidade e não avalia você como profissional.
-- Você pode sair do registro quando quiser, pedindo por e-mail. Seus registros de uso são apagados, e sua conta continua funcionando normalmente.
+- Você pode sair do registro quando quiser, pelo botão "Sair do piloto" no portal (aba Piloto) ou pedindo por e-mail. Seus registros de uso são apagados, e sua conta continua funcionando normalmente.
 
 ## 5. Cancelamento
 
 - Você pode cancelar a qualquer momento pelo portal ou por e-mail. O cancelamento vale ao fim do período já pago; não há multa.
+- Você também pode pedir a exclusão da conta e de todos os dados pelo portal. Os serviços param na hora, os dados ficam guardados por 30 dias para você exportar ou desistir, e depois são apagados.
 - Em qualquer plano, se você desistir em até 7 dias da contratação ou da primeira cobrança, devolvemos o valor integral (direito de arrependimento, art. 49 do Código de Defesa do Consumidor). No plano anual, depois desse prazo, o serviço segue até o fim do ano contratado.
 - Após o cancelamento, sua conta fica em modo somente leitura por 90 dias, para você exportar seus dados. Depois disso, os dados são apagados, exceto o que a lei nos obriga a guardar (veja a Política de Privacidade).
 
