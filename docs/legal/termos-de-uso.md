@@ -2,7 +2,7 @@
 
 Versão piloto · 26 de novembro de 2026 (antes: 25 de novembro de 2026)
 
-> Este texto foi escrito pela própria equipe da Enomera para o piloto e **ainda não foi revisado por advogado**. Ele vale para o uso do piloto e será revisto antes da abertura comercial ampla. Dúvidas: mrsaocwork@gmail.com.
+> Este texto foi escrito pela própria equipe da Enomera para o piloto e **ainda não foi revisado por advogado**. Ele vale para o uso do piloto e será revisto antes da abertura comercial ampla. Dúvidas: contatoenomera@gmail.com.
 
 ## 1. Quem somos
 
@@ -86,4 +86,5 @@ Estes Termos seguem a lei brasileira. Fica eleito o foro do domicílio do consum
 
 ## 13. Contato
 
-E-mail: mrsaocwork@gmail.com
+E-mail: contatoenomera@gmail.com
+WhatsApp: +55 (13) 91235-2841

@@ -8,7 +8,7 @@ Versão piloto · 26 de novembro de 2026 (antes: 25 de novembro de 2026)
 
 A Enomera, criada e conduzida por Marcos Martins, é a **controladora** dos dados dos profissionais que criam conta e dos visitantes do site. Para os dados dos pacientes registrados no Agendamento e no Consultório, o **controlador é o profissional** que os atende, e a Enomera atua como **operadora**, seguindo as instruções dele (veja o item 10).
 
-Encarregado pelo tratamento de dados (DPO): Marcos Martins · mrsaocwork@gmail.com
+Encarregado pelo tratamento de dados (DPO): Marcos Martins · contatoenomera@gmail.com
 
 ## 2. Quais dados tratamos
 
@@ -42,7 +42,7 @@ Quem entra no piloto por convite concorda, no cadastro, com um registro de uso n
 - erros técnicos, chamadas que falharam e tempo de carregamento;
 - tipo de aparelho, sistema e navegador (sem endereço IP no registro).
 
-Não registramos o que é escrito: prontuário, nomes ou dados de pacientes, mensagens e valores de campos ficam fora. Os textos de botões passam por um filtro que retira e-mails, números e nomes próprios antes do envio. Base legal: consentimento (art. 7º, I, da LGPD). Só a administração da Enomera vê esses dados, guardados na mesma infraestrutura da plataforma (Vercel e Neon). Eles são apagados até 90 dias depois do fim do piloto ou na hora em que o participante pedir para sair, por e-mail para mrsaocwork@gmail.com.
+Não registramos o que é escrito: prontuário, nomes ou dados de pacientes, mensagens e valores de campos ficam fora. Os textos de botões passam por um filtro que retira e-mails, números e nomes próprios antes do envio. Base legal: consentimento (art. 7º, I, da LGPD). Só a administração da Enomera vê esses dados, guardados na mesma infraestrutura da plataforma (Vercel e Neon). Eles são apagados até 90 dias depois do fim do piloto ou na hora em que o participante pedir para sair, por e-mail para contatoenomera@gmail.com.
 
 <a id="cookies"></a>
 
@@ -112,7 +112,7 @@ Nenhum sistema é totalmente imune a falhas. Se houver um incidente que possa ca
 
 Você pode pedir, a qualquer momento: confirmação de que tratamos seus dados; acesso; correção; anonimização, bloqueio ou eliminação de dados desnecessários; portabilidade; informação sobre compartilhamento; e revogação de consentimento, quando ele for a base (art. 18 da LGPD).
 
-Exportar seus dados, sair do registro de uso do piloto e excluir a conta são feitos direto no portal. Para os demais pedidos, escreva para mrsaocwork@gmail.com. Respondemos em até 15 dias. Pacientes devem fazer pedidos sobre dados clínicos ao profissional que os atende; nós o ajudamos a responder. Você também pode reclamar à ANPD (www.gov.br/anpd).
+Exportar seus dados, sair do registro de uso do piloto e excluir a conta são feitos direto no portal. Para os demais pedidos, escreva para contatoenomera@gmail.com. Respondemos em até 15 dias. Pacientes devem fazer pedidos sobre dados clínicos ao profissional que os atende; nós o ajudamos a responder. Você também pode reclamar à ANPD (www.gov.br/anpd).
 
 ## 9. Crianças e adolescentes
 
@@ -153,4 +153,4 @@ Avisaremos mudanças importantes por e-mail e nesta página, com a data da nova 
 
 ## 13. Contato
 
-Marcos Martins · Encarregado de dados · mrsaocwork@gmail.com
+Marcos Martins · Encarregado de dados · contatoenomera@gmail.com · WhatsApp +55 (13) 91235-2841
