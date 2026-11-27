@@ -58,7 +58,7 @@ function summary(key) {
   if (key === 'horarios') { const n = Object.values(f.hours).reduce((a, set) => a + (set ? set.size : 0), 0); const d = Object.values(f.hours).filter((set) => set && set.size).length; const b = (S.blocks || []).length; return n ? `${n} ${n === 1 ? 'horário' : 'horários'} em ${d} ${d === 1 ? 'dia' : 'dias'}${b ? ` · ${b} ${b === 1 ? 'folga' : 'folgas'}` : ''}` : 'Nenhum horário liberado'; }
   if (key === 'link') return f.open ? 'Agenda aberta para pedidos' : 'Agenda fechada';
   if (key === 'pacientes') return 'Importar ou adicionar pacientes no Consultório';
-  if (key === 'site') return 'Perguntas do seu site';
+  if (key === 'site') return S.sitePublished ? 'Site no ar' : 'Perguntas do seu site';
   return '';
 }
 
@@ -155,10 +155,15 @@ const VIEWS = {
       <div class="cf-list" id="plist">${S.patients.map((p) => `<div><span>${esc(p.full_name)}</span><span class="muted">${esc(p.phone || '')}</span></div>`).join('')}</div>` };
   },
   site() {
+    const url = siteUrl();
+    if (S.sitePublished) return { title: 'Seu site', lead: 'Pronto. O seu site já está no ar, montado com as suas respostas.', body: `
+      <p class="cf-ok cf-site-ok">✓ Seu site está no ar.</p>
+      <div class="cf-link eg-surface"><code>${esc(url.replace(/^https?:\/\//, ''))}</code><a class="eg-btn is-glass is-sm" target="_blank" rel="noopener" href="${esc(url)}">Abrir ↗</a></div>
+      <button type="button" class="eg-btn is-glass is-sm" data-launch="etha" data-path="/?modo=ao-vivo&volta=configurar" style="justify-self:start">Mudar respostas ou cor</button>` };
     return { title: 'Seu site', lead: 'Você responde algumas perguntas e envia suas fotos. A gente monta o seu site no nosso modelo, com as suas informações.', body: `
       <p>Já preenchemos com o que você contou aqui: nome, CRP, foto${has('ambo') ? ', atendimento e endereço' : ''}. Faltam a sua abordagem, para quem você atende e a frase de abertura.</p>
-      <button type="button" class="eg-btn" data-launch="etha" data-path="/?modo=ao-vivo">Responder as perguntas do site</button>
-      <p class="muted small">Abre o Site numa nova aba. Quando terminar, volte aqui para concluir.</p>` };
+      <button type="button" class="eg-btn" data-launch="etha" data-path="/?modo=ao-vivo&volta=configurar">Responder as perguntas do site</button>
+      <p class="muted small" id="site-wait">Abre o Site numa nova aba. Quando você publicar, esta etapa se completa sozinha.</p>` };
   },
   hub() {
     const rows = S.steps.filter((k) => k !== 'pronto').map((k) => {
@@ -194,7 +199,7 @@ function paint() {
   [...bar.children].forEach((el, k) => el.classList.toggle('on', hub || edit ? isDone(S.steps[k]) : k <= S.i));
   backBtn.hidden = hub || (!edit && S.i === 0);
   backBtn.textContent = edit ? 'Cancelar' : 'Voltar';
-  nextBtn.textContent = hub ? 'Ir para o portal' : edit ? 'Salvar' : key === 'pronto' ? 'Ir para o portal' : key === 'link' ? (S.form.open ? 'Continuar' : 'Abrir agenda') : key === 'site' ? 'Já respondi, continuar' : 'Continuar';
+  nextBtn.textContent = hub ? 'Ir para o portal' : edit ? 'Salvar' : key === 'pronto' ? 'Ir para o portal' : key === 'link' ? (S.form.open ? 'Continuar' : 'Abrir agenda') : key === 'site' ? (S.sitePublished ? 'Continuar' : 'Já respondi, continuar') : 'Continuar';
   // Abrir a agenda é um compromisso com pacientes: vira um gesto de deslizar (padrao-ux-motion §20).
   const slideMode = !hub && key === 'link' && !S.form.open && Boolean(window.EnoSlide);
   let slot = document.getElementById('dock-slide');
@@ -640,6 +645,35 @@ async function go(delta, skip = false) {
 nextBtn.addEventListener('click', () => go(+1, S.mode === 'wizard' && S.steps[S.i] === 'link' && !S.form.open));
 backBtn.addEventListener('click', () => go(-1));
 
+// ---------- Site publicado: a etapa se completa sozinha ----------
+// O Enomera Site avisa por BroadcastChannel/localStorage (mesma origem, /site) ao publicar; ao voltar
+// para esta aba também conferimos na conta. Sem botão de "já fiz".
+const siteUrl = () => `${ORIGIN.sites}/${encodeURIComponent(S.me?.account?.slug || '')}`;
+async function refreshSite() {
+  const r = await api('/api/v1/etha/project');
+  const was = S.sitePublished;
+  S.sitePublished = Boolean(r.ok && (r.data.versions || []).some((v) => v.stage === 'published'));
+  return !was && S.sitePublished;
+}
+function sitePublishedNow() {
+  if (S.view !== 'site') { paint(); return; }
+  const cur = stage.querySelector('.cf-step[data-step="site"]');
+  if (cur) {
+    const tmp = document.createElement('div'); tmp.innerHTML = stepHtml('site'); const nu = tmp.firstElementChild;
+    const h0 = stage.offsetHeight; cur.replaceWith(nu); paint(); wire(nu);
+    if (!reduce()) {
+      const h1 = stage.offsetHeight; if (stage.animate && Math.abs(h1 - h0) > 1) stage.animate([{ height: `${h0}px` }, { height: `${h1}px` }], { duration: 360, easing: 'cubic-bezier(.32,.72,0,1)' });
+      [...nu.querySelector('.cf-card').children].forEach((el, i) => el.animate([{ opacity: 0, transform: 'translateY(10px) scale(.98)' }, { opacity: 1, transform: 'none' }], { duration: 380, delay: i * 70, easing: 'cubic-bezier(.23,1,.32,1)', fill: 'backwards' }));
+    }
+  }
+  toast({ title: 'Site no ar', text: 'etapa do site concluída' });
+  if (S.mode === 'wizard') setTimeout(() => { if (S.view === 'site' && !S.busy) go(+1, true); }, reduce() ? 600 : 1600);
+}
+async function onSiteSignal() { if (has('etha') && await refreshSite()) sitePublishedNow(); }
+try { const bc = new BroadcastChannel('enomera-config'); bc.onmessage = (e) => { if (e.data?.type === 'site-publicado') onSiteSignal(); }; } catch {}
+addEventListener('storage', (e) => { if (e.key === 'eno_site_publicado') onSiteSignal(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && S.view === 'site' && !S.sitePublished) onSiteSignal(); });
+
 // ---------- Início ----------
 (async () => {
   const me = await api('/api/v1/auth/me');
@@ -653,6 +687,7 @@ backBtn.addEventListener('click', () => go(-1));
   S.setup = amb?.ok ? amb.data.setup : null;
   initForm();
   S.steps = computeSteps();
+  if (has('etha')) await refreshSite();
   const want = new URLSearchParams(location.search).get('etapa');
   const left = missing();
   if (!left.length && want !== 'pronto') {
@@ -665,4 +700,5 @@ backBtn.addEventListener('click', () => go(-1));
   // para conferir). Só um ?etapa= explícito, como ao recarregar a página, abre direto numa etapa.
   const start = S.steps.includes(want) ? S.steps.indexOf(want) : 0;
   show(start, null);
+  if (want === 'site' && S.sitePublished && new URLSearchParams(location.search).get('site') === 'publicado') sitePublishedNow();
 })();
