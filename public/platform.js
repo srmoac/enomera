@@ -526,7 +526,7 @@ export async function mountEnomeraPlatform(rootEl) {
         minne: `<button type="button" class="eno-btn eno-btn-minne" data-launch="minne" data-path="/?modo=ao-vivo">Abrir Consultório ↗</button>
                 <button type="button" class="eno-btn eno-btn-sec" data-launch="minne" data-path="/?modo=ao-vivo&aba=importar">Importar prontuários ↗</button>`,
         etha: `<button type="button" class="eno-btn eno-btn-etha" data-launch="etha" data-path="/?modo=ao-vivo">Abrir Site ↗</button>
-               ${s.routine.ethaProject?.published_at ? `<a class="eno-btn eno-btn-sec" href="${esc(`${APP_ORIGINS.helena}/?site=${encodeURIComponent(s.account.slug)}`)}" target="_blank" rel="noopener">Ver site publicado ↗</a>` : ''}`,
+               ${s.routine.ethaProject?.published_at ? `<a class="eno-btn eno-btn-sec" href="${esc(`${APP_ORIGINS.sites}/${encodeURIComponent(s.account.slug)}`)}" target="_blank" rel="noopener">Ver site publicado ↗</a>` : ''}`,
       }[prod];
       const offer = isPilot() ? `Ativar ${name} grátis` : prod === 'etha' ? 'Adicionar Enomera Site' : 'Contratar ou testar 30 dias grátis';
       return `

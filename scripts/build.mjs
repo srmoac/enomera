@@ -41,11 +41,12 @@ const envMap = {
   __ENOMERA_MINNE_URL: process.env.ENOMERA_MINNE_URL || process.env.NEXT_PUBLIC_MINNE_URL || '',
   __ENOMERA_ETHA_URL: process.env.ENOMERA_ETHA_URL || process.env.NEXT_PUBLIC_ETHA_URL || '',
   __ENOMERA_HELENA_URL: process.env.ENOMERA_HELENA_URL || process.env.NEXT_PUBLIC_HELENA_URL || '',
+  __ENOMERA_SITES_URL: process.env.ENOMERA_SITES_URL || process.env.NEXT_PUBLIC_SITES_URL || '',
 };
 const activeEntries = Object.entries(envMap).filter(([, v]) => Boolean(v));
 if (activeEntries.length > 0) {
   const scriptTag = `<script>${activeEntries.map(([k, v]) => `window.${k}=${JSON.stringify(v)};`).join('')}</script>`;
-  for (const file of ['dist/index.html', 'dist/configurar.html']) {
+  for (const file of ['dist/index.html', 'dist/configurar.html', 'dist/piloto/painel.html']) {
     let html = await readFile(file, 'utf8');
     html = html.replace('</head>', `${scriptTag}\n</head>`);
     await writeFile(file, html, 'utf8');

@@ -213,7 +213,8 @@
   }
 
   // ── Site Sob medida ──
-  var SITES = 'https://etha-enomera-sites.vercel.app/';
+  // Sites publicados: <base>/<slug>. Mesmo endereço do Enomera Site (ENOMERA_SITES_URL na build).
+  var SITES = String(window.__ENOMERA_SITES_URL || 'https://enomera-sites.vercel.app').replace(/\/+$/, '') + '/';
   var SOB_STATUS = { 'new': ['Novo', ''], production: ['Em produção', 'warn'], delivered: ['Entregue', 'ok'] };
   var PUBLICOS = { adultos: 'Adultos', adolescentes: 'Adolescentes', criancas: 'Crianças', casais: 'Casais', familias: 'Famílias', idosos: 'Pessoas idosas' };
   var PROFISSOES = { psicologa: 'Psicóloga', psicologo: 'Psicólogo', psicanalista: 'Psicanalista', psiquiatra: 'Psiquiatra', psicoterapeuta: 'Psicoterapeuta' };
