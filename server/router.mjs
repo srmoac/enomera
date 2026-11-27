@@ -37,10 +37,13 @@ import {
   confirmConsultationRequest,
   createManualAppointment,
   decideRescheduleRequest,
+  declineConsultationRequest,
   findDuplicatePatientCandidate,
   generateAvailableSlots,
+  proposeRescheduleByProfessional,
   requestAppointmentReschedule,
   reserveSlotByInvitation,
+  respondToProfessionalProposal,
 } from './scheduling.mjs';
 import { seedDatabase } from './seed.mjs';
 import { cancelAccountDeletion, requestAccountDeletion, runRetention } from './retention.mjs';
@@ -237,6 +240,64 @@ async function notifyPatientOfCancellation(db, req, account, out) {
   } catch (err) {
     return { sent: false, recipient, reason: err.code || 'delivery_failed' };
   }
+}
+
+// E-mail do paciente de uma consulta (cadastro) ou de um pedido; endereços internos nunca recebem.
+async function patientEmailOf(db, account, { patientId = null, fallback = '' } = {}) {
+  let email = '';
+  if (patientId) {
+    const pat = await db.get('SELECT email FROM operational_patients WHERE id = ? AND account_id = ?', patientId, account.id);
+    email = String(pat?.email || '').trim();
+  }
+  if (!email) email = String(fallback || '').trim();
+  return email && !/@patient\.enomera\.invalid$/i.test(email) ? email : '';
+}
+
+// Pedido recusado pela profissional: a pessoa recebe o aviso e, se houver, a mensagem.
+async function notifyPatientOfDecline(db, req, account, out) {
+  const r = out?.request;
+  if (!r || out?.idempotentReplay) return { sent: false, reason: 'already_notified' };
+  const recipient = await patientEmailOf(db, account, { patientId: r.patient_id, fallback: r.patient_email });
+  if (!recipient) return { sent: false, recipient: null, reason: 'no_email' };
+  const msg = String(r.decline_message || '').trim();
+  return safeNotify(db, {
+    recipient,
+    subject: `Seu pedido de consulta com ${account.display_name} · Agendamento`,
+    textBody: `${account.display_name} não vai conseguir atender o seu pedido de primeira consulta (protocolo ${r.protocol_code}).${msg ? `\n\nMensagem de ${account.display_name}: "${msg}"` : ''}\n\nNenhum horário foi reservado e nada foi cobrado.`,
+    purpose: 'ambo_request_declined',
+  });
+}
+
+// Proposta de outro horário feita pela profissional: o paciente decide no Agendamento.
+async function notifyPatientOfProposal(db, req, account, out) {
+  const rsc = out?.reschedule;
+  if (!rsc || out?.idempotentReplay) return { sent: false, reason: 'already_notified' };
+  const recipient = await patientEmailOf(db, account, { patientId: rsc.patient_id });
+  if (!recipient) return { sent: false, recipient: null, reason: 'no_email' };
+  const link = agendamentoUrl(req, account.slug, { aba: 'acesso' });
+  const reason = String(rsc.reason || '').trim();
+  return safeNotify(db, {
+    recipient,
+    subject: `${account.display_name} propôs outro horário · Agendamento`,
+    textBody: `${account.display_name} propôs mudar a consulta de ${whenLabel(account, rsc.original_start_at)} para ${whenLabel(account, rsc.requested_start_at)}.${reason ? `\n\nMotivo: "${reason}"` : ''}\n\nSeu horário atual continua valendo até você responder.${link ? `\n\nPara aceitar ou manter o horário atual, abra ${link}` : ''}`,
+    purpose: 'ambo_reschedule_proposed',
+  });
+}
+
+// Resposta do paciente à proposta: a profissional é avisada.
+async function notifyProfessionalOfProposalAnswer(db, req, account, out, decision) {
+  if (!out?.appointment || out?.idempotentReplay) return { sent: false, reason: 'already_notified' };
+  const base = publicBaseUrl(req);
+  const link = base ? `${base}/agendamento/` : '';
+  const accepted = decision === 'accept';
+  return safeNotify(db, {
+    recipient: await accountOwnerEmail(db, account),
+    subject: accepted ? 'Novo horário aceito · Agendamento' : 'Proposta de horário recusada · Agendamento',
+    textBody: accepted
+      ? `O paciente aceitou o novo horário. A consulta agora é ${whenLabel(account, out.appointment.start_at)}.${link ? `\n\n${link}` : ''}`
+      : `O paciente preferiu manter o horário atual: ${whenLabel(account, out.appointment.start_at)}.${link ? `\n\n${link}` : ''}`,
+    purpose: accepted ? 'ambo_proposal_accepted_professional' : 'ambo_proposal_declined_professional',
+  });
 }
 
 // A própria origem do deployment é sempre aceita (alias de branch, URL do deployment ou domínio atribuído).
@@ -512,6 +573,55 @@ function requirePatient(auth) {
   return auth;
 }
 
+// Recusar pedido, cancelar consulta e propor outro horário: só a profissional dona da conta.
+async function requireAgendaOwner(db, auth) {
+  await requireProfessional(db, auth, { product: 'ambo', write: true });
+  if (auth.membership.role !== 'owner') {
+    throw Object.assign(new Error('Só a profissional responsável pela agenda pode fazer esta alteração.'), { status: 403, code: 'OWNER_REQUIRED' });
+  }
+  return auth;
+}
+
+// O que uma sessão de paciente enxerga: os cadastros com o contato verificado (pode haver mais de um,
+// por exemplo irmãos com o e-mail do mesmo responsável) e as consultas nascidas de pedidos feitos com
+// esse e-mail, mesmo que tenham sido ligadas a outro cadastro na confirmação.
+async function patientScope(db, auth) {
+  const accountId = auth.session.account_id;
+  const sid = auth.session.patient_id;
+  let contact;
+  let rows;
+  if (sid.startsWith('contact:')) {
+    contact = sid.slice('contact:'.length);
+    rows = await db.all('SELECT id, full_name, email, phone FROM operational_patients WHERE account_id = ? AND (lower(email) = ? OR phone = ?) ORDER BY created_at ASC', accountId, contact, contact);
+  } else {
+    const row = await db.get('SELECT id, full_name, email, phone FROM operational_patients WHERE id = ? AND account_id = ?', sid, accountId);
+    rows = row ? [row] : [];
+    contact = row?.email ? String(row.email).trim().toLowerCase() : null;
+  }
+  const ids = rows.map((r) => r.id);
+  const idsSql = ids.length ? `patient_id IN (${ids.map(() => '?').join(', ')})` : '0 = 1';
+  const apptWhere = `account_id = ? AND (${idsSql} OR id IN (SELECT appointment_id FROM consultation_requests WHERE account_id = ? AND appointment_id IS NOT NULL AND lower(patient_email) = ?))`;
+  const apptArgs = [accountId, ...ids, accountId, contact || ''];
+  return { accountId, contact, rows, ids, apptWhere, apptArgs };
+}
+
+// Candidato mostrado à profissional: recalculado com a regra atual para pedidos pendentes, para que
+// pedidos antigos (marcados quando nome igual bastava) não juntem pessoas diferentes ao confirmar.
+async function currentDuplicateCandidate(db, r) {
+  if (r.status !== 'preference_sent') return null;
+  const c = await findDuplicatePatientCandidate(db, r.account_id, { email: r.patient_email || '', phone: r.patient_phone || '', fullName: r.patient_name || '' });
+  if (!c) return null;
+  if (r.patient_id && c.id === r.patient_id) return null;
+  return c;
+}
+
+async function patientOwnedAppointment(db, auth, appointmentId) {
+  const scope = await patientScope(db, auth);
+  const appt = await db.get(`SELECT id, patient_id FROM appointments WHERE id = ? AND ${scope.apptWhere}`, appointmentId, ...scope.apptArgs);
+  if (!appt) throw Object.assign(new Error('Consulta não encontrada.'), { status: 404, code: 'APPOINTMENT_NOT_FOUND' });
+  return appt;
+}
+
 function slugify(name) {
   return String(name || 'profissional')
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -678,8 +788,8 @@ async function createProfessionalUser(db, { fullName, email, password, crpOrCrm 
     `, userId, email, pwd.hash, pwd.salt, cleanName, emailVerifiedAt, now, now));
 
     (await db.run(`
-      INSERT INTO professional_accounts (id, owner_user_id, slug, display_name, crp_or_crm, specialty, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO professional_accounts (id, owner_user_id, slug, display_name, crp_or_crm, specialty, online_meeting_url, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, '', ?, ?)
     `, accountId, userId, slug, cleanName, String(crpOrCrm || '').trim(), specialty, now, now));
 
     (await db.run(`
@@ -1977,8 +2087,10 @@ export async function handleApiRequest(req, res, customDb = null) {
         user = { id: uid };
       }
 
-      const pat = (await db.get('SELECT id FROM operational_patients WHERE account_id = ? AND (lower(email) = ? OR phone = ?)', acc.id, contact, contact));
-      const patientId = pat?.id || `contact:${contact}`;
+      // Um só cadastro com este contato: a sessão fica presa a ele. Mais de um (irmãos com o e-mail do
+      // responsável, homônimos antigos): a sessão fica presa ao contato verificado e enxerga todos.
+      const pats = await db.all('SELECT id FROM operational_patients WHERE account_id = ? AND (lower(email) = ? OR phone = ?)', acc.id, contact, contact);
+      const patientId = pats.length === 1 ? pats[0].id : `contact:${contact}`;
       const sess = await issueSession(db, { userId: user.id, actorType: 'patient', accountId: acc.id, patientId, ttlMinutes: 120 });
       await writeAudit(db, { actorUserId: user.id, actorType: 'patient', accountId: acc.id, action: 'ambo.patient_verified', resourceType: 'session', resourceId: sess.id });
       return json(res, 200, { verified: true, sessionToken: sess.rawToken, expiresAt: sess.expiresAt, professionalSlug: acc.slug }, { 'Set-Cookie': sess.cookie });
@@ -1987,23 +2099,20 @@ export async function handleApiRequest(req, res, customDb = null) {
     if (method === 'GET' && pathname === '/api/v1/ambo/patient/me') {
       requirePatient(auth);
       const acc = (await db.get('SELECT * FROM professional_accounts WHERE id = ?', auth.session.account_id));
-      const isContactOnly = auth.session.patient_id.startsWith('contact:');
-      const contactVal = isContactOnly ? auth.session.patient_id.slice('contact:'.length) : null;
-      const patientRow = isContactOnly
-        ? (await db.get('SELECT id, full_name, email, phone FROM operational_patients WHERE account_id = ? AND (lower(email) = ? OR phone = ?)', acc.id, contactVal, contactVal))
-        : (await db.get('SELECT id, full_name, email, phone FROM operational_patients WHERE id = ? AND account_id = ?', auth.session.patient_id, acc.id));
+      const scope = await patientScope(db, auth);
+      const patientRow = scope.rows[0] || null;
+      const contactVal = scope.contact;
+      const reqIdsSql = scope.ids.length ? `patient_id IN (${scope.ids.map(() => '?').join(', ')}) OR ` : '';
+      const requests = await db.all(
+        `SELECT id, protocol_code, modality, preferences_json, status, appointment_id, decline_message, created_at, updated_at FROM consultation_requests
+         WHERE account_id = ? AND (${reqIdsSql}lower(patient_email) = ? OR patient_phone = ?) ORDER BY created_at DESC`,
+        acc.id, ...scope.ids, contactVal || '', contactVal || (scope.rows[0]?.phone || '\u0000'));
 
-      const requests = patientRow
-        ? (await db.all('SELECT id, protocol_code, modality, preferences_json, status, appointment_id, created_at, updated_at FROM consultation_requests WHERE account_id = ? AND (patient_id = ? OR lower(patient_email) = lower(?)) ORDER BY created_at DESC', acc.id, patientRow.id, patientRow.email))
-        : (await db.all('SELECT id, protocol_code, modality, preferences_json, status, appointment_id, created_at, updated_at FROM consultation_requests WHERE account_id = ? AND (lower(patient_email) = ? OR patient_phone = ?) ORDER BY created_at DESC', acc.id, contactVal, contactVal));
-
-      const rawAppts = patientRow
-        ? (await db.all('SELECT id, modality, start_at, end_at, timezone, status, price_cents, version, updated_at FROM appointments WHERE account_id = ? AND patient_id = ? ORDER BY start_at DESC', acc.id, patientRow.id))
-        : [];
+      const rawAppts = await db.all(`SELECT id, modality, start_at, end_at, timezone, status, price_cents, version, updated_at FROM appointments WHERE ${scope.apptWhere} ORDER BY start_at DESC`, ...scope.apptArgs);
 
       const unlockMin = acc.online_unlock_minutes || 15;
       const appointments = await Promise.all(rawAppts.map(async (a) => {
-        const reschedules = (await db.all('SELECT id, original_start_at, original_end_at, requested_start_at, requested_end_at, preferences_json, status, created_at FROM reschedule_requests WHERE appointment_id = ? ORDER BY created_at DESC', a.id));
+        const reschedules = (await db.all('SELECT id, original_start_at, original_end_at, requested_start_at, requested_end_at, preferences_json, reason, status, initiated_by, created_at FROM reschedule_requests WHERE appointment_id = ? ORDER BY created_at DESC', a.id));
         const startMs = Date.parse(a.start_at);
         const endMs = Date.parse(a.end_at);
         const nowMs = Date.now();
@@ -2034,13 +2143,7 @@ export async function handleApiRequest(req, res, customDb = null) {
     if (method === 'POST' && patReschedMatch) {
       requirePatient(auth);
       const body = await readJsonBody(req);
-      let patientId = auth.session.patient_id;
-      if (patientId.startsWith('contact:')) {
-        const c = patientId.slice('contact:'.length);
-        const p = (await db.get('SELECT id FROM operational_patients WHERE account_id = ? AND (lower(email) = ? OR phone = ?)', auth.session.account_id, c, c));
-        if (!p) throw Object.assign(new Error('Paciente não encontrado.'), { status: 404, code: 'PATIENT_NOT_FOUND' });
-        patientId = p.id;
-      }
+      const { patient_id: patientId } = await patientOwnedAppointment(db, auth, patReschedMatch[1]);
       const idempotencyKey = String(req.headers['x-idempotency-key'] || body.idempotencyKey || randomId('idem'));
       const resData = await requestAppointmentReschedule(db, {
         accountId: auth.session.account_id,
@@ -2061,13 +2164,7 @@ export async function handleApiRequest(req, res, customDb = null) {
     if (method === 'POST' && patCancelMatch) {
       requirePatient(auth);
       const body = await readJsonBody(req);
-      let patientId = auth.session.patient_id;
-      if (patientId.startsWith('contact:')) {
-        const c = patientId.slice('contact:'.length);
-        const p = (await db.get('SELECT id FROM operational_patients WHERE account_id = ? AND (lower(email) = ? OR phone = ?)', auth.session.account_id, c, c));
-        if (!p) throw Object.assign(new Error('Paciente não encontrado.'), { status: 404, code: 'PATIENT_NOT_FOUND' });
-        patientId = p.id;
-      }
+      const { patient_id: patientId } = await patientOwnedAppointment(db, auth, patCancelMatch[1]);
       const resData = await cancelAppointmentTx(db, {
         accountId: auth.session.account_id,
         appointmentId: patCancelMatch[1],
@@ -2078,6 +2175,19 @@ export async function handleApiRequest(req, res, customDb = null) {
       const acctForNotice = await db.get('SELECT * FROM professional_accounts WHERE id = ?', auth.session.account_id);
       await notifyProfessionalOfPatientChange(db, req, acctForNotice, resData, 'cancel');
       return json(res, 200, resData);
+    }
+
+    const patProposalMatch = pathname.match(/^\/api\/v1\/ambo\/patient\/reschedules\/([^/]+)\/respond$/);
+    if (method === 'POST' && patProposalMatch) {
+      requirePatient(auth);
+      const body = await readJsonBody(req);
+      const decision = body.decision === 'accept' ? 'accept' : body.decision === 'decline' ? 'decline' : null;
+      if (!decision) throw Object.assign(new Error('Escolha aceitar ou manter o horário atual.'), { status: 400, code: 'DECISION_REQUIRED' });
+      const scope = await patientScope(db, auth);
+      const out = await respondToProfessionalProposal(db, { accountId: auth.session.account_id, rescheduleId: patProposalMatch[1], patientIds: scope.ids, decision });
+      const acctForNotice = await db.get('SELECT * FROM professional_accounts WHERE id = ?', auth.session.account_id);
+      out.professionalNotification = await notifyProfessionalOfProposalAnswer(db, req, acctForNotice, out, decision);
+      return json(res, 200, out);
     }
 
     // Invitations (returning patients)
@@ -2177,7 +2287,7 @@ export async function handleApiRequest(req, res, customDb = null) {
         ...r,
         preferences: JSON.parse(r.preferences_json || '{}'),
         answers: JSON.parse(r.answers_json || '{}'),
-        duplicateCandidate: r.duplicate_candidate_id ? (await db.get('SELECT id, full_name, email, phone, status FROM operational_patients WHERE id = ?', r.duplicate_candidate_id)) : null,
+        duplicateCandidate: await currentDuplicateCandidate(db, r),
       })));
       const appointments = (await db.all(`
         SELECT a.*, p.full_name as patient_name, p.email as patient_email
@@ -2191,10 +2301,15 @@ export async function handleApiRequest(req, res, customDb = null) {
       `, auth.account.id));
       const patients = (await db.all('SELECT id, full_name, email, phone, status, origin FROM operational_patients WHERE account_id = ? ORDER BY full_name', auth.account.id));
       const invitations = (await db.all('SELECT id, patient_id, channel, target_contact, status, expires_at, used_at, created_at FROM patient_invitations WHERE account_id = ? ORDER BY created_at DESC LIMIT 20', auth.account.id));
+      const proposals = await db.all("SELECT id, appointment_id, requested_start_at, requested_end_at, reason, created_at FROM reschedule_requests WHERE account_id = ? AND status = 'proposed'", auth.account.id);
+      const proposalByAppt = new Map(proposals.map((p) => [p.appointment_id, p]));
+      const isOwner = auth.membership?.role === 'owner';
       return json(res, 200, {
-        account: { id: auth.account.id, slug: auth.account.slug, displayName: auth.account.display_name },
+        account: { id: auth.account.id, slug: auth.account.slug, displayName: auth.account.display_name, timezone: auth.account.timezone || 'America/Sao_Paulo' },
+        // Ações que esta Core oferece (o Agendamento só mostra os botões quando vierem true).
+        capabilities: { declineRequest: isOwner, cancelAppointment: isOwner, proposeReschedule: isOwner },
         requests,
-        appointments,
+        appointments: appointments.map((a) => ({ ...a, proposedReschedule: proposalByAppt.get(a.id) || null })),
         pendingReschedules: reschedules,
         patients,
         invitations,
@@ -2299,6 +2414,43 @@ export async function handleApiRequest(req, res, customDb = null) {
       return json(res, 200, out);
     }
 
+    const amboProDecline = pathname.match(/^\/api\/v1\/ambo\/pro\/requests\/([^/]+)\/decline$/);
+    if (method === 'POST' && amboProDecline) {
+      await requireAgendaOwner(db, auth);
+      const body = await readJsonBody(req);
+      const out = await declineConsultationRequest(db, {
+        accountId: auth.account.id, actorUserId: auth.user.id, requestId: amboProDecline[1],
+        message: typeof body.message === 'string' ? body.message : '', sourceProduct: 'ambo',
+      });
+      out.patientNotification = await notifyPatientOfDecline(db, req, auth.account, out);
+      return json(res, 200, out);
+    }
+
+    const amboProCancel = pathname.match(/^\/api\/v1\/ambo\/pro\/appointments\/([^/]+)\/cancel$/);
+    if (method === 'POST' && amboProCancel) {
+      await requireAgendaOwner(db, auth);
+      const body = await readJsonBody(req);
+      const out = await cancelAppointmentTx(db, {
+        accountId: auth.account.id, appointmentId: amboProCancel[1], actorType: 'professional', actorUserId: auth.user.id,
+        reason: typeof body.reason === 'string' ? body.reason.trim().slice(0, 500) : '', sourceProduct: 'ambo',
+      });
+      const patientNotice = await notifyPatientOfCancellation(db, req, auth.account, out);
+      return json(res, 200, { ...out, patientNotice });
+    }
+
+    const amboProResched = pathname.match(/^\/api\/v1\/ambo\/pro\/appointments\/([^/]+)\/reschedule$/);
+    if (method === 'POST' && amboProResched) {
+      await requireAgendaOwner(db, auth);
+      const body = await readJsonBody(req);
+      const out = await proposeRescheduleByProfessional(db, {
+        accountId: auth.account.id, actorUserId: auth.user.id, appointmentId: amboProResched[1],
+        startAt: body.startAt, endAt: body.endAt, reason: typeof body.reason === 'string' ? body.reason : '',
+        idempotencyKey: req.headers['x-idempotency-key'] || body.idempotencyKey || null,
+      });
+      out.patientNotification = await notifyPatientOfProposal(db, req, auth.account, out);
+      return json(res, out.idempotentReplay ? 200 : 201, out);
+    }
+
     // ── MINNE CLINICAL WORKSPACE & IMPORT ENGINE ──────────────────────
     if (method === 'GET' && pathname === '/api/v1/minne/workspace') {
       await requireProfessional(db, auth, { product: 'minne', write: false, clinical: true });
@@ -2313,7 +2465,7 @@ export async function handleApiRequest(req, res, customDb = null) {
         ...r,
         preferences: JSON.parse(r.preferences_json || '{}'),
         answers: JSON.parse(r.answers_json || '{}'),
-        duplicateCandidate: r.duplicate_candidate_id ? (await db.get('SELECT id, full_name, email, phone, status FROM operational_patients WHERE id = ?', r.duplicate_candidate_id)) : null,
+        duplicateCandidate: await currentDuplicateCandidate(db, r),
       })));
       const pendingReschedules = (await db.all(`
         SELECT r.*, p.full_name as patient_name

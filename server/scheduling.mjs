@@ -114,15 +114,29 @@ export async function generateAvailableSlots(db, accountId, { daysAhead = 14, mo
   return slots;
 }
 
+// Nome comparável: sem acento, sem diferença de maiúsculas e de espaços repetidos.
+export function normalizePersonName(name = '') {
+  return String(name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+// Candidato a "mesma pessoa" na carteira. O Agendamento junta os cadastros ao confirmar quando há
+// candidato, então a regra é estrita: precisa do MESMO contato (e-mail ou telefone) E do mesmo nome.
+// Nome igual sozinho nunca basta (homônimos com e-mails diferentes são pessoas diferentes), e contato
+// igual com nome diferente também não (irmãos menores com o e-mail do mesmo responsável). Telefone
+// igual só vale quando não há dois e-mails diferentes.
 export async function findDuplicatePatientCandidate(db, accountId, { email = '', phone = '', fullName = '' }) {
-  const normEmail = email.trim().toLowerCase();
-  const normPhone = phone.replace(/\D/g, '');
-  const normName = fullName.trim().toLowerCase();
+  const normEmail = String(email || '').trim().toLowerCase();
+  const normPhone = String(phone || '').replace(/\D/g, '');
+  const normName = normalizePersonName(fullName);
+  if (!normName) return null;
   const patients = await db.all('SELECT id, full_name, email, phone, status FROM operational_patients WHERE account_id = ?', accountId);
   for (const p of patients) {
-    if (normEmail && p.email && p.email.trim().toLowerCase() === normEmail) return p;
-    if (normPhone.length >= 8 && p.phone && p.phone.replace(/\D/g, '').endsWith(normPhone.slice(-8))) return p;
-    if (normName && p.full_name.trim().toLowerCase() === normName) return p;
+    if (normalizePersonName(p.full_name) !== normName) continue;
+    const sameEmail = Boolean(normEmail && p.email && p.email.trim().toLowerCase() === normEmail);
+    const samePhone = Boolean(normPhone.length >= 8 && p.phone && p.phone.replace(/\D/g, '').endsWith(normPhone.slice(-8)));
+    // E-mails diferentes dos dois lados: pessoas diferentes, mesmo com o mesmo telefone.
+    const emailsConflict = Boolean(normEmail && p.email && !sameEmail);
+    if (sameEmail || (samePhone && !emailsConflict)) return p;
   }
   return null;
 }
@@ -383,6 +397,8 @@ export async function requestAppointmentReschedule(db, { accountId, appointmentI
     );
 
     await tx.run("UPDATE appointments SET status = 'reschedule_requested', version = version + 1, updated_at = ? WHERE id = ?", now, appointmentId);
+    // Pedido do próprio paciente substitui uma proposta de quem atende ainda sem resposta.
+    await tx.run("UPDATE reschedule_requests SET status = 'cancelled', updated_at = ? WHERE appointment_id = ? AND status = 'proposed'", now, appointmentId);
 
     const syncEvent = await recordSyncEvent(tx, {
       accountId,
@@ -457,7 +473,7 @@ export async function decideRescheduleRequest(db, { accountId, actorUserId, resc
   }, `sched:${accountId}`);
 }
 
-export async function cancelAppointmentTx(db, { accountId, appointmentId, actorType, actorUserId = null, patientId = null, reason = '' }) {
+export async function cancelAppointmentTx(db, { accountId, appointmentId, actorType, actorUserId = null, patientId = null, reason = '', sourceProduct = null }) {
   return runTransaction(db, async (tx) => {
     if (actorType === 'patient' && !patientId) {
       throw Object.assign(new Error('Identidade do paciente não encontrada para cancelar esta consulta.'), { status: 403, code: 'PATIENT_REQUIRED' });
@@ -474,13 +490,13 @@ export async function cancelAppointmentTx(db, { accountId, appointmentId, actorT
        WHERE id = ?`,
       actorType, reason || '', now, appt.id
     );
-    await tx.run("UPDATE reschedule_requests SET status = 'cancelled', updated_at = ? WHERE appointment_id = ? AND status = 'pending'", now, appt.id);
+    await tx.run("UPDATE reschedule_requests SET status = 'cancelled', updated_at = ? WHERE appointment_id = ? AND status IN ('pending', 'proposed')", now, appt.id);
 
     const syncEvent = await recordSyncEvent(tx, {
       accountId,
       eventType: 'appointment.cancelled',
-      sourceProduct: actorType === 'patient' ? 'ambo' : 'minne',
-      targetProduct: actorType === 'patient' ? 'minne' : 'ambo',
+      sourceProduct: sourceProduct || (actorType === 'patient' ? 'ambo' : 'minne'),
+      targetProduct: (sourceProduct || (actorType === 'patient' ? 'ambo' : 'minne')) === 'ambo' ? 'minne' : 'ambo',
       entityType: 'appointment',
       entityId: appt.id,
       payload: { appointmentId: appt.id, cancelledBy: actorType, slotReleased: appt.start_at },
@@ -488,5 +504,92 @@ export async function cancelAppointmentTx(db, { accountId, appointmentId, actorT
 
     await writeAudit(tx, { actorUserId, actorType, accountId, action: 'appointment.cancel', resourceType: 'appointment', resourceId: appt.id });
     return { appointment: await tx.get('SELECT * FROM appointments WHERE id = ?', appt.id), syncEvent, idempotentReplay: false };
+  }, `sched:${accountId}`);
+}
+
+// Recusa de um pedido de primeira consulta pela profissional dona da agenda. Só pedidos pendentes;
+// repetir a chamada devolve o mesmo resultado sem avisar de novo.
+export async function declineConsultationRequest(db, { accountId, actorUserId, requestId, message = '', sourceProduct = 'ambo' }) {
+  return runTransaction(db, async (tx) => {
+    const req = await tx.get('SELECT * FROM consultation_requests WHERE id = ? AND account_id = ?', requestId, accountId);
+    if (!req) throw Object.assign(new Error('Solicitação não encontrada.'), { status: 404, code: 'REQUEST_NOT_FOUND' });
+    if (req.status === 'declined') return { request: req, idempotentReplay: true };
+    if (req.status !== 'preference_sent') {
+      throw Object.assign(new Error('Esta solicitação não está mais pendente.'), { status: 409, code: 'REQUEST_NOT_PENDING' });
+    }
+    const now = nowIso();
+    const text = String(message || '').trim().slice(0, 500);
+    await tx.run("UPDATE consultation_requests SET status = 'declined', decline_message = ?, declined_at = ?, updated_at = ? WHERE id = ?", text, now, now, req.id);
+    const syncEvent = await recordSyncEvent(tx, {
+      accountId, eventType: 'request.declined', sourceProduct, targetProduct: sourceProduct === 'minne' ? 'ambo' : 'minne',
+      entityType: 'consultation_request', entityId: req.id, payload: { requestId: req.id, protocolCode: req.protocol_code, status: 'declined' },
+    });
+    await writeAudit(tx, { actorUserId, actorType: 'professional', accountId, action: 'request.decline', resourceType: 'consultation_request', resourceId: req.id });
+    return { request: await tx.get('SELECT * FROM consultation_requests WHERE id = ?', req.id), syncEvent, idempotentReplay: false };
+  }, `sched:${accountId}`);
+}
+
+// Proposta de outro horário feita por quem atende. A consulta continua no horário atual até o paciente
+// aceitar; o novo horário é conferido de novo no aceite. Uma proposta nova substitui a anterior.
+export async function proposeRescheduleByProfessional(db, { accountId, actorUserId, appointmentId, startAt, endAt, reason = '', idempotencyKey }) {
+  return runTransaction(db, async (tx) => {
+    let key = String(idempotencyKey || randomId('prop'));
+    const existing = await tx.get("SELECT * FROM reschedule_requests WHERE appointment_id = ? AND idempotency_key = ? AND account_id = ?", appointmentId, key, accountId);
+    // Repetição da mesma proposta ainda aberta: devolve a mesma. Se aquela já foi respondida, é uma proposta nova.
+    if (existing && existing.status === 'proposed') {
+      return { reschedule: existing, appointment: await tx.get('SELECT * FROM appointments WHERE id = ?', appointmentId), idempotentReplay: true };
+    }
+    if (existing) key = `${key}_${randomId('r')}`;
+    const appt = await tx.get('SELECT * FROM appointments WHERE id = ? AND account_id = ?', appointmentId, accountId);
+    if (!appt) throw Object.assign(new Error('Consulta não encontrada.'), { status: 404, code: 'APPOINTMENT_NOT_FOUND' });
+    if (appt.status !== 'confirmed') {
+      throw Object.assign(new Error(appt.status === 'reschedule_requested'
+        ? 'O paciente pediu remarcação desta consulta. Responda o pedido na aba Pedidos.'
+        : 'Só consultas confirmadas podem receber proposta de outro horário.'), { status: 409, code: appt.status === 'reschedule_requested' ? 'RESCHEDULE_PENDING' : 'INVALID_STATUS' });
+    }
+    if (Date.parse(startAt) <= Date.now()) throw Object.assign(new Error('Escolha um horário futuro.'), { status: 400, code: 'INVALID_SLOT' });
+    await assertSlotAvailableTx(tx, accountId, startAt, endAt, appt.id);
+    const now = nowIso();
+    await tx.run("UPDATE reschedule_requests SET status = 'cancelled', updated_at = ? WHERE appointment_id = ? AND status = 'proposed'", now, appt.id);
+    const id = randomId('rsc');
+    await tx.run(
+      `INSERT INTO reschedule_requests (id, account_id, appointment_id, patient_id, idempotency_key, original_start_at, original_end_at, requested_start_at, requested_end_at, preferences_json, reason, status, initiated_by, decided_by_user_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '{}', ?, 'proposed', 'professional', ?, ?, ?)`,
+      id, accountId, appt.id, appt.patient_id, key, appt.start_at, appt.end_at, startAt, endAt, String(reason || '').trim().slice(0, 500), actorUserId, now, now
+    );
+    const syncEvent = await recordSyncEvent(tx, {
+      accountId, eventType: 'appointment.reschedule_proposed', sourceProduct: 'ambo', targetProduct: 'minne',
+      entityType: 'reschedule_request', entityId: id, payload: { rescheduleId: id, appointmentId: appt.id, proposedStartAt: startAt },
+    });
+    await writeAudit(tx, { actorUserId, actorType: 'professional', accountId, action: 'appointment.reschedule_propose', resourceType: 'reschedule_request', resourceId: id });
+    return { reschedule: await tx.get('SELECT * FROM reschedule_requests WHERE id = ?', id), appointment: await tx.get('SELECT * FROM appointments WHERE id = ?', appt.id), syncEvent, idempotentReplay: false };
+  }, `sched:${accountId}`);
+}
+
+// Resposta do paciente à proposta de quem atende: aceitar move a consulta (se o horário ainda estiver
+// livre); recusar mantém o horário atual.
+export async function respondToProfessionalProposal(db, { accountId, rescheduleId, patientIds, decision }) {
+  return runTransaction(db, async (tx) => {
+    const rsc = await tx.get("SELECT * FROM reschedule_requests WHERE id = ? AND account_id = ? AND initiated_by = 'professional'", rescheduleId, accountId);
+    if (!rsc || !patientIds.includes(rsc.patient_id)) throw Object.assign(new Error('Proposta não encontrada.'), { status: 404, code: 'RESCHEDULE_NOT_FOUND' });
+    const appt = await tx.get('SELECT * FROM appointments WHERE id = ? AND account_id = ?', rsc.appointment_id, accountId);
+    if (rsc.status !== 'proposed') return { reschedule: rsc, appointment: appt, idempotentReplay: true };
+    if (!appt || appt.status !== 'confirmed') {
+      throw Object.assign(new Error('Esta consulta mudou e a proposta não vale mais.'), { status: 409, code: 'PROPOSAL_STALE' });
+    }
+    const now = nowIso();
+    if (decision === 'accept') {
+      await assertSlotAvailableTx(tx, accountId, rsc.requested_start_at, rsc.requested_end_at, appt.id);
+      await tx.run("UPDATE appointments SET start_at = ?, end_at = ?, version = version + 1, updated_at = ? WHERE id = ?", rsc.requested_start_at, rsc.requested_end_at, now, appt.id);
+      await tx.run("UPDATE reschedule_requests SET status = 'approved', decided_at = ?, updated_at = ? WHERE id = ?", now, now, rsc.id);
+    } else {
+      await tx.run("UPDATE reschedule_requests SET status = 'declined', decided_at = ?, updated_at = ? WHERE id = ?", now, now, rsc.id);
+    }
+    const syncEvent = await recordSyncEvent(tx, {
+      accountId, eventType: decision === 'accept' ? 'appointment.reschedule_approved' : 'appointment.reschedule_declined', sourceProduct: 'ambo', targetProduct: 'minne',
+      entityType: 'appointment', entityId: appt.id, payload: { rescheduleId: rsc.id, appointmentId: appt.id, decision, by: 'patient' },
+    });
+    await writeAudit(tx, { actorType: 'patient', accountId, action: `reschedule.proposal_${decision}`, resourceType: 'reschedule_request', resourceId: rsc.id });
+    return { reschedule: await tx.get('SELECT * FROM reschedule_requests WHERE id = ?', rsc.id), appointment: await tx.get('SELECT * FROM appointments WHERE id = ?', appt.id), syncEvent, idempotentReplay: false };
   }, `sched:${accountId}`);
 }
