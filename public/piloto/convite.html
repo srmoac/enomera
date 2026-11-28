@@ -62,14 +62,14 @@
   function card(inner) { return '<section class="cv-card lg pl-in" data-glass="reading" data-glass-tint="enomera">' + inner + '</section>'; }
   function msg(title, text, cta) { return card('<div class="pl-stagger" style="display:grid;gap:14px"><p class="cv-eyebrow">Convite</p><h1>' + title + '</h1><p class="muted">' + text + '</p>' + (cta || '') + '</div>'); }
 
-  var KIND = 'tester';
+  var KIND = 'tester'; var FREE_DAYS = null;
   function formHtml() {
     var admin = KIND === 'admin';
     return card(
       '<div class="pl-stagger" style="display:grid;gap:10px">' +
-        '<p class="cv-eyebrow">' + (admin ? 'Acesso de administrador' : 'Você foi convidado para o piloto') + '</p>' +
+        '<p class="cv-eyebrow">' + (admin ? 'Acesso de administrador' : FREE_DAYS ? 'Convite exclusivo' : 'Você foi convidado para o piloto') + '</p>' +
         '<h1>' + (admin ? 'Seu painel do piloto' : 'Teste a Enomera de verdade') + '</h1>' +
-        '<p class="muted">' + (admin ? 'Crie o acesso que abre o painel com o uso de cada convidado. Este link funciona uma única vez.' : 'Crie sua conta e use o site, a agenda e a gestão como usaria no seu consultório. No piloto tudo é gratuito: todos os planos, combos e serviços, sem cartão e sem cobrança. Este link é seu e funciona uma única vez.') + '</p>' +
+        '<p class="muted">' + (admin ? 'Crie o acesso que abre o painel com o uso de cada convidado. Este link funciona uma única vez.' : 'Crie sua conta e use o site, a agenda e a gestão como usaria no seu consultório. ' + (FREE_DAYS ? 'Você é um dos 2 convidados exclusivos: 1 mês grátis de todos os planos, combos e serviços, sem cartão e sem cobrança. Em troca, queremos ouvir o que funciona e o que atrapalha.' : 'No piloto tudo é gratuito: todos os planos, combos e serviços, sem cartão e sem cobrança.') + ' Este link é seu e funciona uma única vez.') + '</p>' +
       '</div>' +
       '<form class="cv-form pl-stagger" novalidate>' +
         '<div class="pl-field"><label for="f-name">' + (admin ? 'Seu nome' : 'Nome profissional') + '</label><input id="f-name" name="fullName" autocomplete="name" data-autofocus aria-describedby="e-name"><p class="pl-err" id="e-name"></p></div>' +
@@ -219,7 +219,7 @@
   fetch('/api/v1/pilot/invites/' + encodeURIComponent(TOKEN), { credentials: 'same-origin' })
     .then(function (r) { return r.json(); })
     .then(function (d) {
-      KIND = d.kind || 'tester';
+      KIND = d.kind || 'tester'; FREE_DAYS = d.freeDays || null;
       if (d.state === 'open') swap(formHtml());
       else if (d.state === 'used') swap(msg('Este convite já foi usado', 'A conta deste convite já existe. Entre com o e-mail e a senha cadastrados.', '<a class="pl-btn" href="' + (KIND === 'admin' ? '/piloto/painel' : '/conta') + '">Entrar</a>'));
       else swap(msg('Convite indisponível', 'Este link não vale mais. Peça um novo ao Marcos.'));

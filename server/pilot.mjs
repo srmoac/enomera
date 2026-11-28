@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { ensureDailyDigests, listDailyDigests } from './pilot-digest.mjs';
 import { listSobMedida, sobMedidaDetail, setSobMedidaStatus, serveSobMedidaFile } from './pilot-sobmedida.mjs';
 import { hashPassword, nowIso, randomId, randomToken, sha256Hex } from './crypto.mjs';
+import { EXCLUSIVE_INVITES, EXCLUSIVE_INVITE_IDS, EXCLUSIVE_FREE_DAYS } from './pilot-free.mjs';
 
 export const PILOT_CONSENT_VERSION = 'piloto-uso-2026-11-22';
 export const PILOT_PRODUCTS = ['enomera', 'ambo', 'minne', 'etha', 'site'];
@@ -44,6 +45,14 @@ export async function applyPilotFriendInvitesMigration(tx) {
     await tx.run('INSERT INTO pilot_invites (id, kind, label, token_hash, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING',
       inv.id, inv.kind, inv.label, inv.hash, now);
   }
+  // 28/11/2026: só os 2 convidados exclusivos entram como convidado. Links de convidado ainda não usados são
+  // cancelados (quem já criou a conta continua como está).
+  for (const inv of EXCLUSIVE_INVITES) {
+    await tx.run('INSERT INTO pilot_invites (id, kind, label, token_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING',
+      inv.id, inv.kind, inv.label, inv.hash, now, PILOT_SEED_INVITES_EXPIRE_AT);
+  }
+  await tx.run(`UPDATE pilot_invites SET revoked_at = ? WHERE kind = 'tester' AND used_at IS NULL AND revoked_at IS NULL AND id NOT IN (${EXCLUSIVE_INVITE_IDS.map(() => '?').join(', ')})`,
+    now, ...EXCLUSIVE_INVITE_IDS);
 }
 
 export async function applyPilotSelfTestMigration(tx) {
@@ -501,7 +510,7 @@ export async function handlePilotRoutes({ db, req, res, method, pathname, url, a
   if (invMatch && method === 'GET' && !invMatch[2]) {
     const inv = await findInvite(db, invMatch[1]);
     const state = inviteState(inv);
-    json(res, state === 'invalid' ? 404 : 200, { state, kind: inv?.kind || null, consentVersion: PILOT_CONSENT_VERSION }); return true;
+    json(res, state === 'invalid' ? 404 : 200, { state, kind: inv?.kind || null, freeDays: EXCLUSIVE_INVITE_IDS.includes(inv?.id) ? EXCLUSIVE_FREE_DAYS : null, consentVersion: PILOT_CONSENT_VERSION }); return true;
   }
   if (invMatch && method === 'POST' && invMatch[2]) {
     const out = await acceptInvite(db, { token: invMatch[1], body: await readJsonBody(req), createProfessionalUser, issueSession, writeAudit, consumeVerificationCode, recordTermsAcceptance: (userId, accountId) => recordTermsAcceptance(db, req, userId, accountId) });
@@ -534,6 +543,8 @@ export async function handlePilotRoutes({ db, req, res, method, pathname, url, a
     const tl = pathname.match(/^\/api\/v1\/pilot\/admin\/participants\/([A-Za-z0-9_-]+)\/timeline$/);
     if (method === 'GET' && tl) { json(res, 200, { events: await participantTimeline(db, tl[1]) }); return true; }
     if (method === 'POST' && pathname === '/api/v1/pilot/admin/invites') {
+      // 28/11/2026: o feedback de convidado ficou só com os 2 exclusivos; o painel não cria novos links.
+      throw Object.assign(new Error('As vagas de convidado estão fechadas: o feedback fica com os 2 convidados exclusivos.'), { status: 409, code: 'INVITES_CLOSED' });
       const body = z.object({ label: z.string().trim().min(1).max(60), expiresInDays: z.coerce.number().int().min(1).max(60).optional().default(INVITE_VALID_DAYS) }).parse(await readJsonBody(req));
       const token = randomToken(18);
       const id = randomId('inv');

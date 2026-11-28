@@ -152,9 +152,19 @@ test('Piloto: convite único, consentimento, eventos ligados à pessoa e painel 
     const delivered = await call(`/api/v1/pilot/admin/etha-sob-medida/${projId}/status`, { status: 'delivered' }, login.data.sessionToken);
     assert.equal(delivered.data.status, 'delivered'); assert.ok(delivered.data.deliveredAt);
     assert.equal((await call('/api/v1/pilot/admin/etha-sob-medida', null, login.data.sessionToken)).data.orders[0].status, 'delivered');
+    // Convidados exclusivos (28/11): painel não cria novos links; só os 2 exclusivos ficam abertos.
     const ni = await call('/api/v1/pilot/admin/invites', { label: 'Convidado 3' }, login.data.sessionToken);
-    assert.equal(ni.status, 201); assert.match(ni.data.link, /\/convite\/[A-Za-z0-9_-]{20,}$/);
-    assert.equal((await call(`/api/v1/pilot/invites/${ni.data.link.split('/').pop()}`)).data.state, 'open');
+    assert.equal(ni.status, 409); assert.equal(ni.data.code, 'INVITES_CLOSED');
+    assert.ok((await db.get("SELECT revoked_at FROM pilot_invites WHERE id = 'inv_piloto_amigo_1'")).revoked_at);
+    assert.equal((await db.get("SELECT revoked_at FROM pilot_invites WHERE id = 'inv_exclusivo_1'")).revoked_at, null);
+    assert.equal((await db.get("SELECT revoked_at FROM pilot_invites WHERE id = 'inv_t'")).revoked_at, null); // já usado: fica como está
+    const { getPilotAccess } = await import('../server/pilot-free.mjs');
+    await db.run("INSERT INTO pilot_participants (id, user_id, invite_id, kind, label, track_key, created_at) VALUES ('pp_exc', 'usr_exc', 'inv_exclusivo_1', 'tester', 'Exclusivo', 'tk_exc', ?)", new Date().toISOString());
+    const exc = await getPilotAccess(db, 'usr_exc');
+    assert.equal(exc.exclusive, true); assert.ok(Math.abs(Date.parse(exc.until) - Date.now() - 30 * 864e5) < 60e3);
+    await db.run("UPDATE pilot_participants SET created_at = ? WHERE id = 'pp_exc'", new Date(Date.now() - 31 * 864e5).toISOString());
+    assert.equal(await getPilotAccess(db, 'usr_exc'), null); // passou 1 mês: segue como conta comum
+    assert.equal((await getPilotAccess(db, acc.data.user?.id || (await db.get("SELECT user_id FROM pilot_participants WHERE invite_id = 'inv_t'")).user_id)).until, '2027-01-31T23:59:59.000Z');
 
     // Conta de teste do administrador: entra só com ?teste=1.
     const S = 'tokenDeTesteDoMarcosTeste';

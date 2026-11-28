@@ -209,7 +209,7 @@
         return '<div class="pn-invite"><div><b>' + esc(i.label) + '</b> <span class="small muted">' + (i.kind === 'admin' ? 'administrador' : i.kind === 'self_test' ? 'seu teste, fora dos totais' : 'convidado') + ' · criado ' + esc(ago(i.createdAt)) + (i.usedAt ? ' · usado ' + esc(ago(i.usedAt)) : '') + '</span></div>' +
           '<div style="display:flex;gap:8px;align-items:center"><span class="pn-chip ' + l[1] + '">' + l[0] + '</span>' + (i.state === 'open' && i.kind !== 'admin' ? '<button type="button" class="pl-btn is-ghost" data-hold="Segure para cancelar o convite" data-hold-ms="1000" data-revoke="' + esc(i.id) + '">Cancelar</button>' : '') + '</div></div>';
       }).join('') + '</div>' +
-      '<form class="pn-form-inline" id="pn-new-invite" novalidate><div class="pl-field"><label for="ni-label">Novo convite para</label><input id="ni-label" maxlength="60" placeholder="Ex.: Convidado 3 · psicóloga de Recife" aria-describedby="ni-err"><p class="pl-err" id="ni-err"></p></div><button class="pl-btn" type="submit">Criar link</button></form>';
+      '<p class="small muted" style="margin-top:12px">Vagas de convidado fechadas: o feedback fica com os 2 convidados exclusivos (1 mês grátis cada). Quem entrou antes continua como está; o resto do público usa as 2 semanas grátis.</p>';
   }
 
   // ── Site Sob medida ──

@@ -964,17 +964,19 @@ export async function handleApiRequest(req, res, customDb = null) {
       const body = await readJsonBody(req);
       const quote = calculateSimulatedQuote(body);
       const contract = buildContractSummary(body);
-      if (await getPilotAccess(db, auth?.user?.id)) return json(res, 200, { ...pilotFreeQuote(quote), contract: pilotFreeContract(contract) });
+      const pilotAccess = await getPilotAccess(db, auth?.user?.id);
+      if (pilotAccess) return json(res, 200, { ...pilotFreeQuote(quote, pilotAccess), contract: pilotFreeContract(contract, pilotAccess) });
       return json(res, 200, { ...quote, contract });
     }
 
     // ── COBRANÇA (Asaas; sandbox até autorização de cobrança real) ─────────
     if (pathname.startsWith('/api/v1/billing/')) {
       // Piloto gratuito: convidado não vê assinatura, cartão nem fatura.
-      if ((pathname === '/api/v1/billing/status' || pathname === '/api/v1/billing/checkout') && auth?.user && await getPilotAccess(db, auth.user.id)) {
+      const billingPilot = (pathname === '/api/v1/billing/status' || pathname === '/api/v1/billing/checkout') && auth?.user ? await getPilotAccess(db, auth.user.id) : null;
+      if (billingPilot) {
         await requireProfessional(db, auth);
         if (method === 'POST') throw Object.assign(new Error('No piloto, todos os serviços são gratuitos. Não há nada a pagar.'), { status: 409, code: 'PILOT_FREE' });
-        return json(res, 200, { configured: false, mode: 'pilot', pilot: { free: true, until: PILOT_FREE_UNTIL }, subscription: null });
+        return json(res, 200, { configured: false, mode: 'pilot', pilot: { free: true, until: billingPilot.until, exclusive: billingPilot.exclusive }, subscription: null });
       }
       if (method === 'POST' && pathname === '/api/v1/billing/checkout' && auth?.user) {
         await requireProfessional(db, auth);
@@ -1400,8 +1402,9 @@ export async function handleApiRequest(req, res, customDb = null) {
       const products = (Array.isArray(body.products) ? body.products : ['ambo', 'minne']).filter((p) => ['ambo', 'minne', 'etha'].includes(p));
       if (products.length === 0) throw Object.assign(new Error('Selecione ao menos um serviço para as 2 semanas grátis.'), { status: 400, code: 'INVALID_TRIAL_PRODUCTS' });
       const now = nowIso();
-      const trialEndsAt = (await getPilotAccess(db, auth.user.id)) ? PILOT_FREE_UNTIL : addDaysIso(COMMERCIAL_CATALOG.trialDays);
-      if (!(await getPilotAccess(db, auth.user.id))) await assertTrialAvailable(db, auth.account.id, products);
+      const trialPilot = await getPilotAccess(db, auth.user.id);
+      const trialEndsAt = trialPilot ? trialPilot.until : addDaysIso(COMMERCIAL_CATALOG.trialDays);
+      if (!trialPilot) await assertTrialAvailable(db, auth.account.id, products);
       await runTransaction(db, async (db) => {
         for (const p of products) {
           (await db.run(`
@@ -1438,7 +1441,7 @@ export async function handleApiRequest(req, res, customDb = null) {
         INSERT INTO pilot_applications (id, user_id, full_name, email, specialty, notes, status, created_at)
         VALUES (?, ?, ?, ?, ?, ?, 'received', ?)
       `, id, auth?.user?.id || null, parsed.data.fullName, parsed.data.email, parsed.data.specialty, parsed.data.notes, nowIso()));
-      return json(res, 201, { id, status: 'received', pilotUntil: PILOT_FREE_UNTIL, message: 'Pedido de convite registrado. O piloto é gratuito até 31 de janeiro de 2027, sem cartão.' });
+      return json(res, 201, { id, status: 'received', message: 'Pedido registrado. As vagas de convidado estão fechadas agora; avisamos por e-mail se abrir uma nova. Enquanto isso, as 2 semanas grátis valem para qualquer conta.' });
     }
 
     if (method === 'POST' && pathname === '/api/v1/commercial/orders') {
@@ -1465,12 +1468,12 @@ export async function handleApiRequest(req, res, customDb = null) {
       const trialOnly = !pilotFree && !simulated;
       let quote = calculateSimulatedQuote({ products: body.products, ethaFormat: body.ethaFormat, ethaService: body.ethaService, mode: 'monthly' });
       if (trialOnly) await assertTrialAvailable(db, auth.account.id, quote.selectedProducts);
-      if (pilotFree) quote = pilotFreeQuote(quote);
+      if (pilotFree) quote = pilotFreeQuote(quote, pilotFree);
       // Percurso aprovado (22 nov): a ativação informa a periodicidade e não cobra nada hoje.
       const isContractFlow = body.billing === 'monthly' || body.billing === 'permanent';
       if (isContractFlow) {
         let contract = buildContractSummary({ products: body.products, ethaFormat: body.ethaFormat, ethaService: body.ethaService, billing: body.billing });
-        if (pilotFree) contract = pilotFreeContract(contract);
+        if (pilotFree) contract = pilotFreeContract(contract, pilotFree);
         quote.billing = contract.billing;
         quote.contract = contract;
         quote.dueTodayCents = 0;
@@ -1506,7 +1509,7 @@ export async function handleApiRequest(req, res, customDb = null) {
         `, randomId('pay'), orderId, methodUsed, simulatedOutcome, failReason, now, now));
 
         if (simulatedOutcome === 'approved') {
-          await activateOrderEntitlementsTx(db, auth.account.id, quote, { pilotFree: Boolean(pilotFree), trial: trialOnly });
+          await activateOrderEntitlementsTx(db, auth.account.id, quote, { pilotFree: pilotFree || false, trial: trialOnly });
           await db.run('INSERT INTO checkout_selections (account_id, selection_json, updated_at) VALUES (?, ?, ?) ON CONFLICT(account_id) DO UPDATE SET selection_json = excluded.selection_json, updated_at = excluded.updated_at', auth.account.id,
             JSON.stringify({products:quote.selectedProducts,ethaFormat:quote.ethaFormat || 'one_page',stage:'confirmed'}),now);
           await writeAccountSelection(db, auth.account.id, { ...(await readAccountSelection(db, auth.account.id) || {}), products: quote.selectedProducts, ethaFormat: quote.ethaFormat || 'one_page', stage: 'confirmed' });
@@ -1531,7 +1534,7 @@ export async function handleApiRequest(req, res, customDb = null) {
       await requireProfessional(db, auth);
       const orderId = orderRetryMatch[1];
       const body = await readJsonBody(req);
-      const retryPilotFree = Boolean(await getPilotAccess(db, auth.user.id));
+      const retryPilotFree = (await getPilotAccess(db, auth.user.id)) || false;
       if (!retryPilotFree && !allowSimulatedActivation()) {
         throw Object.assign(new Error('Para ativar este serviço, conclua a contratação com pagamento na aba Cobrança.'), { status: 402, code: 'PAYMENT_REQUIRED' });
       }
@@ -1606,7 +1609,7 @@ export async function handleApiRequest(req, res, customDb = null) {
         if (trialRunning && !pilotFree) {
           (await db.run("UPDATE entitlements SET status = 'trial', cancelled_at = NULL, updated_at = ? WHERE id = ?", now, ent.id));
         } else {
-          const periodEnd = pilotFree ? PILOT_FREE_UNTIL : stillPaid ? ent.current_period_end : addDaysIso(30);
+          const periodEnd = pilotFree ? pilotFree.until : stillPaid ? ent.current_period_end : addDaysIso(30);
           (await db.run("UPDATE entitlements SET status = 'active', cancelled_at = NULL, current_period_end = ?, updated_at = ? WHERE id = ?", periodEnd, now, ent.id));
         }
         note = `${label} reativado.`;
@@ -3321,7 +3324,7 @@ async function activateOrderEntitlementsTx(db, accountId, quote, { pilotFree = f
     }
     return;
   }
-  const periodEnd = pilotFree ? PILOT_FREE_UNTIL : addDaysIso(30);
+  const periodEnd = pilotFree ? (pilotFree.until || PILOT_FREE_UNTIL) : addDaysIso(30);
   const mode = pilotFree ? 'pilot' : quote.billing === 'permanent' ? 'annual' : 'monthly';
   for (const prod of quote.selectedProducts || []) {
     (await db.run(`
