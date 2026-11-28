@@ -46,6 +46,7 @@ import {
   respondToProfessionalProposal,
 } from './scheduling.mjs';
 import { seedDatabase } from './seed.mjs';
+import { AGENDA_IMPORT_MAX_BYTES, commitAgendaImport, previewAgendaImport, revertAgendaImport } from './agenda-import.mjs';
 import { cancelAccountDeletion, requestAccountDeletion, runRetention } from './retention.mjs';
 import { clientIp, contentDispositionAttachment, enforceRateLimit, rateLimitRulesFor, safeHttpsUrl } from './security.mjs';
 import { handlePilotRoutes } from './pilot.mjs';
@@ -2474,6 +2475,71 @@ export async function handleApiRequest(req, res, customDb = null) {
       });
       out.patientNotification = await notifyPatientOfProposal(db, req, auth.account, out);
       return json(res, out.idempotentReplay ? 200 : 201, out);
+    }
+
+    // Sugestão de um toque (28/11): lembrar o paciente da consulta. Só consultas futuras e ativas;
+    // o envio fica registrado na consulta para a sugestão não voltar.
+    const amboProRemind = pathname.match(/^\/api\/v1\/ambo\/pro\/appointments\/([^/]+)\/remind$/);
+    if (method === 'POST' && amboProRemind) {
+      await requireProfessional(db, auth, { product: 'ambo', write: true });
+      const appt = await db.get(
+        `SELECT a.*, p.full_name AS patient_name, p.email AS patient_email FROM appointments a JOIN operational_patients p ON p.id = a.patient_id
+         WHERE a.id = ? AND a.account_id = ?`, amboProRemind[1], auth.account.id);
+      if (!appt) throw Object.assign(new Error('Consulta não encontrada.'), { status: 404, code: 'APPOINTMENT_NOT_FOUND' });
+      if (!['confirmed', 'reschedule_requested'].includes(appt.status) || Date.parse(appt.start_at) < Date.now()) {
+        throw Object.assign(new Error('Essa consulta não está mais marcada.'), { status: 409, code: 'APPOINTMENT_NOT_ACTIVE' });
+      }
+      const recipient = String(appt.patient_email || '').trim();
+      if (!recipient || /@patient\.enomera\.invalid$/i.test(recipient)) {
+        throw Object.assign(new Error('Esse paciente não tem e-mail cadastrado. Avise por outro meio.'), { status: 422, code: 'NO_EMAIL' });
+      }
+      if (appt.reminder_sent_at) return json(res, 200, { sent: true, alreadySent: true, reminderSentAt: appt.reminder_sent_at });
+      const when = whenLabel(auth.account, appt.start_at);
+      const link = agendamentoUrl(req, auth.account.slug, { aba: 'consultas' });
+      const modality = appt.modality === 'presencial' ? 'presencial' : 'online';
+      let delivery = null;
+      try {
+        delivery = await sendTransactionalEmail(db, {
+          recipient,
+          subject: `Lembrete: consulta com ${auth.account.display_name} · Agendamento`,
+          textBody: `Olá, ${String(appt.patient_name || '').split(' ')[0]}. Lembrete da sua consulta ${modality} com ${auth.account.display_name}: ${when}.${link ? ` Se precisar mudar o horário, peça a remarcação em ${link}` : ''}`,
+          htmlBody: `<p>Olá, ${escHtml(String(appt.patient_name || '').split(' ')[0])}.</p><p>Lembrete da sua consulta ${modality} com <b>${escHtml(auth.account.display_name)}</b>:</p><p><b>${escHtml(when)}</b></p>${link ? `<p><a href="${escHtml(link)}">Precisa mudar o horário? Peça a remarcação no Agendamento</a></p>` : ''}`,
+          purpose: 'ambo_appointment_reminder',
+        });
+      } catch (e) {
+        return json(res, 502, { error: 'O e-mail não saiu agora. Tente de novo em instantes ou avise por outro meio.', code: e.code || 'DELIVERY_FAILED' });
+      }
+      const at = nowIso();
+      await db.run('UPDATE appointments SET reminder_sent_at = ?, updated_at = ? WHERE id = ? AND account_id = ?', at, at, appt.id, auth.account.id);
+      await writeAudit(db, { actorUserId: auth.user.id, actorType: 'professional', accountId: auth.account.id, action: 'appointment.remind', resourceType: 'appointment', resourceId: appt.id });
+      return json(res, 200, { sent: Boolean(delivery?.sentExternally), reminderSentAt: at, recipient });
+    }
+
+    // Importar agenda e pacientes (Doctoralia, outro sistema ou planilha): prévia sem gravar,
+    // gravação só do que a profissional manteve, e desfazer logo depois.
+    if (method === 'POST' && pathname === '/api/v1/ambo/pro/imports/preview') {
+      await requireProfessional(db, auth, { product: 'ambo', write: true });
+      const body = await readJsonBody(req);
+      const b64 = String(body.contentBase64 || '');
+      if (b64.length > Math.ceil(AGENDA_IMPORT_MAX_BYTES * 4 / 3) + 8) {
+        throw Object.assign(new Error('Arquivo maior que 3 MB. Divida a planilha em partes.'), { status: 413, code: 'FILE_TOO_LARGE' });
+      }
+      const preview = await previewAgendaImport(db, { accountId: auth.account.id, fileName: body.fileName, buffer: Buffer.from(b64, 'base64') });
+      return json(res, 200, preview);
+    }
+    if (method === 'POST' && pathname === '/api/v1/ambo/pro/imports/commit') {
+      await requireAgendaOwner(db, auth);
+      const body = await readJsonBody(req);
+      const out = await commitAgendaImport(db, {
+        accountId: auth.account.id, actorUserId: auth.user.id, rows: body.rows,
+        idempotencyKey: req.headers['x-idempotency-key'] || body.idempotencyKey || null,
+      });
+      return json(res, out.replay ? 200 : 201, out);
+    }
+    if (method === 'POST' && pathname === '/api/v1/ambo/pro/imports/revert') {
+      await requireAgendaOwner(db, auth);
+      const body = await readJsonBody(req);
+      return json(res, 200, await revertAgendaImport(db, { accountId: auth.account.id, actorUserId: auth.user.id, patientIds: body.patientIds, appointmentIds: body.appointmentIds }));
     }
 
     // ── MINNE CLINICAL WORKSPACE & IMPORT ENGINE ──────────────────────

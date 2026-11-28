@@ -3,7 +3,7 @@ import { detectFileMagic, nowIso, randomId, sha256Hex } from './crypto.mjs';
 import { runTransaction, writeAudit } from './db.mjs';
 import { savePrivateFile } from './storage.mjs';
 
-async function loadExcelJS() {
+export async function loadExcelJS() {
   const mod = await import('exceljs');
   return mod.default || mod;
 }
@@ -36,7 +36,7 @@ const MAX_OFFICE_UNCOMPRESSED = 60 * 1024 * 1024; // DOCX/XLSX são ZIPs: teto d
 
 // DOCX e XLSX são arquivos ZIP. Antes de entregar ao leitor (que descompacta tudo na memória),
 // soma o tamanho declarado de cada parte; arquivo-bomba é recusado sem ser aberto.
-async function assertOfficeArchiveSafe(buffer) {
+export async function assertOfficeArchiveSafe(buffer) {
   const JSZip = await loadJSZip();
   const zip = await JSZip.loadAsync(buffer);
   let total = 0;
@@ -62,7 +62,7 @@ export const SUPPORTED_IMPORT_FORMATS = {
   zip: { supported: true, label: 'Lote ZIP (até 50 arquivos / 25 MB, pastas ou manifesto.json, proteção contra path traversal e zip bomb)' },
 };
 
-function decodeTextSmart(buffer) {
+export function decodeTextSmart(buffer) {
   const utf8 = buffer.toString('utf8');
   if (utf8.includes('\uFFFD')) {
     return { text: buffer.toString('latin1'), encoding: 'latin1', warning: 'Arquivo decodificado em Latin-1 (ISO-8859-1) por conter caracteres fora de UTF-8.' };
@@ -88,7 +88,7 @@ function parseFlexibleDate(raw) {
   return { iso: null, warning: `Data ambígua ou inválida ("${s.slice(0, 40)}"): mantida como desconhecida para revisão.` };
 }
 
-function parseCsvRows(text) {
+export function parseCsvRows(text) {
   const firstLine = text.split(/\r?\n/)[0] || '';
   const sep = (firstLine.split(';').length > firstLine.split(',').length) ? ';' : ',';
   const rows = [];
