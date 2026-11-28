@@ -128,12 +128,21 @@
     if (interactive) node.setAttribute('data-glass-interactive', '');
   }
   function ensureGlassCss() {
+    // A página já tem o vidro (link próprio ou CSS juntado no build)? Então não injeta de novo:
+    // reinjetar depois das folhas da página faria .lg (position: relative) vencer regras como .nav { position: fixed }.
     if (document.querySelector('link[href*="liquid-glass.css"]')) return;
+    var probe = document.createElement('div');
+    probe.className = 'lg';
+    probe.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none';
+    document.body.appendChild(probe);
+    var has = getComputedStyle(probe).isolation === 'isolate';
+    probe.remove();
+    if (has) return;
     var l = document.createElement('link');
     l.rel = 'stylesheet';
     l.href = cfg.api + '/glass/liquid-glass.css';
-    var mine = document.querySelector('link[href*="eno-suporte.css"]');
-    if (mine) mine.parentNode.insertBefore(l, mine); else document.head.appendChild(l);
+    var first = document.querySelector('link[rel="stylesheet"], style');
+    if (first) first.parentNode.insertBefore(l, first); else document.head.appendChild(l);
   }
 
   function build() {
