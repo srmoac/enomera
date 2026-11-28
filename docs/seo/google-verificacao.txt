@@ -1,0 +1,3 @@
+# Cole na linha de baixo o código do Google Search Console (tag HTML), por exemplo:
+# <meta name="google-site-verification" content="abc123..."> ou só abc123...
+# Linhas que começam com # são ignoradas. Também funciona pela variável GOOGLE_SITE_VERIFICATION na Vercel.

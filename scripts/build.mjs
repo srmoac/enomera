@@ -59,6 +59,43 @@ if (process.env.VERCEL_ENV && process.env.VERCEL_ENV !== 'production') {
   html = html.replace('</head>', '<meta name="robots" content="noindex, nofollow">\n</head>');
   await writeFile('dist/index.html', html, 'utf8');
   await writeFile('dist/robots.txt', 'User-agent: *\nDisallow: /\n', 'utf8');
+} else {
+  // Produção: o que pode ser achado no Google. As áreas logadas, o painel do piloto e os convites
+  // recebem X-Robots-Tag: noindex pelo vercel.json (bloquear aqui impediria o Google de ver o noindex).
+  const SITE = 'https://enomera.vercel.app';
+  await writeFile('dist/robots.txt', [
+    'User-agent: *',
+    'Allow: /',
+    'Disallow: /api/',
+    '',
+    `Sitemap: ${SITE}/sitemap.xml`,
+    'Sitemap: https://enomera-sites.vercel.app/sitemap.xml',
+    '',
+  ].join('\n'), 'utf8');
+  const today = new Date().toISOString().slice(0, 10);
+  const urls = [
+    ['/', '1.0', 'weekly'],
+    ['/site/', '0.9', 'weekly'],
+    ['/agendamento/', '0.9', 'weekly'],
+    ['/agendamento/profissional/', '0.7', 'monthly'],
+    ['/agendamento/paciente/', '0.6', 'monthly'],
+    ['/termos', '0.3', 'yearly'],
+    ['/privacidade', '0.3', 'yearly'],
+  ];
+  const body = urls.map(([u, pr, cf]) => `  <url><loc>${SITE}${u}</loc><lastmod>${today}</lastmod><changefreq>${cf}</changefreq><priority>${pr}</priority></url>`).join('\n');
+  await writeFile('dist/sitemap.xml', `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>\n`, 'utf8');
+}
+
+// Google Search Console: código de verificação (tag HTML) vindo de GOOGLE_SITE_VERIFICATION, ou do
+// arquivo docs/seo/google-verificacao.txt quando a variável não existe. Só a home precisa da tag.
+{
+  let code = String(process.env.GOOGLE_SITE_VERIFICATION || '').trim();
+  if (!code) code = (await readFile('docs/seo/google-verificacao.txt', 'utf8').catch(() => '')).split('\n').map((l) => l.trim()).find((l) => l && !l.startsWith('#')) || '';
+  const m = code.match(/content="([^"]+)"/); if (m) code = m[1];
+  if (/^[\w-]{10,100}$/.test(code)) {
+    const html = await readFile('dist/index.html', 'utf8');
+    await writeFile('dist/index.html', html.replace('</head>', `<meta name="google-site-verification" content="${code}">\n</head>`), 'utf8');
+  }
 }
 
 console.log('Built dist');

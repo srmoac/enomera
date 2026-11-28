@@ -657,6 +657,12 @@ function publicSiteAnswers(answers) {
   return out;
 }
 
+async function isDemoAccount(db, account) {
+  if (account.slug === 'helena-duarte' || Number(account.is_demo_sandbox) === 1) return true;
+  const owner = await db.get('SELECT email, is_demo FROM users WHERE id = ?', account.owner_user_id);
+  return !owner || Number(owner.is_demo) === 1 || /\.invalid$/i.test(String(owner.email || ''));
+}
+
 async function buildPublicSiteDto(db, account) {
   const ents = await getAccountEntitlements(db, account.id);
   const amboActive = Boolean(ents.ambo?.canWrite);
@@ -697,6 +703,8 @@ async function buildPublicSiteDto(db, account) {
     answers: publicSiteAnswers(published?.content?.answers),
     ethaService,
     brand: customDelivered ? 'own' : 'etha',
+    // Busca (SEO): contas de demonstração e de homologação nunca entram no Google.
+    indexable: !(await isDemoAccount(db, account)),
   };
 }
 
@@ -3173,6 +3181,20 @@ export async function handleApiRequest(req, res, customDb = null) {
       }, `slug:${slug}`);
       await writeAudit(db, { actorUserId: auth.user.id, actorType: 'professional', accountId: auth.account.id, action: 'etha.site_address_change', resourceType: 'professional_account', resourceId: auth.account.id, meta: out });
       return json(res, 200, { ok: true, ...out, message: 'Endereço trocado. O endereço anterior continua levando ao seu site.' });
+    }
+
+    // Lista pública dos sites publicados, para o sitemap de enomera-sites.vercel.app (SEO).
+    // Só endereço e data: o resto já é público em cada site. Contas de demonstração ficam de fora.
+    if (method === 'GET' && pathname === '/api/v1/public/sites') {
+      const rows = await db.all(`SELECT a.slug AS slug, v.published_at AS published_at
+        FROM etha_projects p
+        JOIN etha_content_versions v ON v.id = p.published_version_id AND v.stage = 'published'
+        JOIN professional_accounts a ON a.id = p.account_id
+        JOIN users u ON u.id = a.owner_user_id
+        WHERE u.is_demo = 0 AND a.is_demo_sandbox = 0 AND u.email NOT LIKE ?
+        ORDER BY v.published_at DESC LIMIT 5000`, '%.invalid');
+      const sites = rows.filter((r) => r.slug && r.slug !== 'helena-duarte').map((r) => ({ slug: r.slug, publishedAt: r.published_at || null }));
+      return json(res, 200, { sites }, { 'Cache-Control': 'public, max-age=600' });
     }
 
     // Public Staging Site (Consumed by Helena Duarte site!)
