@@ -120,17 +120,36 @@
     link: '<path d="M7 17L17 7M9 7h8v8"/>'
   };
 
+  // Vidro do ecossistema (public/glass/liquid-glass.css): o chat usa o mesmo material .lg da home.
+  var TINT = (script && script.getAttribute('data-tint')) || 'enomera';
+  function glass(node, kind, interactive) {
+    node.setAttribute('data-glass', kind);
+    node.setAttribute('data-glass-tint', TINT);
+    if (interactive) node.setAttribute('data-glass-interactive', '');
+  }
+  function ensureGlassCss() {
+    if (document.querySelector('link[href*="liquid-glass.css"]')) return;
+    var l = document.createElement('link');
+    l.rel = 'stylesheet';
+    l.href = cfg.api + '/glass/liquid-glass.css';
+    var mine = document.querySelector('link[href*="eno-suporte.css"]');
+    if (mine) mine.parentNode.insertBefore(l, mine); else document.head.appendChild(l);
+  }
+
   function build() {
+    ensureGlassCss();
     root = el('div', 'eno-sup');
     root.setAttribute('data-state', 'closed');
-    launcher = el('button', 'eno-sup-launch', icon(IC.chat, 22) + '<span>Ajuda</span>');
+    launcher = el('button', 'eno-sup-launch lg', icon(IC.chat, 22) + '<span>Ajuda</span>');
     launcher.type = 'button';
+    glass(launcher, 'clear', true);
     launcher.setAttribute('aria-expanded', 'false');
     launcher.setAttribute('aria-controls', 'eno-sup-panel');
     launcher.addEventListener('click', function () { toggle(); });
     if (cfg.oculto) launcher.hidden = true;
 
-    panel = el('section', 'eno-sup-panel');
+    panel = el('section', 'eno-sup-panel lg');
+    glass(panel, 'regular');
     panel.id = 'eno-sup-panel';
     panel.setAttribute('role', 'dialog');
     panel.setAttribute('aria-modal', 'false');
@@ -139,7 +158,7 @@
     panel.innerHTML =
       '<div class="eno-sup-grab" aria-hidden="true"></div>' +
       '<header class="eno-sup-head">' +
-        '<span class="eno-sup-avatar" aria-hidden="true">' + icon(IC.chat, 18) + '</span>' +
+        '<span class="eno-sup-avatar" aria-hidden="true"><img src="/assets/brand.svg" width="22" height="19" alt=""></span>' +
         '<div><h2 id="eno-sup-title">Ajuda da Enomera</h2><p>Respostas na hora. Se precisar, uma pessoa continua.</p></div>' +
         '<button type="button" class="eno-sup-x" aria-label="Fechar a ajuda">' + icon(IC.close, 18) + '</button>' +
       '</header>' +
