@@ -380,6 +380,15 @@ export async function getDb(customPath) {
     }
 
     await applyMigrations(db);
+    // Limpeza única das contas de teste do piloto (28/11/2026), só em produção.
+    if (pgUrl) {
+      try {
+        const { runTestCleanupOnce } = await import('./limpeza-testes.mjs');
+        await runTestCleanupOnce(db);
+      } catch (err) {
+        console.error('[limpeza] falhou:', err?.message || err);
+      }
+    }
     _db = db;
     return db;
   })();
