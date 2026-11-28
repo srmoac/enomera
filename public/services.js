@@ -3,7 +3,7 @@ import { PRODUCT_ORIGINS } from './eno-origins.js';
 const withSlash = url => (url.endsWith('/') ? url : `${url}/`);
 const injected = typeof window === 'undefined' ? {} : window;
 const helenaBase = withSlash(PRODUCT_ORIGINS.helena);
-const enomeraBase = typeof location === 'undefined' ? 'https://enomera.vercel.app/' : `${location.origin}/`;
+const enomeraBase = typeof location === 'undefined' ? 'https://enomera.com.br/' : `${location.origin}/`;
 
 export const ecosystem = {
   enomera: enomeraBase,

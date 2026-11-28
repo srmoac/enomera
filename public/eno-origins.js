@@ -10,7 +10,7 @@ const INTERNAL_HOST = /^(ambo|minne|etha)-enomera[a-z0-9-]*\.vercel\.app$|^(lotu
 // Site de demonstração (Helena Duarte, dados fictícios): é o site de uma profissional, fora da Enomera.
 const HELENA_DEFAULT = 'https://helenaduartepsi.vercel.app';
 // Sites publicados pelo Enomera Site: <base>/<slug>. Mesmo padrão do Enomera Site (ENOMERA_SITES_URL).
-const SITES_DEFAULT = 'https://enomera-sites.vercel.app';
+const SITES_DEFAULT = 'https://sites.enomera.com.br';
 
 const clean = (u) => String(u || '').trim().replace(/\/+$/, '');
 function usable(url) {
@@ -26,7 +26,7 @@ export function productOrigin(key, loc = globalThis.location, injected = globalT
   if (local) return `http://127.0.0.1:${LOCAL_PORTS[key]}`;
   if (key === 'helena') return HELENA_DEFAULT;
   if (key === 'sites') return SITES_DEFAULT;
-  return `${loc ? loc.origin : 'https://enomera.vercel.app'}/${PATHS[key]}`;
+  return `${loc ? loc.origin : 'https://enomera.com.br'}/${PATHS[key]}`;
 }
 
 export const PRODUCT_ORIGINS = {

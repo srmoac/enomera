@@ -76,6 +76,8 @@ function isAllowedOrigin(origin) {
       process.env.ENOMERA_ETHA_URL, process.env.ENOMERA_HELENA_URL, process.env.ENOMERA_PUBLIC_URL]
       .filter(Boolean).flatMap((s) => s.split(',')).map((s) => s.trim().replace(/\/+$/, '')).filter(Boolean);
     if (extra.includes(origin)) return true;
+    // Domínio próprio da Enomera (28/11): enomera.com.br e os subdomínios dela, sempre em https.
+    if (u.protocol === 'https:' && /^(?:(?:www|painel|dev|sites)\.)?enomera\.com\.br$/.test(u.hostname) && !u.port) return true;
     // Produtos no mesmo domínio público, por caminho (/agendamento, /consultorio, /site).
     const pub = String(process.env.ENOMERA_PUBLIC_URL || '').trim().replace(/\/+$/, '');
     if (pub && ['agendamento', 'consultorio', 'site'].some((seg) => origin === `${pub}/${seg}`)) return true;
@@ -86,9 +88,9 @@ function isAllowedOrigin(origin) {
 // Endereço público único da Enomera (VC-7/VC-9): links de e-mail e de convite sempre saem sobre o
 // domínio público (ENOMERA_PUBLIC_URL). Os projetos internos (destino dos rewrites) nunca aparecem.
 // Sem a variável (desenvolvimento local), vale a origem da própria requisição.
-const CANONICAL_PUBLIC_URL = 'https://enomera.vercel.app';
+const CANONICAL_PUBLIC_URL = 'https://enomera.com.br';
 // Endereços que nunca podem aparecer em link: projetos internos dos produtos e o antigo ambiente de entrega.
-const INTERNAL_HOST_RE = /^(ambo|minne|etha)-enomera|^(agendamento|consultorio)-enomera|^enomera-(entrega|painel)/i;
+const INTERNAL_HOST_RE = /^(ambo|minne|etha)-enomera|^(agendamento|consultorio)-enomera|^enomera-(entrega|painel)|^painel\.enomera\.com\.br$/i;
 
 export function publicBaseUrl(req = null) {
   const fixed = String(process.env.ENOMERA_PUBLIC_URL || '').trim().replace(/\/+$/, '');

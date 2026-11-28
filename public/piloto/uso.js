@@ -11,7 +11,7 @@
  */
 (function () {
   // Endereços da Enomera que podem receber a chave do participante (nunca um *.vercel.app qualquer).
-  var ENO_HOSTS = /^(?:localhost|127\.0\.0\.1|(?:enomera(?:-painel|-desenvolvimento)?|enomera-sites(?:-desenvolvimento)?|(?:ambo|minne|etha)-enomera(?:-desenvolvimento)?|etha-enomera-sites(?:-desenvolvimento)?|(?:agendamento|consultorio)-enomera-desenvolvimento|helenaduartepsi)\.vercel\.app)$/;
+  var ENO_HOSTS = /^(?:localhost|127\.0\.0\.1|(?:enomera(?:-painel|-desenvolvimento)?|enomera-sites(?:-desenvolvimento)?|(?:ambo|minne|etha)-enomera(?:-desenvolvimento)?|etha-enomera-sites(?:-desenvolvimento)?|(?:agendamento|consultorio)-enomera-desenvolvimento|helenaduartepsi)\.vercel\.app|(?:www\.|painel\.|dev\.|sites\.)?enomera\.com\.br)$/;
   'use strict';
   if (window.__enomeraUso) return;
   var script = document.currentScript || document.querySelector('script[src*="/piloto/uso.js"]');

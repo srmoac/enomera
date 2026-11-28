@@ -284,7 +284,7 @@ test('Passagem para produto no mesmo domínio (origem + caminho) é trocada pela
 test('"Ver site publicado" no portal leva ao endereço dos sites publicados, não à vitrine de demonstração', async () => {
   const { productOrigin } = await import('../public/eno-origins.js');
   const prod = { hostname: 'enomera.vercel.app', origin: 'https://enomera.vercel.app' };
-  assert.equal(productOrigin('sites', prod, {}), 'https://enomera-sites.vercel.app');
+  assert.equal(productOrigin('sites', prod, {}), 'https://sites.enomera.com.br');
   assert.equal(productOrigin('sites', prod, { __ENOMERA_SITES_URL: 'https://sites.exemplo.com.br/' }), 'https://sites.exemplo.com.br');
   // Em máquina local, mesma porta que o Enomera Site usa para os sites (3005).
   assert.equal(productOrigin('sites', { hostname: '127.0.0.1', origin: 'http://127.0.0.1:4319' }, {}), 'http://127.0.0.1:3005');

@@ -62,14 +62,14 @@ if (process.env.VERCEL_ENV && process.env.VERCEL_ENV !== 'production') {
 } else {
   // Produção: o que pode ser achado no Google. As áreas logadas, o painel do piloto e os convites
   // recebem X-Robots-Tag: noindex pelo vercel.json (bloquear aqui impediria o Google de ver o noindex).
-  const SITE = 'https://enomera.vercel.app';
+  const SITE = 'https://enomera.com.br';
   await writeFile('dist/robots.txt', [
     'User-agent: *',
     'Allow: /',
     'Disallow: /api/',
     '',
     `Sitemap: ${SITE}/sitemap.xml`,
-    'Sitemap: https://enomera-sites.vercel.app/sitemap.xml',
+    'Sitemap: https://sites.enomera.com.br/sitemap.xml',
     '',
   ].join('\n'), 'utf8');
   const today = new Date().toISOString().slice(0, 10);

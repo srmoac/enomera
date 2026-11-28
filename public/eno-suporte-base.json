@@ -93,7 +93,7 @@
       "titulo": "Endereço do site e domínio próprio",
       "perguntas": ["qual o endereco do meu site", "posso usar meu dominio", "dominio proprio", "ponto com br", "mudar o endereco do site"],
       "palavras": ["endereco", "dominio", "url", "link", "com", "br", "mudar"],
-      "resposta": "O seu site fica em enomera-sites.vercel.app/seu-nome, e você escolhe o final do endereço ao publicar.\n\nDomínio próprio (como seunome.com.br) ainda não está disponível por aqui. Se isso é importante para você, fale com a gente que a gente vê o seu caso."
+      "resposta": "O seu site fica em sites.enomera.com.br/seu-nome, e você escolhe o final do endereço ao publicar.\n\nDomínio próprio (como seunome.com.br) ainda não está disponível por aqui. Se isso é importante para você, fale com a gente que a gente vê o seu caso."
     },
     {
       "id": "agendamento-como",

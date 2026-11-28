@@ -66,10 +66,10 @@ function page(title, body, slug) {
 <meta name="theme-color" content="#F0F4FE">
 <title>${title} | Enomera</title>
 <meta name="description" content="${title} da Enomera: como cuidamos da sua conta, dos seus dados e dos dados dos seus pacientes.">
-<link rel="canonical" href="https://enomera.vercel.app/${slug}">
+<link rel="canonical" href="https://enomera.com.br/${slug}">
 <meta property="og:type" content="website"><meta property="og:site_name" content="Enomera"><meta property="og:locale" content="pt_BR">
-<meta property="og:title" content="${title} | Enomera"><meta property="og:url" content="https://enomera.vercel.app/${slug}">
-<meta property="og:image" content="https://enomera.vercel.app/assets/og-enomera.jpg">
+<meta property="og:title" content="${title} | Enomera"><meta property="og:url" content="https://enomera.com.br/${slug}">
+<meta property="og:image" content="https://enomera.com.br/assets/og-enomera.jpg">
 <link rel="icon" type="image/svg+xml" href="/assets/brand.svg"><link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
