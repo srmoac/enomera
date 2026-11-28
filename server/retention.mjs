@@ -57,7 +57,7 @@ export async function purgeAccount(db, accountId) {
 }
 
 export async function runRetention(db) {
-  const out = { accountsPurged: 0, accountErrors: 0, accessLogs: 0, tokens: 0, sessions: 0, outbox: 0 };
+  const out = { accountsPurged: 0, accountErrors: 0, accessLogs: 0, tokens: 0, sessions: 0, outbox: 0, support: 0 };
   const due = await db.all('SELECT id FROM professional_accounts WHERE deletion_scheduled_for IS NOT NULL AND deletion_scheduled_for <= ? AND is_demo_sandbox = 0', nowIso());
   for (const row of due) {
     try { if (await purgeAccount(db, row.id)) out.accountsPurged += 1; } catch (err) {
@@ -71,5 +71,7 @@ export async function runRetention(db) {
   out.sessions = count(await db.run('DELETE FROM sessions WHERE expires_at < ?', daysAgoIso(ACCESS_LOG_RETENTION_DAYS)));
   out.tokens = count(await db.run('DELETE FROM verification_tokens WHERE expires_at < ?', daysAgoIso(EXPIRED_TOKEN_RETENTION_DAYS)));
   out.outbox = count(await db.run('DELETE FROM dev_outbox_messages WHERE created_at < ?', daysAgoIso(OUTBOX_RETENTION_DAYS)));
+  // Chat de ajuda: perguntas sem resposta e chamados ficam 90 dias.
+  out.support = count(await db.run('DELETE FROM support_questions WHERE created_at < ?', daysAgoIso(90)).catch(() => ({ changes: 0 })));
   return out;
 }

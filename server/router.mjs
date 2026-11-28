@@ -48,6 +48,7 @@ import {
 import { seedDatabase } from './seed.mjs';
 import { AGENDA_IMPORT_MAX_BYTES, commitAgendaImport, previewAgendaImport, revertAgendaImport } from './agenda-import.mjs';
 import { cancelAccountDeletion, requestAccountDeletion, runRetention } from './retention.mjs';
+import { createTicket, listSupport, recordUnanswered } from './support.mjs';
 import { clientIp, contentDispositionAttachment, enforceRateLimit, rateLimitRulesFor, safeHttpsUrl } from './security.mjs';
 import { handlePilotRoutes } from './pilot.mjs';
 import { getPilotAccess, pilotFreeContract, pilotFreeQuote, PILOT_FREE_UNTIL } from './pilot-free.mjs';
@@ -2985,6 +2986,19 @@ export async function handleApiRequest(req, res, customDb = null) {
         isFull: activeCount >= settings.capacity_limit,
         updatedAt: settings.updated_at,
       });
+    }
+
+    // Chat de ajuda (28/11): perguntas sem resposta e chamados para uma pessoa.
+    if (method === 'POST' && pathname === '/api/v1/suporte/sem-resposta') {
+      return json(res, 201, await recordUnanswered(db, await readJsonBody(req)));
+    }
+    if (method === 'POST' && pathname === '/api/v1/suporte/chamados') {
+      const out = await createTicket(db, await readJsonBody(req));
+      return json(res, 201, { id: out.id, message: 'Recebemos a sua mensagem. A gente responde no seu e-mail.' });
+    }
+    if (method === 'GET' && pathname === '/api/v1/suporte/perguntas') {
+      requireOperator(auth);
+      return json(res, 200, await listSupport(db, { days: url.searchParams.get('dias') }));
     }
 
     if (method === 'POST' && pathname === '/api/v1/etha/waitlist') {

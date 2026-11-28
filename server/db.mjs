@@ -9,6 +9,7 @@ import * as migration009 from './migrations/009_auditoria_2611.mjs';
 import * as migration010 from './migrations/010_endereco_do_site.mjs';
 import * as migration011 from './migrations/011_integracao_2711.mjs';
 import * as migration012 from './migrations/012_sugestoes_importacao_2811.mjs';
+import * as migration013 from './migrations/013_suporte_2811.mjs';
 import { PILOT_SEED_INVITES_EXPIRE_AT, applyPilotMigration, applyPilotSelfTestMigration, applyPilotFriendInvitesMigration } from './pilot.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -315,6 +316,12 @@ async function applyMigrations(db) {
       await migration012.apply(tx);
       await tx.run('INSERT INTO schema_migrations (version, description, applied_at) VALUES (?, ?, ?) ON CONFLICT(version) DO NOTHING',
         migration012.version, migration012.description, nowIso());
+    }
+
+    if (!applied.has(migration013.version)) {
+      await migration013.apply(tx);
+      await tx.run('INSERT INTO schema_migrations (version, description, applied_at) VALUES (?, ?, ?) ON CONFLICT(version) DO NOTHING',
+        migration013.version, migration013.description, nowIso());
     }
 
     await tx.run(

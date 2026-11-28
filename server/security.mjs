@@ -106,6 +106,16 @@ export function rateLimitRulesFor(method, pathname, ip, body = {}) {
   if (pathname === '/api/v1/pilot/events') {
     return [{ key: `pilotev:ip:${ip}`, limit: 600, windowSec: 10 * MIN }];
   }
+  // Chat de ajuda: chamados enviam e-mail à Enomera; perguntas sem resposta só gravam texto.
+  if (pathname === '/api/v1/suporte/chamados') {
+    return [
+      { key: `supt:ip:${ip}`, limit: 5, windowSec: HOUR, message: 'Você já mandou algumas mensagens agora. A gente responde por e-mail; se for urgente, use o WhatsApp.' },
+      contact && { key: `supt:c:${contact}`, limit: 5, windowSec: DAY, message: 'Já recebemos as suas mensagens de hoje. A gente responde por e-mail.' },
+    ].filter(Boolean);
+  }
+  if (pathname === '/api/v1/suporte/sem-resposta') {
+    return [{ key: `supq:ip:${ip}`, limit: 30, windowSec: HOUR }];
+  }
   if (pathname === '/api/v1/etha/waitlist' || pathname === '/api/v1/commercial/pilot/apply') {
     return [{ key: `form:ip:${ip}`, limit: 10, windowSec: HOUR }];
   }

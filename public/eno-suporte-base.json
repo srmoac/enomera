@@ -1,0 +1,159 @@
+{
+  "versao": "2026-11-28",
+  "contato": {
+    "whatsapp": "5513912352841",
+    "whatsappRotulo": "(13) 91235-2841",
+    "email": "contatoenomera@gmail.com"
+  },
+  "sugestoes": ["precos", "teste-gratis", "como-comecar", "seguranca-dados", "paciente-agendar"],
+  "respostas": [
+    {
+      "id": "crise",
+      "prioridade": true,
+      "titulo": "Preciso de ajuda agora",
+      "perguntas": ["estou em crise", "quero me matar", "pensando em suicidio", "emergencia", "nao aguento mais", "me machucar"],
+      "palavras": ["suicidio", "suicidar", "matar", "crise", "emergencia", "machucar", "morrer", "socorro", "desesperado", "desesperada"],
+      "resposta": "Se você está passando por um momento difícil agora, você não precisa enfrentar isso sozinho. Ligue 188 (CVV), que atende 24 horas, de graça, ou converse pelo chat em cvv.org.br. Em risco imediato, ligue 192 (SAMU) ou vá a um pronto-socorro.\n\nA Enomera é uma ferramenta para profissionais e não oferece atendimento. Se você já faz acompanhamento, procure também o seu profissional.",
+      "links": [{ "rotulo": "Ligar para o CVV (188)", "href": "tel:188" }, { "rotulo": "Chat do CVV", "href": "https://cvv.org.br" }],
+      "semHumano": true
+    },
+    {
+      "id": "o-que-e",
+      "titulo": "O que é a Enomera",
+      "perguntas": ["o que e a enomera", "o que voces fazem", "para que serve", "como funciona a enomera", "quem pode usar"],
+      "palavras": ["enomera", "serve", "fazem", "plataforma", "psicologo", "psicologa", "psiquiatra", "profissional", "independente"],
+      "resposta": "A Enomera reúne ferramentas para psicólogos e psiquiatras que atendem por conta própria:\n\n• Enomera Site: o seu site profissional, feito a partir das suas respostas.\n• Enomera Agendamento: o paciente pede um horário e acompanha a consulta numa área própria.\n• Enomera Consultório: agenda, pacientes e registros organizados.\n\nVocê pode usar um, dois ou os três. O atendimento é remoto, para todo o Brasil.",
+      "links": [{ "rotulo": "Conhecer os produtos", "href": "/#produtos" }]
+    },
+    {
+      "id": "precos",
+      "titulo": "Quanto custa",
+      "perguntas": ["quanto custa", "qual o preco", "valores", "quanto e a mensalidade", "tem plano anual", "preco dos combos", "quanto pago"],
+      "palavras": ["custa", "preco", "precos", "valor", "valores", "mensalidade", "plano", "planos", "anual", "mensal", "combo", "combos", "pagar", "pago", "barato", "caro"],
+      "resposta": "Preços por mês:\n\n• Agendamento: R$ 39\n• Site: R$ 49\n• Consultório: R$ 59\n• Agendamento + Site: R$ 69\n• Agendamento + Consultório: R$ 79\n• Site + Consultório: R$ 89\n• Os três juntos: R$ 99\n\nNo plano anual você paga 10 meses e usa 12. Antes de pagar qualquer coisa, você usa tudo por 2 semanas grátis, sem cartão.",
+      "links": [{ "rotulo": "Montar a minha combinação", "href": "/#combinacao" }]
+    },
+    {
+      "id": "teste-gratis",
+      "titulo": "Como funciona o teste grátis",
+      "perguntas": ["tem teste gratis", "como funciona o teste", "posso testar", "precisa de cartao", "periodo gratis", "e gratis", "trial"],
+      "palavras": ["teste", "testar", "gratis", "gratuito", "gratuita", "cartao", "experimentar", "trial", "semanas", "periodo", "feedback"],
+      "resposta": "Você escolhe os serviços, cria a sua conta e usa tudo por 2 semanas, sem cadastrar cartão e sem compromisso. Em troca, só pedimos o seu feedback: durante o teste a gente conversa com você sobre o que ajudou e o que atrapalhou.\n\nNo fim, você escolhe o plano mensal ou anual, ou exporta os seus dados e sai.",
+      "links": [{ "rotulo": "Experimentar grátis", "href": "/#combinacao" }]
+    },
+    {
+      "id": "como-comecar",
+      "titulo": "Como começar",
+      "perguntas": ["como eu comeco", "como criar conta", "quero me cadastrar", "como assinar", "como contratar", "fazer cadastro"],
+      "palavras": ["comecar", "comeco", "criar", "conta", "cadastro", "cadastrar", "assinar", "contratar", "inscrever", "registrar"],
+      "resposta": "1. Na página inicial, escolha os serviços em \"Escolha seus serviços\".\n2. Toque em \"Continuar para conta e contratação\" e crie a sua conta com nome e e-mail. Chega um código no seu e-mail para confirmar.\n3. Pronto: o portal mostra os seus serviços e um passo a passo para configurar cada um.",
+      "links": [{ "rotulo": "Escolher serviços", "href": "/#combinacao" }]
+    },
+    {
+      "id": "pagamento",
+      "titulo": "Como pago",
+      "perguntas": ["como pago", "formas de pagamento", "aceita pix", "aceita boleto", "pagar com cartao", "quando sou cobrado", "nota fiscal"],
+      "palavras": ["pagamento", "pagar", "pix", "boleto", "cartao", "cobrado", "cobranca", "fatura", "asaas", "credito", "nota"],
+      "resposta": "A primeira cobrança só acontece depois das 2 semanas grátis. O pagamento é por Pix, boleto ou cartão, numa página segura do Asaas (a Enomera não vê nem guarda os dados do seu cartão).\n\nAinda não abrimos os pagamentos: por enquanto nada é cobrado, e avisamos por e-mail antes de abrir."
+    },
+    {
+      "id": "cancelar",
+      "titulo": "Cancelar ou excluir a conta",
+      "perguntas": ["como cancelo", "quero cancelar", "excluir minha conta", "apagar meus dados", "tem fidelidade", "multa para cancelar"],
+      "palavras": ["cancelar", "cancelo", "cancelamento", "excluir", "apagar", "deletar", "sair", "fidelidade", "multa", "encerrar"],
+      "resposta": "Não tem fidelidade nem multa. No portal, em Conta, você pode cancelar só um serviço ou excluir a conta inteira quando quiser.\n\nOs serviços param na hora. Os dados ficam guardados por 30 dias, para você exportar tudo ou desistir da exclusão, e depois são apagados de vez. Se você precisa guardar prontuários por obrigação profissional, exporte antes.",
+      "links": [{ "rotulo": "Abrir o portal", "href": "/portal" }]
+    },
+    {
+      "id": "exportar",
+      "titulo": "Exportar os meus dados",
+      "perguntas": ["como exporto meus dados", "baixar meus dados", "levar meus dados", "backup dos pacientes"],
+      "palavras": ["exportar", "exporto", "baixar", "download", "backup", "copia", "levar"],
+      "resposta": "Você pode exportar os seus dados a qualquer momento pelo portal, em Conta, no botão \"Exportar meus dados\". Os dados são seus: dá para levar para outro sistema ou guardar uma cópia.",
+      "links": [{ "rotulo": "Abrir o portal", "href": "/portal" }]
+    },
+    {
+      "id": "seguranca-dados",
+      "titulo": "Os dados dos pacientes estão seguros?",
+      "perguntas": ["meus dados estao seguros", "e seguro", "lgpd", "quem ve os prontuarios", "sigilo", "privacidade dos pacientes"],
+      "palavras": ["seguro", "seguranca", "lgpd", "sigilo", "privacidade", "prontuario", "prontuarios", "dados", "proteger", "criptografia", "cifrado", "vazamento"],
+      "resposta": "Os dados são usados só para o serviço funcionar, nunca são vendidos, e cada profissional vê só a própria conta. A conexão é sempre protegida e você pode exportar ou apagar tudo.\n\nNo Consultório você pode ligar o cofre: os registros passam a ser cifrados no seu próprio aparelho, com uma frase que só você sabe. Nem a Enomera consegue ler. Atenção: sem a frase não há como recuperar.",
+      "links": [{ "rotulo": "Ler a Política de Privacidade", "href": "/privacidade" }]
+    },
+    {
+      "id": "site-como",
+      "titulo": "Como funciona o Enomera Site",
+      "perguntas": ["como funciona o site", "como fazem meu site", "preciso saber programar", "posso editar meu site", "site sob medida", "quanto tempo para o site ficar pronto"],
+      "palavras": ["site", "pagina", "landing", "editar", "programar", "modelo", "sob", "medida", "identidade", "pronto", "prazo"],
+      "resposta": "Você não precisa mexer em nada técnico. Existem dois jeitos:\n\n• Essencial (R$ 49/mês): você responde algumas perguntas e o site fica pronto na hora, com as suas informações.\n• Sob medida: você manda o seu material e a gente faz o site do seu jeito em até 2 dias úteis. Tem uma implantação de R$ 790 (em até 3x) mais R$ 49/mês.\n\nO site já vem ligado ao Agendamento, para o paciente pedir horário direto.",
+      "links": [{ "rotulo": "Conhecer o Enomera Site", "href": "/site/" }, { "rotulo": "Ver um site de exemplo", "href": "https://helenaduartepsi.vercel.app" }]
+    },
+    {
+      "id": "site-endereco",
+      "titulo": "Endereço do site e domínio próprio",
+      "perguntas": ["qual o endereco do meu site", "posso usar meu dominio", "dominio proprio", "ponto com br", "mudar o endereco do site"],
+      "palavras": ["endereco", "dominio", "url", "link", "com", "br", "mudar"],
+      "resposta": "O seu site fica em enomera-sites.vercel.app/seu-nome, e você escolhe o final do endereço ao publicar.\n\nDomínio próprio (como seunome.com.br) ainda não está disponível por aqui. Se isso é importante para você, fale com a gente que a gente vê o seu caso."
+    },
+    {
+      "id": "agendamento-como",
+      "titulo": "Como funciona o Agendamento",
+      "perguntas": ["como funciona o agendamento", "como o paciente marca", "confirmar consulta", "remarcar consulta", "lembrete para o paciente", "agenda online"],
+      "palavras": ["agendamento", "agendar", "agenda", "marcar", "horario", "horarios", "consulta", "consultas", "remarcar", "confirmar", "pedido", "pedidos", "lembrete"],
+      "resposta": "O paciente escolhe um horário livre na sua página e manda um pedido. Você recebe o pedido e confirma, recusa com uma mensagem ou propõe outro horário.\n\nDepois de confirmado, o paciente acompanha tudo em \"Minhas consultas\", entrando com um código enviado para o e-mail dele, sem precisar de senha. Remarcações e cancelamentos também passam por lá.",
+      "links": [{ "rotulo": "Conhecer o Agendamento", "href": "/agendamento/" }]
+    },
+    {
+      "id": "consultorio-como",
+      "titulo": "Como funciona o Consultório",
+      "perguntas": ["como funciona o consultorio", "prontuario eletronico", "registrar sessao", "evolucao do paciente", "anotacoes das sessoes"],
+      "palavras": ["consultorio", "prontuario", "registro", "registros", "evolucao", "sessao", "sessoes", "anotacao", "anotacoes", "pacientes", "gestao"],
+      "resposta": "O Consultório organiza o seu dia: agenda, lista de pacientes e os registros de cada atendimento (evoluções, anotações e anexos), tudo num lugar só. Ele conversa com o Agendamento, então as consultas confirmadas já aparecem lá.\n\nSe quiser, ligue o cofre para cifrar os registros no seu aparelho.",
+      "links": [{ "rotulo": "Conhecer o Consultório", "href": "/consultorio/" }]
+    },
+    {
+      "id": "codigo-email",
+      "titulo": "Não recebi o código",
+      "perguntas": ["nao recebi o codigo", "codigo nao chegou", "email nao chega", "codigo invalido", "codigo expirou"],
+      "palavras": ["codigo", "chegou", "chega", "recebi", "recebo", "spam", "lixo", "expirou", "invalido", "verificacao"],
+      "resposta": "O código costuma chegar em menos de 1 minuto, enviado por \"Enomera\".\n\n1. Olhe a caixa de spam e a aba Promoções.\n2. Confira se o e-mail foi digitado certo.\n3. Peça um novo código na mesma tela. Cada código vale por pouco tempo e só o último funciona.\n\nSe ainda assim não chegar, fale com a gente."
+    },
+    {
+      "id": "senha",
+      "titulo": "Esqueci a senha ou não consigo entrar",
+      "perguntas": ["esqueci a senha", "nao consigo entrar", "trocar senha", "recuperar acesso", "login nao funciona"],
+      "palavras": ["senha", "entrar", "login", "acesso", "acessar", "esqueci", "recuperar", "trocar", "bloqueado", "bloqueada"],
+      "resposta": "Na tela de entrar, você pode entrar só com um código enviado ao seu e-mail, sem senha. Se preferir trocar a senha, use a opção de recuperar a senha na mesma tela.\n\nDepois de muitas tentativas erradas, a entrada pausa por alguns minutos por segurança. É só esperar e tentar de novo.",
+      "links": [{ "rotulo": "Entrar", "href": "/portal" }]
+    },
+    {
+      "id": "paciente-agendar",
+      "titulo": "Sou paciente e quero marcar ou desmarcar",
+      "perguntas": ["sou paciente", "quero marcar uma consulta", "desmarcar minha consulta", "cancelar minha consulta", "procuro um psicologo", "ver minhas consultas"],
+      "palavras": ["paciente", "minha", "minhas", "desmarcar", "procuro", "terapia", "terapeuta", "atendimento"],
+      "resposta": "A Enomera é a ferramenta que o seu profissional usa, mas quem cuida da agenda é ele.\n\n• Para marcar: use a página de agendamento do profissional (o link fica no site dele).\n• Para ver, remarcar ou cancelar: entre em \"Minhas consultas\" na página do profissional, com o código que chega no seu e-mail.\n\nA Enomera não indica profissionais nem tem acesso às suas sessões."
+    },
+    {
+      "id": "convite-piloto",
+      "titulo": "Recebi um convite",
+      "perguntas": ["recebi um convite", "link de convite", "sou convidado", "convite nao abre"],
+      "palavras": ["convite", "convidado", "convidada", "piloto", "exclusivo"],
+      "resposta": "Que bom! Abra o link do convite no celular ou no computador e siga os passos: ele já vem com os seus serviços escolhidos e as condições combinadas. Se o link não abrir ou disser que expirou, fale com a gente que mandamos outro."
+    },
+    {
+      "id": "celular",
+      "titulo": "Funciona no celular?",
+      "perguntas": ["funciona no celular", "tem aplicativo", "app para iphone", "android"],
+      "palavras": ["celular", "aplicativo", "app", "iphone", "android", "tablet", "baixar"],
+      "resposta": "Funciona no navegador do celular, do tablet e do computador, sem precisar baixar nada. No celular, você pode pôr o atalho na tela inicial pelo menu do navegador (\"Adicionar à tela de início\")."
+    },
+    {
+      "id": "falar-pessoa",
+      "titulo": "Falar com uma pessoa",
+      "perguntas": ["falar com uma pessoa", "falar com atendente", "quero falar com alguem", "suporte humano", "contato", "telefone", "whatsapp", "email de contato"],
+      "palavras": ["pessoa", "atendente", "humano", "alguem", "contato", "telefone", "whatsapp", "zap", "email", "suporte", "falar"],
+      "resposta": "Claro. Você pode chamar no WhatsApp ou deixar uma mensagem por e-mail aqui mesmo, que a gente responde.",
+      "humano": true
+    }
+  ]
+}
