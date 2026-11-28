@@ -51,6 +51,7 @@ import { cancelAccountDeletion, requestAccountDeletion, runRetention } from './r
 import { createTicket, listSupport, recordUnanswered } from './support.mjs';
 import { clientIp, contentDispositionAttachment, enforceRateLimit, rateLimitRulesFor, safeHttpsUrl } from './security.mjs';
 import { handlePilotRoutes } from './pilot.mjs';
+import { assertSealedAttachment, assertSealedBlocks, assertServerImportAllowed, listImportOriginals, purgeImportResidue, sealAttachment, sealVersion } from './vault.mjs';
 import { getPilotAccess, pilotFreeContract, pilotFreeQuote, PILOT_FREE_UNTIL } from './pilot-free.mjs';
 import {
   getStorageBackendStatus,
@@ -2722,6 +2723,7 @@ export async function handleApiRequest(req, res, customDb = null) {
       }
 
       const blocks = Array.isArray(body.blocks) ? body.blocks : [];
+      await assertSealedBlocks(db, auth.account.id, blocks);
       const now = nowIso();
       let noteId = body.noteId || null;
 
@@ -2764,6 +2766,7 @@ export async function handleApiRequest(req, res, customDb = null) {
         if (!note) throw Object.assign(new Error('Registro não encontrado.'), { status: 404, code: 'NOTE_NOT_FOUND' });
         const draft = (await db.get('SELECT * FROM clinical_drafts WHERE note_id = ?', noteId));
         const blocks = Array.isArray(body.blocks) ? body.blocks : (draft ? JSON.parse(draft.blocks_json) : []);
+        await assertSealedBlocks(db, auth.account.id, blocks);
         const lastVer = Number(((await db.get('SELECT MAX(version_number) as m FROM clinical_note_versions WHERE note_id = ?', noteId)))?.m || 0) || 0;
         const nextVer = lastVer + 1;
         const verId = randomId('ver');
@@ -2789,6 +2792,7 @@ export async function handleApiRequest(req, res, customDb = null) {
       if (!note) throw Object.assign(new Error('Registro clínico não encontrado.'), { status: 404, code: 'NOTE_NOT_FOUND' });
       const body = await readJsonBody(req);
       const buf = Buffer.from(String(body.contentBase64 || ''), 'base64');
+      await assertSealedAttachment(db, auth.account.id, String(body.originalName || ''), buf);
       const saved = await savePrivateFile(db, {
         accountId: auth.account.id,
         ownerUserId: auth.user.id,
@@ -2809,6 +2813,26 @@ export async function handleApiRequest(req, res, customDb = null) {
         meta: { noteId },
       });
       return json(res, 201, { file: saved, noteId });
+    }
+
+    // ── COFRE DO CONSULTÓRIO: migração de registros antigos para a versão cifrada ──
+    if (method === 'POST' && pathname === '/api/v1/minne/vault/seal-version') {
+      await requireProfessional(db, auth, { product: 'minne', write: true, clinical: true });
+      const body = await readJsonBody(req);
+      return json(res, 200, await sealVersion(db, auth, { noteId: String(body.noteId || ''), versionId: String(body.versionId || ''), blocks: body.blocks }));
+    }
+    if (method === 'POST' && pathname === '/api/v1/minne/vault/seal-attachment') {
+      await requireProfessional(db, auth, { product: 'minne', write: true, clinical: true });
+      const body = await readJsonBody(req);
+      return json(res, 200, await sealAttachment(db, auth, { noteId: String(body.noteId || ''), fileId: String(body.fileId || ''), originalName: String(body.originalName || ''), contentBase64: body.contentBase64 }));
+    }
+    if (method === 'GET' && pathname === '/api/v1/minne/vault/import-originals') {
+      await requireProfessional(db, auth, { product: 'minne', write: false, clinical: true });
+      return json(res, 200, await listImportOriginals(db, auth));
+    }
+    if (method === 'POST' && pathname === '/api/v1/minne/vault/purge-import-residue') {
+      await requireProfessional(db, auth, { product: 'minne', write: true, clinical: true });
+      return json(res, 200, await purgeImportResidue(db, auth));
     }
 
     // ── MINNE 6-MODE IMPORT ENGINE ────────────────────────────────────
@@ -2837,6 +2861,7 @@ export async function handleApiRequest(req, res, customDb = null) {
 
     if (method === 'POST' && pathname === '/api/v1/minne/imports/stage') {
       await requireProfessional(db, auth, { product: 'minne', write: true, clinical: true });
+      await assertServerImportAllowed(db, auth.account.id);
       const body = await readJsonBody(req);
       const files = (Array.isArray(body.files) ? body.files : []).map((f) => ({
         originalName: String(f.originalName || 'arquivo'),
@@ -2870,6 +2895,7 @@ export async function handleApiRequest(req, res, customDb = null) {
     const impItemMatch = pathname.match(/^\/api\/v1\/minne\/imports\/([^/]+)\/items\/([^/]+)$/);
     if (method === 'PATCH' && impItemMatch) {
       await requireProfessional(db, auth, { product: 'minne', write: true, clinical: true });
+      await assertServerImportAllowed(db, auth.account.id);
       const body = await readJsonBody(req);
       const batch = await resolveImportItem(db, {
         accountId: auth.account.id,
@@ -2890,6 +2916,7 @@ export async function handleApiRequest(req, res, customDb = null) {
       await requireProfessional(db, auth, { product: 'minne', write: true, clinical: true });
       const [, batchId, action] = impActionMatch;
       const body = await readJsonBody(req);
+      if (action === 'commit') await assertServerImportAllowed(db, auth.account.id);
       if (action === 'commit') {
         const resData = await commitImportBatch(db, {
           accountId: auth.account.id,
