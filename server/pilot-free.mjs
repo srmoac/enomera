@@ -10,8 +10,8 @@ export const PILOT_FREE_KINDS = ['tester', 'self_test'];
 // piloto até 31/01/2027; o resto do público segue com as 2 semanas grátis da oferta.
 export const EXCLUSIVE_FREE_DAYS = 30;
 export const EXCLUSIVE_INVITES = [
-  { id: 'inv_exclusivo_1', kind: 'tester', label: 'Convidado exclusivo 1', hash: 'a82782272fab8c95e43eae260c4ba1a0bc24b4eed0a61d39bd2566b1ef9e7f7d' },
-  { id: 'inv_exclusivo_2', kind: 'tester', label: 'Convidado exclusivo 2', hash: '4db468c13b3f8d59036b10f2c4fdd79289ff3594dc5e559703d10a871a329ca8' },
+  { id: 'inv_exclusivo_1', kind: 'tester', label: 'Jessica (psicanalista)', hash: 'a82782272fab8c95e43eae260c4ba1a0bc24b4eed0a61d39bd2566b1ef9e7f7d' },
+  { id: 'inv_exclusivo_2', kind: 'tester', label: 'Felipe (psiquiatra)', hash: '4db468c13b3f8d59036b10f2c4fdd79289ff3594dc5e559703d10a871a329ca8' },
 ];
 export const EXCLUSIVE_INVITE_IDS = EXCLUSIVE_INVITES.map((i) => i.id);
 const fmtBr = (iso) => new Date(iso).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: 'long', year: 'numeric' });
